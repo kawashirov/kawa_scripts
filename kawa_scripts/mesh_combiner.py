@@ -1431,7 +1431,107 @@ class KawaMeshCombiner:
 			))
 		return transforms
 	
-	def atlas_bake(self, proc_objects: 'Iterable[ProcessingObjectSetup]'):
+	def atlas_bake_optimized(self, transforms: 'Sequence[UVBoxTransform]'):
+		UV_ORIGINAL, UV_ATLAS = "UV-Original", "UV-Atlas"
+		stamp = str(round(time.time()))
+		
+		ensure_deselect_all_objects()
+		
+		mesh = bpy.data.meshes.new("__Kawa_Bake_UV_Mesh")  # type: bpy.types.Mesh
+		
+		# Создаем столько полигонов, сколько трансформов
+		bm = bmesh.new()
+		try:
+			for _ in range(len(transforms)):
+				v0, v1, v2, v3 = bm.verts.new(), bm.verts.new(), bm.verts.new(), bm.verts.new()
+				bm.faces.new((v0, v1, v2, v3))
+			bm.to_mesh(mesh)
+		finally:
+			bm.free()
+		# Создаем слои для преобразований
+		mesh.uv_textures.new(name=UV_ORIGINAL)
+		mesh.uv_textures.new(name=UV_ATLAS)
+		# Подключаем используемые материалы
+		materials = set(t.attachment.material.material for t in transforms)
+		mesh.materials.clear()
+		for mat in materials:
+			mesh.materials.append(mat)
+		mat2idx = {m: i for i, m in enumerate(mesh.materials)}
+		# Прописываем в полигоны координаты и мтаериалы
+		uvl_original = mesh.uv_layers[UV_ORIGINAL]  # type: bpy.types.MeshUVLoopLayer
+		uvl_atlas = mesh.uv_layers[UV_ATLAS]  # type: bpy.types.MeshUVLoopLayer
+		uvd_original, uvd_atlas = uvl_original.data, uvl_atlas.data
+		for poly_idx, t in enumerate(transforms):
+			poly = mesh.polygons[poly_idx]
+			if len(poly.loop_indices) != 4:
+				raise AssertionError("len(poly.loop_indices) != 4", mesh, poly_idx, poly, len(poly.loop_indices))
+			if len(poly.vertices) != 4:
+				raise AssertionError("len(poly.vertices) != 4", mesh, poly_idx, poly, len(poly.vertices))
+			corners = (
+				(0, (t.ax, t.ay), (t.bx, t.by)),  # vert 0: left, bottom
+				(1, (t.ax + t.aw, t.ay), (t.bx + t.bw, t.by)),  # vert 1: right, bottom
+				(2, (t.ax + t.aw, t.ay + t.ah), (t.bx + t.bw, t.by + t.bh)),  # vert 2: right, up
+				(3, (t.ax, t.ay + t.ah), (t.bx, t.by + t.bh)),  # vert 3: left, up
+			)
+			for vert_idx, uv_a, uv_b in corners:
+				mesh.vertices[poly.vertices[vert_idx]].co.xy = uv_b
+				uvd_original[poly.loop_indices[vert_idx]].uv = uv_a
+				uvd_atlas[poly.loop_indices[vert_idx]].uv = uv_b
+			poly.material_index = mat2idx[t.attachment.material.material]
+		
+		# Вставляем меш на сцену
+		obj = bpy.data.objects.new("__Kawa_Bake_UV_Object", mesh)  # add a new object using the mesh
+		bpy.context.scene.objects.link(obj)
+		bpy.context.scene.objects.active = obj
+		bpy.context.scene.objects.active.select = True
+		
+		if len(mesh.polygons) != len(transforms):
+			raise AssertionError("len(mesh.polygons) != len(transforms)", mesh, len(mesh.polygons), len(transforms))
+		for atex_setup in self.prepare_all_atlas_textures().values():
+			atex_image = None
+			try:
+				atex_image = atex_setup.prepare_image()
+				
+				obj = bpy.context.scene.objects.active
+				obj.hide = False
+				obj.hide_render = False
+				for layer in get_mesh_safe(obj).uv_textures:  # type: bpy.types.MeshTexturePolyLayer
+					layer.active = layer.name == UV_ATLAS
+					layer.active_render = layer.name == UV_ORIGINAL
+					layer.active_clone = False
+					for data in layer.data:  # type: bpy.types.MeshTexturePoly
+						data.image = atex_image
+				
+				# Bl. R.
+				bpy.context.scene.render.bake_type = atex_setup.type
+				bpy.context.scene.render.bake_margin = 64 if not self.fast_mode else 2
+				bpy.context.scene.render.bake_aa_mode = '5'
+				bpy.context.scene.render.use_bake_clear = True
+				bpy.context.scene.render.antialiasing_samples = '5'
+				log.info(
+					"Trying to bake atlas Texture='%s' type='%s' size=%s from %d transforms...",
+					atex_image.name, atex_setup.type, tuple(atex_image.size), len(transforms)
+				)
+				# raise RuntimeError("Debug Boop!")
+				bake_start = time.perf_counter()
+				ensure_op_finished(bpy.ops.object.bake_image())
+				# ensure_op_finished(bpy.ops.object.bake(type='DIFFUSE', pass_filter={'COLOR'}, margin=64, use_clear=True))
+				bake_time = time.perf_counter() - bake_start
+				log.info("Baked atlas Texture='%s' type='%s', time spent: %f sec.", atex_image.name, atex_setup.type, bake_time)
+				save_path = bpy.path.abspath('//' + stamp + "_" + atex_image.name + ".png")
+				log.info("Saving Texture='%s' type='%s' as '%s'...", atex_image.name, atex_setup.type, save_path)
+				atex_image.save_render(save_path)
+				log.info("Saved Texture='%s' type='%s' as '%s'...", atex_image.name, atex_setup.type, save_path)
+			except Exception as exc:
+				raise RuntimeError("Error bake!", atex_image.name, atex_setup.type, atex_image, bpy.context.scene.objects.active) from exc
+
+		if bpy.context.scene.objects.active is not None:
+			bpy.context.blend_data.meshes.remove(get_mesh_safe(bpy.context.scene.objects.active), do_unlink=True)
+		if bpy.context.scene.objects.active is not None:
+			bpy.context.blend_data.objects.remove(bpy.context.scene.objects.active, do_unlink=True)
+		ensure_deselect_all_objects()
+	
+	def atlas_bake_legacy(self, proc_objects: 'Iterable[ProcessingObjectSetup]'):
 		stamp = str(round(time.time()))
 		for atex_type, atex_setup in self.prepare_all_atlas_textures().items():
 			log.info("Preparing to bake atlas type='%s'...", atex_setup.type)
@@ -1603,7 +1703,8 @@ class KawaMeshCombiner:
 			log.info('Transformed UV loops: %d', transformed)
 			
 			print('Baking Atlas...')
-			self.atlas_bake(proc_main)
+			# self.atlas_bake_legacy(proc_main)
+			self.atlas_bake_optimized(transforms)
 			
 			log.info("Re-assigning materials...")
 			for pobj_setup in proc_main: pobj_setup.reassign_material()
