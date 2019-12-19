@@ -8,8 +8,8 @@
 #
 #
 
-from .commons import *
-from .mesh_combiner import *
+# from .commons import *
+# from .mesh_combiner import *
 
 bl_info = {
 	"name": "Kawashirov's Scripts",
