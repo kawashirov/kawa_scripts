@@ -9,8 +9,6 @@ if typing.TYPE_CHECKING:
 	from typing import *
 
 log = logging.getLogger('kawa.collider_combiner')
-logging.basicConfig(level=logging.INFO, format='%(asctime)-15s %(levelname)8s %(layer_name)s %(message)s')
-
 
 def combinde_colliders_raw(**kwargs):
 	raw_original = kwargs.get('original')
@@ -49,24 +47,24 @@ def combinde_colliders_raw(**kwargs):
 def combinde_colliders_bpy(originals: 'Iterable[bpy.types.Object]', target: 'bpy.types.Object', material: 'bpy.types.Material'):
 	dobjs = set()
 	for oobj in originals:
-		oobj.hide = False
+		oobj.hide_set(False)
 		oobj.hide_select = False
 		ensure_deselect_all_objects()
-		oobj.select = True
+		oobj.select_set(True)
 		ensure_selected_single(oobj)
 		ensure_op_finished(bpy.ops.object.duplicate(), name='bpy.ops.object.duplicate')
 		ensure_selected_single(None, oobj)
 		dobj = bpy.context.selected_objects[0]
-		dobj.hide = False  # Необходимо, т.к. некоторые операторы не работают на скрытых объектах
+		dobj.hide_set(False)  # Необходимо, т.к. некоторые операторы не работают на скрытых объектах
 		apply_all_modifiers(dobj)
 		remove_all_material_slots(dobj)
 		dobjs.add(dobj)
 	
 	ensure_deselect_all_objects()
-	target.hide = False
+	target.hide_set(False)
 	target.hide_select = False
-	target.select = True
-	bpy.context.scene.objects.active = target
+	target.select_set(True)
+	bpy.context.view_layer.objects.active = target
 	remove_all_geometry(target)
 	remove_all_shape_keys(target)
 	remove_all_uv_layers(target)
@@ -78,8 +76,8 @@ def combinde_colliders_bpy(originals: 'Iterable[bpy.types.Object]', target: 'bpy
 	else:
 		remove_all_material_slots(target)
 	
-	target.select = True
-	bpy.context.scene.objects.active = target
+	target.select_set(True)
+	bpy.context.view_layer.objects.active = target
 	for dobj in dobjs:
-		dobj.select = True
+		dobj.select_set(True)
 	ensure_op_finished(bpy.ops.object.join(), name="bpy.ops.object.join")

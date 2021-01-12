@@ -22,7 +22,6 @@ if typing.TYPE_CHECKING:
 	UVLayerIndex = Union[str, bool, None]  # valid string (layer layer_name) or False (ignore) or None (undefined)
 
 log = logging.getLogger('kawa.commons')
-logging.basicConfig(level=logging.INFO, format='%(asctime)-15s %(levelname)8s %(layer_name)s %(message)s')
 
 
 class ConfigurationError(RuntimeError):
@@ -109,7 +108,7 @@ def ensure_deselect_all_objects():
 	# ensure_op_finished(bpy.ops.object.select_all(action='DESELECT'), name="bpy.ops.object.select_all(action='DESELECT')")
 	# Это быстрее, чем оператор, и позволяет отжать скрытые объекты
 	while len(bpy.context.selected_objects) > 0:
-		bpy.context.selected_objects[0].select = False
+		bpy.context.selected_objects[0].select_set(False)
 
 
 def ensure_selected_single(selected_object, *args):
@@ -130,13 +129,14 @@ def repack_lightmap_uv(
 ):
 	try:
 		ensure_deselect_all_objects()
-		obj.hide, obj.hide_select, obj.hide_render = False, False, False
-		obj.select = True
-		bpy.context.scene.objects.active = obj
+		obj.hide_select, obj.hide_render = False, False
+		obj.hide_set(False)
+		obj.select_set(True)
+		bpy.context.view_layer.objects.active = obj
 		tobj_mesh = get_mesh_safe(obj)
-		uv1_target = tobj_mesh.uv_textures.get(uv_name)  # type: bpy.types.MeshTexturePolyLayer
+		uv1_target = tobj_mesh.uv_layers.get(uv_name)  # type: bpy.types.MeshTexturePolyLayer
 		if uv1_target is None:
-			log.warning("Target Object=%s does not have target uv1: %s, %s", obj.name, uv_name, tobj_mesh.uv_textures.keys())
+			log.warning("Target Object=%s does not have target uv1: %s, %s", obj.name, uv_name, tobj_mesh.uv_layers.keys())
 			return
 		uv1_target.active = True
 		try:
@@ -186,13 +186,13 @@ def remove_all_geometry(obj: 'bpy.types.Object'):
 
 
 def apply_all_modifiers(obj: 'bpy.types.Object'):
-	prev_active = bpy.context.scene.objects.active
+	prev_active = bpy.context.view_layer.objects.active
 	while len(obj.modifiers) > 0:
 		modifier = next(iter(obj.modifiers))
 		log.info("Applying Modifier='%s' on Object='%s'", modifier.name, obj.name)
-		bpy.context.scene.objects.active = obj
+		bpy.context.view_layer.objects.active = obj
 		bpy.ops.object.modifier_apply(modifier=modifier.name)
-	bpy.context.scene.objects.active = prev_active
+	bpy.context.view_layer.objects.active = prev_active
 
 
 def remove_all_shape_keys(obj: 'bpy.types.Object'):
@@ -205,8 +205,8 @@ def remove_all_shape_keys(obj: 'bpy.types.Object'):
 
 def remove_all_uv_layers(obj: 'bpy.types.Object'):
 	mesh = get_mesh_safe(obj)
-	while len(mesh.uv_textures) > 0:
-		mesh.uv_textures.remove(mesh.uv_textures[0])
+	while len(mesh.uv_layers) > 0:
+		mesh.uv_layers.remove(mesh.uv_layers[0])
 
 
 def remove_all_vertex_colors(obj: 'bpy.types.Object'):
@@ -217,7 +217,7 @@ def remove_all_vertex_colors(obj: 'bpy.types.Object'):
 
 def remove_all_material_slots(obj: 'bpy.types.Object', slots=0):
 	while len(obj.material_slots) > slots:
-		bpy.context.scene.objects.active = obj
+		bpy.context.view_layer.objects.active = obj
 		ensure_op_finished(bpy.ops.object.material_slot_remove(), name='bpy.ops.object.material_slot_remove')
 
 
@@ -230,16 +230,16 @@ def remove_uv_layer_by_condition(
 		# Удаление таким нелепым образом, потому что после вызова remove()
 		# все MeshTexturePolyLayer взятые из uv_textures становтся сломанными и крешат скрипт
 		# По этому, после удаления обход начинается заново, до тех пор, пока не кончатся объекты к удалению
-		# Блендер сосёт жопу
+		# TODO Проверить баг в 2.83
 		to_delete_name = None
 		to_delete = None
-		for uv_layer_name, uv_layer in mesh.uv_textures.items():
+		for uv_layer_name, uv_layer in mesh.uv_layers.items():
 			if func_should_delete(uv_layer_name, uv_layer):
 				to_delete_name, to_delete = uv_layer_name, uv_layer
 				break
 		if to_delete is None: return
 		if func_on_delete is not None: func_on_delete(to_delete_name, to_delete)
-		mesh.uv_textures.remove(to_delete)
+		mesh.uv_layers.remove(to_delete)
 
 
 def find_objects_with_material(material: 'bpy.types.Material', where: 'Iterable[bpy.types.Object]' = None) -> 'Set[bpy.types.Object]':

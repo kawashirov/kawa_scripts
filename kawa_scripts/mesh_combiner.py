@@ -38,8 +38,6 @@ if typing.TYPE_CHECKING:
 	UVLayerIndex = Union[str, bool, None]  # valid string (layer layer_name) or False (ignore) or None (undefined)
 
 log = logging.getLogger('kawa.mesh_combiner')
-logging.basicConfig(level=logging.INFO, format='%(asctime)-15s %(levelname)8s %(layer_name)s %(message)s')
-
 
 # Вспомогательные функции
 
@@ -49,9 +47,9 @@ def find_uv_layer(
 	# Находит UV слой с указанным именем, а если такого нет, то первый, котоырй не указан в exclude:
 	if not is_valid_string(layer_name):
 		raise ValueError("find_uv_layer: mesh, layer_name, exclude:", mesh, layer_name, exclude)
-	uv_layer = mesh.uv_textures.get(layer_name)  # type: Optional[bpy.types.MeshTexturePolyLayer]
+	uv_layer = mesh.uv_layers.get(layer_name)  # type: Optional[bpy.types.MeshTexturePolyLayer]
 	if uv_layer is None:
-		for layer in mesh.uv_textures:  # type: bpy.types.MeshTexturePolyLayer
+		for layer in mesh.uv_layers:  # type: bpy.types.MeshTexturePolyLayer
 			if layer not in exclude:
 				uv_layer = layer
 				break
@@ -138,15 +136,16 @@ class OriginalMaterialSetup:
 	def __repr__(self) -> str: return common_str_slots(self, self.__slots__, ('parent',))
 	
 	def find_tex_size(self) -> 'Optional[SizeFloat]':
+		# Расчёт среднего размера текстуры 
 		tex_sz_x, tex_sz_y, tex_count = 0, 0, 0
-		if self.material.texture_slots is not None:
-			for slot in self.material.texture_slots:
-				if slot is None or not slot.use: continue
-				if isinstance(slot.texture, bpy.types.ImageTexture):
-					image = slot.texture.image  # type: bpy.types.Image
-					tex_sz_x += image.size[0]
-					tex_sz_y += image.size[1]
-					tex_count += 1
+		node_tree = self.material.node_tree
+		if node_tree is not None and node_tree.nodes is not None:
+			for node in node_tree.nodes:
+				if node is None or node.type != 'TEX_IMAGE': continue
+				image = node.image  # type: bpy.types.Image
+				tex_sz_x += image.size[0]
+				tex_sz_y += image.size[1]
+				tex_count += 1
 		return (float(tex_sz_x) / tex_count, float(tex_sz_y) / tex_count) if tex_count > 0 and tex_sz_x > 0 and tex_sz_y > 0 else None
 	
 	def get_atlas_material_name(self) -> 'str':
@@ -213,7 +212,7 @@ class OriginalMaterialSetup:
 class AtlasTextureSetup:
 	# Описывает свойства и правила для текстуры, в которую будет запекаться результат
 	
-	SUPPORTED_TYPES = {'TEXTURE', 'EMIT', 'NORMALS', 'SPEC_INTENSITY', 'SPEC_COLOR'}
+	SUPPORTED_TYPES = {'DIFFUSE', 'EMIT', 'NORMAL' }
 	
 	L_TYPE = 'type'
 	L_SIZE = 'size'
@@ -289,7 +288,7 @@ class AtlasTextureSetup:
 			if image is None:
 				log.info("Creating new atlas image '%s'...", image_name)
 				image = bpy.context.blend_data.images.new(image_name, size[0], size[1], alpha=True, float_buffer=False)
-			image.colorspace_settings.name = 'Non-Color' if self.type is 'NORMALS' else 'sRGB'
+			image.colorspace_settings.name = 'Non-Color' if self.type is 'NORMAL' else 'sRGB'
 			self.image = image
 			return self.image
 		except Exception as exc:
@@ -307,17 +306,17 @@ class AtlasTextureSetup:
 		return new_slot
 	
 	def attach_to(self, tmat: 'bpy.types.Material'):
-		slot = self._get_or_create_slot(tmat)
-		slot.use_map_color_diffuse = self.type == 'TEXTURE'
-		slot.use_map_alpha = self.type == 'TEXTURE'
-		slot.use_map_emission = self.type == 'EMIT'
-		slot.use_map_normal = self.type == 'NORMALS'
-		slot.use_map_specular = self.type == 'SPEC_INTENSITY'
-		slot.use_map_color_spec = self.type == 'SPEC_COLOR'
-		slot.use_rgb_to_intensity = self.type == 'EMIT'
-		slot.blend_type = 'MULTIPLY'
-		if self.type == 'EMIT':
-			tmat.emit = 1
+		slot = None
+		if self.type == 'DIFFUSE':
+			slot = 'SLOT_ALBEDO'
+		elif self.type == 'NORMAL':
+			slot = 'SLOT_NORMAL'
+		elif self.type == 'EMIT':
+			slot = 'SLOT_EMISSION'
+		else:
+			log.warning('Slot type not found: %s %s', self.type, tmat)
+		n_albedo = tmat.node_tree.nodes.get(slot)
+		n_albedo.image = self.prepare_image()
 
 
 class AtlasMaterialSetup:
@@ -357,11 +356,45 @@ class AtlasMaterialSetup:
 				log.info("Target material='%s' does not exist, creating new one...", self.name)
 				tmat = bpy.context.blend_data.materials.new(self.name)
 			self.material = tmat
-			for slot_index in range(len(tmat.texture_slots)):
-				if tmat.texture_slots[slot_index] is not None:
-					tmat.texture_slots.clear(slot_index)
-			tmat.diffuse_intensity = 1
-			tmat.diffuse_color = (1, 1, 1)
+			
+			nodes = tmat.node_tree.nodes
+			links = tmat.node_tree.links
+			nodes.clear()
+			
+			n_out = nodes.new('ShaderNodeOutputMaterial')
+			n_out.location = (1000, 0)
+			n_shader = nodes.new('ShaderNodeBsdfPrincipled') 
+			n_shader.location = (800, 0)
+			links.new(n_shader.outputs['BSDF'], n_out.inputs['Surface'])
+			
+			n_uv = nodes.new('ShaderNodeUVMap')
+			n_uv.location = (0, 0)
+			
+			n_albedo = nodes.new('ShaderNodeTexImage')
+			n_albedo.location = (200, 300)
+			n_albedo.name = 'SLOT_ALBEDO'
+			n_albedo.label = 'SLOT_ALBEDO'
+			links.new(n_uv.outputs['UV'], n_albedo.inputs['Vector'])
+			links.new(n_albedo.outputs['Color'], n_shader.inputs['Base Color'])
+			links.new(n_albedo.outputs['Alpha'], n_shader.inputs['Alpha'])
+			
+			n_normal = nodes.new('ShaderNodeTexImage')
+			n_normal.location = (200, 0)
+			n_normal.name = 'SLOT_NORMAL'
+			n_normal.label = 'SLOT_NORMAL'
+			n_normalmap = nodes.new('ShaderNodeNormalMap')
+			n_normalmap.location = (400, 0)
+			links.new(n_uv.outputs['UV'], n_normal.inputs['Vector'])
+			links.new(n_normal.outputs['Color'], n_normalmap.inputs['Color'])
+			links.new(n_normalmap.outputs['Normal'], n_shader.inputs['Normal'])
+			
+			n_em = nodes.new('ShaderNodeTexImage')
+			n_em.location = (200, -300)
+			n_em.name = 'SLOT_EMISSION'
+			n_em.label = 'SLOT_EMISSION'
+			links.new(n_uv.outputs['UV'], n_em.inputs['Vector'])
+			links.new(n_em.outputs['Color'], n_shader.inputs['Emission'])
+
 			for atex_name, atex_setup in self.parent.prepare_all_atlas_textures().items():
 				atex_setup.attach_to(tmat)
 			return self.material
@@ -455,10 +488,10 @@ class ProcessingObjectSetup:
 		return self.get_material_bpy()
 	
 	def get_atlas_original_uv(self) -> 'bpy.types.MeshTexturePolyLayer':
-		return get_mesh_safe(self.object).uv_textures[self.parent.PROC_ORIGINAL_ATLAS_UV_NAME]
+		return get_mesh_safe(self.object).uv_layers[self.parent.PROC_ORIGINAL_ATLAS_UV_NAME]
 	
 	def get_atlas_target_uv(self) -> 'bpy.types.MeshTexturePolyLayer':
-		return get_mesh_safe(self.object).uv_textures[self.parent.PROC_TARGET_ATLAS_UV_NAME]
+		return get_mesh_safe(self.object).uv_layers[self.parent.PROC_TARGET_ATLAS_UV_NAME]
 	
 	def reassign_material(self):
 		# Заменяет original material на target material
@@ -1043,7 +1076,7 @@ class KawaMeshCombiner:
 				tobj = bpy.context.scene.objects.get(tobj_name)  # type: bpy.types.Object
 				if tobj is None:
 					raise ConfigurationError("Target object does not exist!", tobj_name)
-				tobj.hide = False  # Необходимо, т.к. некоторые операторы не работают на скрытых объектах
+				tobj.hide_set(False)  # Необходимо, т.к. некоторые операторы не работают на скрытых объектах
 				tobj_mesh = get_mesh_safe(tobj)
 				
 				# Очистка
@@ -1051,7 +1084,7 @@ class KawaMeshCombiner:
 				remove_all_shape_keys(tobj)
 				remove_all_uv_layers(tobj)
 				remove_all_vertex_colors(tobj)
-				tobj_mesh.materials.clear(update_data=True)  # Очистка Материалов
+				tobj_mesh.materials.clear()  # Очистка Материалов
 			except Exception as exc:
 				raise RuntimeError("Error preparing target object!", tobj_name) from exc
 	
@@ -1064,7 +1097,7 @@ class KawaMeshCombiner:
 			global_do_atlas = self.atlas_ignore is not True
 			global_do_lm = self.lm_ignore is not True
 			
-			bpy.context.scene.objects.active = pobj
+			bpy.context.view_layer.objects.active = pobj
 			pobj_setup = ProcessingObjectSetup(self, pobj, oobj_setup)
 			proc_all.append(pobj_setup)
 			pobj_mat = pobj_setup.get_material_bpy()  # test for Exception as well
@@ -1085,39 +1118,39 @@ class KawaMeshCombiner:
 			
 			if global_do_atlas:
 				uv0_original_name = oobj_setup.get_uv0_original()
-				if is_valid_string(uv0_original_name) and uv0_original_name in mesh.uv_textures.keys():
+				if is_valid_string(uv0_original_name) and uv0_original_name in mesh.uv_layers.keys():
 					# log.debug(
 					# 	"Using UV-Layer='%s' as Main (UV0) layer for Object='%s' Material='%s'",
-					# 	mesh.uv_textures[uv0_original_name].name, oobj.name, pobj_mat.name
+					# 	mesh.uv_layers[uv0_original_name].name, oobj.name, pobj_mat.name
 					# )
 					# Копия для цели
-					bpy.context.scene.objects.active = pobj
-					mesh.uv_textures[uv0_original_name].active = True
+					bpy.context.view_layer.objects.active = pobj
+					mesh.uv_layers[uv0_original_name].active = True
 					ensure_op_finished(bpy.ops.mesh.uv_texture_add(), name='bpy.ops.mesh.uv_texture_add')
-					mesh.uv_textures.active.name = KawaMeshCombiner.PROC_TARGET_ATLAS_UV_NAME
+					mesh.uv_layers.active.name = KawaMeshCombiner.PROC_TARGET_ATLAS_UV_NAME
 					# Копия для исходника
-					bpy.context.scene.objects.active = pobj
-					mesh.uv_textures[uv0_original_name].active = True
+					bpy.context.view_layer.objects.active = pobj
+					mesh.uv_layers[uv0_original_name].active = True
 					ensure_op_finished(bpy.ops.mesh.uv_texture_add(), name='bpy.ops.mesh.uv_texture_add')
-					mesh.uv_textures.active.name = KawaMeshCombiner.PROC_ORIGINAL_ATLAS_UV_NAME
+					mesh.uv_layers.active.name = KawaMeshCombiner.PROC_ORIGINAL_ATLAS_UV_NAME
 			
 			if global_do_lm:
 				uv1_original_name = oobj_setup.get_uv1_original()
-				if is_valid_string(uv1_original_name) and uv1_original_name in mesh.uv_textures.keys():
+				if is_valid_string(uv1_original_name) and uv1_original_name in mesh.uv_layers.keys():
 					# log.debug(
 					# 	"Using UV-Layer='%s' as Lightmap (UV1) layer for Object='%s' Material='%s'",
-					# 	mesh.uv_textures[uv1_original_name].name, oobj.name, pobj_mat.name
+					# 	mesh.uv_layers[uv1_original_name].name, oobj.name, pobj_mat.name
 					# )
 					# Копия для цели
-					bpy.context.scene.objects.active = pobj
-					mesh.uv_textures[uv1_original_name].active = True
+					bpy.context.view_layer.objects.active = pobj
+					mesh.uv_layers[uv1_original_name].active = True
 					ensure_op_finished(bpy.ops.mesh.uv_texture_add(), name='bpy.ops.mesh.uv_texture_add')
-					mesh.uv_textures.active.name = KawaMeshCombiner.PROC_TARGET_LM_UV_NAME
+					mesh.uv_layers.active.name = KawaMeshCombiner.PROC_TARGET_LM_UV_NAME
 					# Копия для исходника
-					bpy.context.scene.objects.active = pobj
-					mesh.uv_textures[uv1_original_name].active = True
+					bpy.context.view_layer.objects.active = pobj
+					mesh.uv_layers[uv1_original_name].active = True
 					ensure_op_finished(bpy.ops.mesh.uv_texture_add(), name='bpy.ops.mesh.uv_texture_add')
-					mesh.uv_textures.active.name = KawaMeshCombiner.PROC_ORIGINAL_LM_UV_NAME
+					mesh.uv_layers.active.name = KawaMeshCombiner.PROC_ORIGINAL_LM_UV_NAME
 			
 			if do_atlas:
 				proc_main.append(pobj_setup)
@@ -1153,12 +1186,12 @@ class KawaMeshCombiner:
 		oobj = oobj_setup.object
 		try:
 			# Мы никогда не трогаем оригиналы, так что создаем рабочую копиию
-			oobj.hide = False  # Необходимо, т.к. некоторые операторы не работают на скрытых объектах
+			oobj.hide_set(False)  # Необходимо, т.к. некоторые операторы не работают на скрытых объектах
 			ensure_deselect_all_objects()
-			oobj.select = True
-			bpy.context.scene.objects.active = oobj
+			oobj.select_set(True)
+			bpy.context.view_layer.objects.active = oobj
 			bpy.ops.object.duplicate(linked=False)
-			base_pobj = bpy.context.scene.objects.active
+			base_pobj = bpy.context.view_layer.objects.active
 			ensure_selected_single(base_pobj, dict(original=oobj))
 			deque.append(base_pobj)
 			new_objs.add(base_pobj)
@@ -1167,24 +1200,24 @@ class KawaMeshCombiner:
 			while len(deque) > 0:
 				tobj = deque.popleft()  # type: bpy.types.Object
 				try:
-					if tobj.dupli_type == 'GROUP' and tobj.dupli_group is not None:
+					if tobj.instance_type == 'COLLECTION' and tobj.instance_collection is not None:
 						# Обробатываемый объект - дупль-объект: преобразуем его в реальный и одно-пользовательский
 						ensure_deselect_all_objects()
-						tobj.select = True
-						bpy.context.scene.objects.active = tobj
+						tobj.select_set(True)
+						bpy.context.view_layer.objects.active = tobj
 						ensure_op_finished(bpy.ops.object.duplicates_make_real(
 							use_base_parent=True, use_hierarchy=True
 						), name='bpy.ops.object.duplicates_make_real', tobj=tobj.name)
-						tobj.select = False
+						tobj.select_set(False)
 						ensure_op_finished(bpy.ops.object.make_single_user(
-							type='SELECTED_OBJECTS', object=True, obdata=True, material=False, texture=False, animation=False
+							type='SELECTED_OBJECTS', object=True, obdata=True, material=False, animation=False
 						), name='bpy.ops.object.make_single_user', tobj=tobj.name)
 						for sobj in bpy.context.selected_objects:
 							# Все созданные объекты регистрируем
-							sobj.hide = False  # Необходимо
+							sobj.hide_set(False)  # Необходимо
 							deque.append(sobj)
 							new_objs.add(sobj)
-							sobj.select = False
+							sobj.select_set(False)
 							sobj[self.PROC_OBJECT_TAG] = True
 					elif isinstance(tobj.data, bpy.types.Mesh):
 						# Обрабатываемый объект - меш
@@ -1203,17 +1236,17 @@ class KawaMeshCombiner:
 						if len(tobj.material_slots) > 1:
 							# у меши более одного слота материала - нужно её порезать
 							ensure_deselect_all_objects()
-							tobj.select = True
-							bpy.context.scene.objects.active = tobj
+							tobj.select_set(True)
+							bpy.context.view_layer.objects.active = tobj
 							ensure_op_result(
 								bpy.ops.mesh.separate(type='MATERIAL'), ('FINISHED', 'CANCELLED'), name="bpy.ops.mesh.separate",
 							)
 							for sobj in bpy.context.selected_objects:
 								# Все созданные объекты регистрируем
-								sobj.hide = False  # Необходимо
+								sobj.hide_set(False)  # Необходимо
 								deque.append(sobj)
 								new_objs.add(sobj)
-								sobj.select = False
+								sobj.select_set(False)
 								sobj[self.PROC_OBJECT_TAG] = True
 						else:
 							# у меши однин слот материала - можно использовать
@@ -1290,7 +1323,11 @@ class KawaMeshCombiner:
 			if builder is None:
 				builder = IslandsBuilder()
 				builders[mat] = builder
-			uv_data = mesh.uv_layers.get(self.PROC_ORIGINAL_ATLAS_UV_NAME).data  # type: List[bpy.types.MeshUVLoop]
+			try:
+				uv_data = mesh.uv_layers.get(self.PROC_ORIGINAL_ATLAS_UV_NAME).data  # type: List[bpy.types.MeshUVLoop]
+			except Exception as exc:
+				# Времянка
+				raise RuntimeError("Error", obj, mesh, list(mesh.uv_layers), self.PROC_ORIGINAL_ATLAS_UV_NAME) from exc
 			epsilon = mat_setup.get_atlas_epsilon()
 			mat_size_x, mat_size_y = mat_setup.get_original_size()
 			polygons = list(mesh.polygons)
@@ -1430,6 +1467,24 @@ class KawaMeshCombiner:
 				ax, ay, aw, ah, mu_box[8], mu_box[9], mu_box[10], mu_box[11], attachment
 			))
 		return transforms
+		
+	def _get_or_ceate_node_for_baking(self, mat: 'bpy.types.Material') -> 'bpy.types.ShaderNodeTexImage':
+		# Cycles запекает в активный TEX_IMAGE
+		nodes = mat.node_tree.nodes
+		n_bake = nodes.get('__KAWA_BAKE')
+		if n_bake is not None and n_bake.type != 'TEX_IMAGE':
+			# Удаеление __KAWA_BAKE, если тот не ShaderNodeTexImage
+			nodes.remove(n_bake)
+			n_bake = None
+		if n_bake is None:
+			n_bake = nodes.new('ShaderNodeTexImage')
+			n_bake.name = '__KAWA_BAKE'
+			n_bake.label = '__KAWA_BAKE'
+		for node in nodes:
+			node.select = False
+		n_bake.select = True
+		nodes.active = n_bake
+		return n_bake
 	
 	def atlas_bake_optimized(self, transforms: 'Sequence[UVBoxTransform]'):
 		UV_ORIGINAL, UV_ATLAS = "UV-Original", "UV-Atlas"
@@ -1449,8 +1504,8 @@ class KawaMeshCombiner:
 		finally:
 			bm.free()
 		# Создаем слои для преобразований
-		mesh.uv_textures.new(name=UV_ORIGINAL)
-		mesh.uv_textures.new(name=UV_ATLAS)
+		mesh.uv_layers.new(name=UV_ORIGINAL)
+		mesh.uv_layers.new(name=UV_ATLAS)
 		# Подключаем используемые материалы
 		materials = set(t.attachment.material.material for t in transforms)
 		mesh.materials.clear()
@@ -1475,47 +1530,62 @@ class KawaMeshCombiner:
 			)
 			for vert_idx, uv_a, uv_b in corners:
 				mesh.vertices[poly.vertices[vert_idx]].co.xy = uv_b
+				mesh.vertices[poly.vertices[vert_idx]].co.z = poly_idx * 0.001
 				uvd_original[poly.loop_indices[vert_idx]].uv = uv_a
 				uvd_atlas[poly.loop_indices[vert_idx]].uv = uv_b
 			poly.material_index = mat2idx[t.attachment.material.material]
 		
 		# Вставляем меш на сцену
 		obj = bpy.data.objects.new("__Kawa_Bake_UV_Object", mesh)  # add a new object using the mesh
-		bpy.context.scene.objects.link(obj)
-		bpy.context.scene.objects.active = obj
-		bpy.context.scene.objects.active.select = True
+		bpy.context.scene.collection.objects.link(obj)
+		bpy.context.view_layer.objects.active = obj
+		bpy.context.view_layer.objects.active.select_set(True)
 		
 		if len(mesh.polygons) != len(transforms):
 			raise AssertionError("len(mesh.polygons) != len(transforms)", mesh, len(mesh.polygons), len(transforms))
+		
+		for mat in materials:
+			self._get_or_ceate_node_for_baking(mat)
+		
 		for atex_setup in self.prepare_all_atlas_textures().values():
 			atex_image = None
 			try:
 				atex_image = atex_setup.prepare_image()
 				
-				obj = bpy.context.scene.objects.active
-				obj.hide = False
+				obj = bpy.context.view_layer.objects.active
+				obj.hide_set(False)
 				obj.hide_render = False
-				for layer in get_mesh_safe(obj).uv_textures:  # type: bpy.types.MeshTexturePolyLayer
+				
+				for layer in get_mesh_safe(obj).uv_layers:  # type: bpy.types.MeshUVLoopLayer
 					layer.active = layer.name == UV_ATLAS
 					layer.active_render = layer.name == UV_ORIGINAL
 					layer.active_clone = False
-					for data in layer.data:  # type: bpy.types.MeshTexturePoly
-						data.image = atex_image
 				
-				# Bl. R.
-				bpy.context.scene.render.bake_type = atex_setup.type
-				bpy.context.scene.render.bake_margin = 64 if not self.fast_mode else 2
-				bpy.context.scene.render.bake_aa_mode = '5'
-				bpy.context.scene.render.use_bake_clear = True
-				bpy.context.scene.render.antialiasing_samples = '5'
+				# Подрубаем целевую картинку к нодам в материалах
+				for mat in materials:
+					# Cycles запекает в активный TEX_IMAGE
+					n_bake = self._get_or_ceate_node_for_baking(mat)
+					n_bake.image = atex_image
+				
+				bpy.context.scene.cycles.bake_type = atex_setup.type
+				bpy.context.scene.render.bake.use_pass_direct = False
+				bpy.context.scene.render.bake.use_pass_indirect = False
+				bpy.context.scene.render.bake.use_pass_color = True
+				bpy.context.scene.render.bake.use_pass_emit = atex_setup.type == 'EMIT'
+				bpy.context.scene.render.bake.normal_space = 'TANGENT'
+				bpy.context.scene.render.bake.margin = 64 if not self.fast_mode else 2
+				bpy.context.scene.render.bake.use_clear = True
+				
+				# bpy.context.scene.render.bake_aa_mode = '5' # Bl. R.
+				# bpy.context.scene.render.antialiasing_samples = '5' # Bl. R.
+				
 				log.info(
 					"Trying to bake atlas Texture='%s' type='%s' size=%s from %d transforms...",
 					atex_image.name, atex_setup.type, tuple(atex_image.size), len(transforms)
 				)
 				# raise RuntimeError("Debug Boop!")
 				bake_start = time.perf_counter()
-				ensure_op_finished(bpy.ops.object.bake_image())
-				# ensure_op_finished(bpy.ops.object.bake(type='DIFFUSE', pass_filter={'COLOR'}, margin=64, use_clear=True))
+				ensure_op_finished(bpy.ops.object.bake(type=atex_setup.type, use_clear=True))
 				bake_time = time.perf_counter() - bake_start
 				log.info("Baked atlas Texture='%s' type='%s', time spent: %f sec.", atex_image.name, atex_setup.type, bake_time)
 				save_path = bpy.path.abspath('//' + stamp + "_" + atex_image.name + ".png")
@@ -1523,12 +1593,12 @@ class KawaMeshCombiner:
 				atex_image.save_render(save_path)
 				log.info("Saved Texture='%s' type='%s' as '%s'...", atex_image.name, atex_setup.type, save_path)
 			except Exception as exc:
-				raise RuntimeError("Error bake!", atex_image.name, atex_setup.type, atex_image, bpy.context.scene.objects.active) from exc
+				raise RuntimeError("Error bake!", atex_image.name, atex_setup.type, atex_image, bpy.context.view_layer.objects.active) from exc
 
-		if bpy.context.scene.objects.active is not None:
-			bpy.context.blend_data.meshes.remove(get_mesh_safe(bpy.context.scene.objects.active), do_unlink=True)
-		if bpy.context.scene.objects.active is not None:
-			bpy.context.blend_data.objects.remove(bpy.context.scene.objects.active, do_unlink=True)
+		if bpy.context.view_layer.objects.active is not None:
+			bpy.context.blend_data.meshes.remove(get_mesh_safe(bpy.context.view_layer.objects.active), do_unlink=True)
+		if bpy.context.view_layer.objects.active is not None:
+			bpy.context.blend_data.objects.remove(bpy.context.view_layer.objects.active, do_unlink=True)
 		ensure_deselect_all_objects()
 	
 	def atlas_bake_legacy(self, proc_objects: 'Iterable[ProcessingObjectSetup]'):
@@ -1539,11 +1609,11 @@ class KawaMeshCombiner:
 			atex_image = atex_setup.prepare_image()
 			polys_assigns = 0
 			for pobj_setup in proc_objects:
-				pobj_setup.object.select = True
-				pobj_setup.object.hide = False
+				pobj_setup.object.select_set(True)
+				pobj_setup.object.hide_set(False)
 				pobj_setup.object.hide_render = False
-				# bpy.context.scene.objects.active = pobj_setup.object
-				for layer in get_mesh_safe(pobj_setup.object).uv_textures:  # type: bpy.types.MeshTexturePolyLayer
+				# bpy.context.view_layer.objects.active = pobj_setup.object
+				for layer in get_mesh_safe(pobj_setup.object).uv_layers:  # type: bpy.types.MeshTexturePolyLayer
 					layer.active = layer.name == self.PROC_TARGET_ATLAS_UV_NAME
 					layer.active_render = layer.name == self.PROC_ORIGINAL_ATLAS_UV_NAME
 					layer.active_clone = False
@@ -1590,17 +1660,18 @@ class KawaMeshCombiner:
 			tobj = bpy.context.scene.objects.get(tobj_name)  # type: bpy.types.Object
 			targets.add(tobj)
 			ensure_deselect_all_objects()
-			pobj.select = True
-			tobj.select = True
-			bpy.context.scene.objects.active = tobj
+			pobj.select_set(True)
+			tobj.select_set(True)
+			bpy.context.view_layer.objects.active = tobj
 			# log.debug("Combining: %s", str(list(obj.name for obj in bpy.context.selected_objects)))
 			ensure_op_finished(bpy.ops.object.join(), name="bpy.ops.object.join")
 		ensure_deselect_all_objects()
 		for tobj in targets:
 			try:
-				tobj.hide, tobj.hide_select, tobj.hide_render = False, False, False
-				tobj.select = True
-				bpy.context.scene.objects.active = tobj
+				tobj.hide_select, tobj.hide_render = False, False
+				tobj.hide_set(False)
+				tobj.select_set(True)
+				bpy.context.view_layer.objects.active = tobj
 				ensure_op_finished(bpy.ops.object.mode_set(mode='EDIT'), name="bpy.ops.object.mode_set")
 				bpy.context.tool_settings.mesh_select_mode = (False, True, False)  # Edge selection
 				ensure_op_finished(bpy.ops.mesh.select_all(action='DESELECT'), name="bpy.ops.mesh.select_all")
@@ -1634,11 +1705,11 @@ class KawaMeshCombiner:
 				
 				remove_uv_layer_by_condition(tmesh, should_remove, do_remove)
 				
-				uv_atlas_target = tmesh.uv_textures.get(self.PROC_TARGET_ATLAS_UV_NAME)
+				uv_atlas_target = tmesh.uv_layers.get(self.PROC_TARGET_ATLAS_UV_NAME)
 				if uv_atlas_target is not None:
 					uv_atlas_target.name = self.get_atlas_target_uv()
 					counter_rn += 1
-				uv_lm_target = tmesh.uv_textures.get(self.PROC_TARGET_LM_UV_NAME)
+				uv_lm_target = tmesh.uv_layers.get(self.PROC_TARGET_LM_UV_NAME)
 				if uv_lm_target is not None:
 					uv_lm_target.name = self.get_lm_target_uv()
 					counter_rn += 1
@@ -1723,21 +1794,21 @@ class KawaMeshCombiner:
 		
 		for new_obj in new_objs:
 			log.info("Unlinking temporary Object='%s'", new_obj.name)
-			bpy.context.scene.objects.unlink(new_obj)
+			bpy.context.scene.collection.objects.unlink(new_obj)
 		
 		for tobj in target_objects:
 			log.info("Updating UV1 in Target Object='%s'...", tobj.name)
 			tobj_mesh = get_mesh_safe(tobj)
-			uv1_target = tobj_mesh.uv_textures.get(self.PROC_TARGET_LM_UV_NAME)  # type: bpy.types.MeshTexturePolyLayer
+			uv1_target = tobj_mesh.uv_layers.get(self.PROC_TARGET_LM_UV_NAME)  # type: bpy.types.MeshTexturePolyLayer
 			if uv1_target is None:
-				log.info("Target Object='%s' does not have target uv1 (%s)", tobj.name, tobj_mesh.uv_textures.keys())
+				log.info("Target Object='%s' does not have target uv1 (%s)", tobj.name, tobj_mesh.uv_layers.keys())
 				continue
 			repack_lightmap_uv(tobj, self.PROC_TARGET_LM_UV_NAME, rotate=True, margin=0.003)
 		
 		self.rename_proc_uvs(target_objects)
 		
 		for oobj in self.original_objects.values():
-			oobj.object.hide = True
+			oobj.object.hide_set(True)
 			oobj.object.hide_render = True
 			oobj.object.hide_select = False
 		
