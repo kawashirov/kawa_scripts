@@ -8,8 +8,11 @@
 #
 #
 
-# from .commons import *
-# from .mesh_combiner import *
+import typing
+
+if typing.TYPE_CHECKING:
+	from typing import *
+	import logging, tempfile, subprocess
 
 bl_info = {
 	"name": "Kawashirov's Scripts",
@@ -17,14 +20,38 @@ bl_info = {
 	"description": "Kawashirov's Scripts for Unity and VRChat content creation",
 	"location": "There is no UI. Use it from scripts or console by `import kawa_scripts` (or whatever)",
 	"wiki_url": "",
-	"version": (0, 1),
-	"blender": (2, 79, 0),
+	"version": (0, 2),
+	"blender": (2, 83, 0),
 	"category": "Object",
 }
+
+log = None
+
+
+def reimport():
+	import importlib
+	from . import atlas_baker, combiner, commons, instantiator, shader_nodes, uv
+	for m in (atlas_baker, combiner, commons, instantiator, shader_nodes, uv):
+		importlib.reload(m)
 
 
 def register():
 	print("Hello from Kawashirov's Scripts!")
+	import logging
+	global log
+	log = logging.getLogger('kawa')
+	log.setLevel(logging.DEBUG)
+	if len(log.handlers) < 1:
+		import tempfile
+		print("Updating kawa_scripts log handler!")
+		log_file = tempfile.gettempdir() + '/kawa.log'
+		log_formatter = logging.Formatter(fmt='[%(asctime)s][%(levelname)s] %(message)s')
+		log_handler = logging.FileHandler(log_file, mode='w', encoding='utf-8', delay=False)
+		log_handler.setFormatter(log_formatter)
+		log.addHandler(log_handler)
+		log.info("Log handler updated!")
+	reimport()
+	log.info("Hello from Kawashirov's Scripts again!")
 
 
 def unregister():

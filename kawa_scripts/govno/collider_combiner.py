@@ -10,6 +10,7 @@ if typing.TYPE_CHECKING:
 
 log = logging.getLogger('kawa.collider_combiner')
 
+
 def combinde_colliders_raw(**kwargs):
 	raw_original = kwargs.get('original')
 	if not isinstance(raw_original, (set, list, tuple)):
