@@ -13,8 +13,10 @@ import typing
 import collections
 
 import bpy
+from mathutils import Vector, Quaternion
 
-from .commons import ensure_deselect_all_objects, select_set_all, activate_object, ensure_op_finished, Reporter
+from .commons import ensure_deselect_all_objects, select_set_all, activate_object,\
+	ensure_op_finished, LambdaReporter, identity_transform, move_children_to_grandparent
 
 if typing.TYPE_CHECKING:
 	from typing import *
@@ -46,6 +48,10 @@ class BaseMeshCombiner:
 		
 		self.default_group = 'Default'  # type: str
 
+	def before_group(self, root: 'str', children: 'Set[str]'):
+		# Функция, вызываемая перед группировкой детей.
+		pass
+	
 	def group_child(self, root: 'str', child: 'str') -> 'Union[None, str, bool]':
 		# Функция, которая говорит, как объединять меши.
 		# Аргументы:
@@ -118,7 +124,13 @@ class BaseMeshCombiner:
 				.format(len(related), pairs)
 			log.error(msg)
 			raise RuntimeError(msg, related)
-	
+
+	def _call_before_group(self, root_name: 'str', child_name: 'Set[str]'):
+		try:
+			self.before_group(root_name, child_name)
+		except Exception as exc:
+			raise RuntimeError(root_name, child_name) from exc
+
 	def _call_group_child(self, root_name: 'str', child_name: 'str') -> 'Union[False, None, str]':
 		group_name = None
 		try:
@@ -134,16 +146,18 @@ class BaseMeshCombiner:
 			raise RuntimeError(msg, root_name, child_name, group_name) from exc
 
 	def _join_objects(self, target: 'Object', children: 'Iterable[str]'):
-		log.info("Joining: %s <- %s", target.name, children)
+		# log.info("Joining: %s <- %s", target.name, children)
 		ensure_deselect_all_objects()
 		for child_name in children:
 			obj = bpy.data.objects[child_name]
 			obj.hide_set(False)
 			obj.select_set(True)
+			move_children_to_grandparent(obj)
 		activate_object(target)
 		ensure_op_finished(bpy.ops.object.join(), name='bpy.ops.object.join')
 		ensure_deselect_all_objects()
-		log.info("Joined: %s <- %s", target, children)
+		# log.info("Joined: %s <- %s", target, children)
+		pass
 	
 	def _call_before_join(self, root: 'str', join_to: 'str', group_name: 'Optional[str]', group_objs: 'Set[str]'):
 		try:
@@ -177,7 +191,7 @@ class BaseMeshCombiner:
 				continue
 			children.add(child_name)
 
-		log.info('%s %s', root_name, repr(children))
+		self._call_before_group(root_name, children)
 		
 		groups = dict()  # type: Dict[Optional[str], Set[str]]
 		for child_name in children:
@@ -190,7 +204,7 @@ class BaseMeshCombiner:
 				groups[group_name] = group
 			group.add(child_name)
 		
-		log.info('%s %s', root_name, repr(groups))
+		# log.info('%s %s', root_name, repr(groups))
 	
 		def create_mesh_obj(name):
 			new_mesh = bpy.data.meshes.new(name + '-Mesh')
@@ -218,16 +232,28 @@ class BaseMeshCombiner:
 					root_name = join_to.name  # Фактическое новое имя
 					self.created_objects.add(root_name)
 					join_to.parent = old_root.parent
+					join_to.parent_type = 'OBJECT'
+					join_to.location = old_root.location
+					join_to.rotation_mode = old_root.rotation_mode
+					join_to.rotation_axis_angle = old_root.rotation_axis_angle
+					join_to.rotation_euler = old_root.rotation_euler
+					join_to.rotation_quaternion = old_root.rotation_quaternion
+					join_to.scale = old_root.scale
 					for sub_child in old_root.children:  # type: Object
 						sub_child.parent = join_to
 				else:
 					# root - Это НЕ меш, создаём подгруппу.
 					join_to = create_mesh_obj(root_name + '-' + self.default_group)
-					join_to.parent = bpy.data.objects[root_name]
 					self.created_objects.add(join_to.name)
+					join_to.parent = bpy.data.objects[root_name]
+					join_to.parent_type = 'OBJECT'
+					identity_transform(join_to)
 			else:
 				join_to = create_mesh_obj(root_name + '-' + group_name)
+				self.created_objects.add(join_to.name)
 				join_to.parent = bpy.data.objects[root_name]
+				join_to.parent_type = 'OBJECT'
+				identity_transform(join_to)
 			self._call_before_join(root_name, join_to.name, group_name, obj_group)
 			self._join_objects(join_to, obj_group)
 			self._call_after_join(root_name, join_to.name, group_name)
@@ -238,12 +264,11 @@ class BaseMeshCombiner:
 		self._check_roots()
 		
 		obj_n, obj_i, joins = len(self.roots_names), 0, 0
-		
-		class RootsReporter(Reporter):
-			def do_report(self, time_passed):
-				log.info("Joining meshes: Roots=%d/%d, Joined=%d, Time=%f sec...", obj_i, obj_n, joins, time_passed)
-		
-		reporter = RootsReporter(self.report_time)
+		reporter = LambdaReporter(self.report_time)
+		reporter.func = lambda r, t: log.info(
+			"Joining meshes: Roots=%d/%d, Joined=%d, Time=%.1f sec, ETA=%.1f sec...",
+			obj_i, obj_n, joins, t, r.get_eta(1.0 * obj_i / obj_n)
+		)
 		
 		for root_name in self.roots_names:
 			joins += self._process_root(root_name)

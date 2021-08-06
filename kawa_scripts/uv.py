@@ -156,34 +156,3 @@ class IslandsBuilder:
 	
 	def get_extends(self):
 		return sum(bbox.extends for bbox in self.bboxes)
-
-
-class UVBoxTransform:
-	# Описывает преобразование UV, а так же хранит связанные полигоны
-	__slots__ = (
-		'ax', 'ay', 'aw', 'ah',
-		'bx', 'by', 'bw', 'bh',
-	)
-	
-	def __init__(self, ax, ay, aw, ah, bx, by, bw, bh):
-		self.ax, self.ay, self.aw, self.ah = ax, ay, aw, ah
-		self.bx, self.by, self.bw, self.bh = bx, by, bw, bh
-	
-	def __str__(self) -> str: return common_str_slots(self, self.__slots__)
-	
-	def __repr__(self) -> str: return common_str_slots(self, self.__slots__)
-	
-	def match_a(self, vec2: 'Vector', epsilon: 'Optional[float]' = None):
-		e = any_not_none(epsilon, 0)
-		return self.ax - e <= vec2.x <= self.ax + self.aw + e and self.ay - e <= vec2.y <= self.ay + self.ah + e
-	
-	def apply_vec2(self, vec2: 'Vector'):
-		uv = vec2.xy  # копирование
-		uv.x = (uv.x - self.ax) / self.aw if self.aw != 0 else 0.5
-		uv.y = (uv.y - self.ay) / self.ah if self.ah != 0 else 0.5
-		uv.x = uv.x * self.bw + self.bx
-		uv.y = uv.y * self.bh + self.by
-		return uv
-	
-	def get_area_a(self):
-		return self.aw * self.ah

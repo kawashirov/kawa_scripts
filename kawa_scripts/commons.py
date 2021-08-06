@@ -7,13 +7,13 @@
 # work.  If not, see <http://creativecommons.org/licenses/by-nc-sa/3.0/>.
 #
 #
-
+import collections
 import logging
 import typing
 import time
 
 import bpy
-from mathutils import Vector
+from mathutils import Vector, Quaternion, Matrix
 from mathutils.geometry import area_tri
 
 if typing.TYPE_CHECKING:
@@ -106,6 +106,46 @@ def is_none_or_valid_string(string: 'str') -> 'bool':
 	return string is None or (isinstance(string, str) and len(string) > 0)
 
 
+def identity_transform(obj: 'Object'):
+	obj.location = Vector.Fill(3, 0.0)
+	obj.rotation_mode = 'QUATERNION'
+	obj.rotation_quaternion = Quaternion()
+	obj.scale = Vector.Fill(3, 1.0)
+
+
+def copy_transform(from_obj: 'Object', to_obj: 'Object'):
+	to_obj.location = from_obj.location
+	to_obj.rotation_mode = from_obj.rotation_mode
+	to_obj.rotation_axis_angle = from_obj.rotation_axis_angle
+	to_obj.rotation_euler = from_obj.rotation_euler
+	to_obj.rotation_quaternion = from_obj.rotation_quaternion
+	to_obj.scale = from_obj.scale
+
+
+def move_children_to_grandparent(obj: 'Object'):
+	for child in obj.children:
+		set_parent_keep_world(child, obj.parent)
+
+
+def set_parent_keep_world(child: 'Object', parent: 'Object'):
+	m = child.matrix_world.copy()
+	child.parent = parent
+	child.parent_type = 'OBJECT'
+	child.matrix_parent_inverse = Matrix.Identity(4)
+	child.matrix_world = m
+
+
+def fix_matrix(obj: 'Object'):
+	identity = Matrix.Identity(4)
+	if obj.parent_type != 'OBJECT' or obj.matrix_parent_inverse == identity:
+		return False
+	mw = obj.matrix_world.copy()
+	obj.matrix_parent_inverse = identity
+	obj.parent_type = 'OBJECT'
+	obj.matrix_world = mw
+	return True
+
+
 def ensure_op_result(result: 'Iterable[str]', allowed_results: 'Iterable[str]', **kwargs):
 	if set(result) >= set(allowed_results):
 		raise RuntimeError('Operator has invalid result:', result, allowed_results, list(bpy.context.selected_objects), kwargs)
@@ -163,35 +203,50 @@ def ensure_selected_single(selected_object, *args):
 		)
 
 
-def repack_lightmap_uv(obj: 'Object', uv_name: 'str', rotate=None, margin=None):
+def repack_active_uv(
+		obj: 'Object', get_scale: 'Optional[Callable[[Material], float]]' = None,
+		rotate: 'bool' = None, margin: 'float' = 0.0
+):
+	e = ensure_op_finished
 	try:
 		ensure_deselect_all_objects()
-		obj.hide_select, obj.hide_render = False, False
-		obj.hide_set(False)
-		obj.select_set(True)
-		bpy.context.view_layer.objects.active = obj
-		tobj_mesh = get_mesh_safe(obj)
-		uv1_target = tobj_mesh.uv_layers.get(uv_name)  # type: MeshTexturePolyLayer
-		if uv1_target is None:
-			log.warning("Target Object=%s does not have target uv1: %s, %s", obj.name, uv_name, tobj_mesh.uv_layers.keys())
-			return
-		uv1_target.active = True
+		activate_object(obj)
+		# Перепаковка...
+		e(bpy.ops.object.mode_set_with_submode(mode='EDIT', mesh_select_mode={'FACE'}), name='object.mode_set_with_submode')
+		e(bpy.ops.mesh.reveal(select=True), name='mesh.reveal')
+		e(bpy.ops.mesh.select_all(action='SELECT'), name='mesh.select_all')
+		bpy.context.scene.tool_settings.use_uv_select_sync = True
+		area_type = bpy.context.area.type
 		try:
-			ensure_op_finished(bpy.ops.object.mode_set(mode='EDIT'), name="bpy.ops.object.mode_set")
-			bpy.context.tool_settings.mesh_select_mode = (True, True, True)  # all selection
-			ensure_op_finished(bpy.ops.mesh.reveal())
-			ensure_op_finished(bpy.ops.mesh.select_all(action='SELECT'))
-			ensure_op_finished(bpy.ops.uv.reveal())
-			ensure_op_finished(bpy.ops.uv.select_all(action='SELECT'))
-			ensure_op_finished(bpy.ops.uv.average_islands_scale())
-			kwargs_pack_islands = dict()
-			if rotate is not None: kwargs_pack_islands['rotate'] = rotate
-			if margin is not None: kwargs_pack_islands['margin'] = margin
-			ensure_op_finished(bpy.ops.uv.pack_islands(**kwargs_pack_islands))
+			bpy.context.area.type = 'IMAGE_EDITOR'
+			bpy.context.area.ui_type = 'UV'
+			e(bpy.ops.uv.reveal(select=True), name='uv.reveal')
+			e(bpy.ops.mesh.select_all(action='SELECT'), name='mesh.select_all')
+			e(bpy.ops.uv.select_all(action='SELECT'), name='uv.select_all')
+			e(bpy.ops.uv.average_islands_scale(), name='uv.average_islands_scale')
+			for index in range(len(obj.material_slots)):
+				scale = 1.0
+				if get_scale is not None:
+					scale = get_scale(obj.material_slots[index].material)
+				if scale <= 0 or scale == 1.0:
+					continue
+				bpy.context.scene.tool_settings.use_uv_select_sync = True
+				e(bpy.ops.mesh.select_all(action='DESELECT'), name='mesh.select_all', index=index)
+				e(bpy.ops.uv.select_all(action='DESELECT'), name='uv.select_all', index=index)
+				obj.active_material_index = index
+				if 'FINISHED' in bpy.ops.object.material_slot_select():
+					# Может быть не FINISHED если есть не использованые материалы
+					e(bpy.ops.uv.select_linked(), name='uv.select_linked', index=index)
+					e(bpy.ops.transform.resize(value=(scale, scale, scale)), name='transform.resize', value=scale, index=index)
+			e(bpy.ops.mesh.select_all(action='SELECT'), name='mesh.select_all')
+			e(bpy.ops.uv.select_all(action='SELECT'), name='uv.select_all')
+			e(bpy.ops.uv.pack_islands(rotate=rotate, margin=margin), name='uv.pack_islands')
+			e(bpy.ops.uv.select_all(action='DESELECT'), name='uv.select_all')
+			e(bpy.ops.mesh.select_all(action='DESELECT'), name='mesh.select_all')
 		finally:
-			ensure_op_finished(bpy.ops.object.mode_set(mode='OBJECT'), name="bpy.ops.object.mode_set")
-	except Exception as exec:
-		raise RuntimeError("Error repack_lightmap_uv", obj, uv_name, rotate, margin) from exec
+			bpy.context.area.type = area_type
+	finally:
+		e(bpy.ops.object.mode_set(mode='OBJECT'), name='object.mode_set')
 
 
 def any_not_none(*args):
@@ -309,38 +364,17 @@ def is_parent(parent_object: 'Object', child_object: 'Object') -> 'bool':
 	return False
 
 
-def find_all_child_objects(parent_object: 'Object', where: 'Iterable[Object]' = None) -> 'Set[Object]':
+def find_all_child_objects(parent_object: 'Object', where: 'Optional[Container[Object]]' = None) -> 'Set[Object]':
 	child_objects = set()
-	# TODO использовать .children
-	if where is None:
-		where = bpy.data.objects
-	for child_object in where:
-		if is_parent(parent_object, child_object):
-			child_objects.add(child_object)
+	deque = collections.deque()  # type: Deque[Object]
+	deque.append(parent_object)
+	while len(deque) > 0:
+		child_obj = deque.pop()
+		deque.extend(child_obj.children)
+		if where is not None and child_obj not in where:
+			continue
+		child_objects.add(child_obj)
 	return child_objects
-
-
-def find_tex_size(mat: 'Material') -> 'Optional[Tuple[float, float]]':
-	# Расчёт среднего размера текстур используемых материалом
-	# Поиск нодов ShaderNodeTexImage, в которые используются выходы и картинка подключена
-	tex_sz_x, tex_sz_y, tex_count = 0, 0, 0
-	node_tree = mat.node_tree
-	if node_tree is not None and node_tree.nodes is not None:
-		for node in node_tree.nodes:
-			if node is None or not isinstance(node, bpy.types.ShaderNodeTexImage) or node.image is None:
-				continue
-			is_used = False
-			# TODO пока что не чётко определяется использование
-			# надо сделать поиск нодов, которые привязаны к выходу и искать текстуры среди них
-			for output in node.outputs:
-				if output.is_linked:
-					is_used = True
-					break
-			if is_used:
-				tex_sz_x += node.image.size[0]
-				tex_sz_y += node.image.size[1]
-				tex_count += 1
-	return (float(tex_sz_x) / tex_count, float(tex_sz_y) / tex_count) if tex_count > 0 and tex_sz_x > 0 and tex_sz_y > 0 else None
 
 
 def merge_same_material_slots(obj: 'Object'):
@@ -377,14 +411,31 @@ def merge_same_material_slots(obj: 'Object'):
 	ensure_deselect_all_objects()
 
 
-class Reporter:
+_K = typing.TypeVar('_K')
+_V = typing.TypeVar('_V')
+
+
+def dict_get_or_add(_dict: 'Dict[_K,_V]', _key: 'Optional[_K]', _creator: 'Callable[[],_V]') -> '_V':
+	value = _dict.get(_key)
+	if value is None:
+		value = _creator()
+		_dict[_key] = value
+	return value
+
+
+class AbstractReporter:
 	def __init__(self, report_time=5.0):
 		self.report_time = report_time
 		self.time_begin = time.perf_counter()
 		self.time_progress = time.perf_counter()
 	
+	def get_eta(self, progress) -> 'float':
+		time_passed = self.time_progress - self.time_begin
+		time_total = time_passed / progress
+		return time_total - time_passed
+	
 	def do_report(self, time_passed):
-		raise NotImplementedError('message')
+		raise NotImplementedError('do_report')
 	
 	def ask_report(self, force=False):
 		now = time.perf_counter()
@@ -392,3 +443,12 @@ class Reporter:
 			return
 		self.time_progress = now
 		self.do_report(now - self.time_begin)
+
+
+class LambdaReporter(AbstractReporter):
+	def __init__(self, *args, **kwargs):
+		super().__init__(*args, **kwargs)
+		self.func = None  # type: Callable[[LambdaReporter, float], None]
+		
+	def do_report(self, time_passed):
+		self.func(self, time_passed)

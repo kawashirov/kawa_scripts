@@ -11,13 +11,13 @@
 import logging
 import typing
 import bpy
-import mathutils
+from mathutils import Vector
 
 from .commons import MaterialConfigurationError
 
 if typing.TYPE_CHECKING:
 	from typing import *
-	from bpy import *
+	from bpy.types import *
 	
 log = logging.getLogger('kawa.shader_nodes')
 
@@ -27,7 +27,7 @@ KAWA_BAKE_DEFAULT = 'KAWA_BAKE_DEFAULT'
 KAWA_BAKE_ALPHA = 'KAWA_BAKE_ALPHA'
 
 
-def get_shader_node_by_label(mat: 'bpy.types.Material', name: str, _type: type):
+def get_shader_node_by_label(mat: 'Material', name: str, _type: type):
 	nodes = mat.node_tree.nodes
 	sh_default = nodes.get(name)
 	if sh_default is not None and not isinstance(sh_default, _type):
@@ -43,7 +43,7 @@ def get_shader_node_by_label(mat: 'bpy.types.Material', name: str, _type: type):
 	return sh_default
 
 
-def get_socket_input_safe(socket: 'bpy.types.NodeSocket') -> 'Optional[bpy.types.NodeSocket]':
+def get_socket_input_safe(socket: 'NodeSocket') -> 'Optional[NodeSocket]':
 	# Возвращает выходной сокет, который подключено к node во входной сокет с именем name
 	# При этом ни node, ни входа, ни подключения может не быть
 	if socket is None or len(socket.links) != 1 or socket.links[0] is None:
@@ -51,13 +51,13 @@ def get_socket_input_safe(socket: 'bpy.types.NodeSocket') -> 'Optional[bpy.types
 	return socket.links[0].from_socket
 
 
-def get_socket_outputs_safe(socket: 'bpy.types.NodeSocket') -> 'List[bpy.types.NodeSocket]':
+def get_socket_outputs_safe(socket: 'NodeSocket') -> 'List[NodeSocket]':
 	# Возвращает выходной сокет, который подключено к node во входной сокет с именем name
 	# При этом ни node, ни входа, ни подключения может не быть
 	return [socket.to_socket for link in socket.links]
 
 
-def get_node_input_safe(node: 'bpy.types.Node', name: str) -> 'Optional[bpy.types.NodeSocket]':
+def get_node_input_safe(node: 'Node', name: str) -> 'Optional[NodeSocket]':
 	# Возвращает выходной сокет, который подключено к node во входной сокет с именем name
 	# При этом ни node, ни входа, ни подключения может не быть
 	if node is None or node.inputs is None:
@@ -65,7 +65,7 @@ def get_node_input_safe(node: 'bpy.types.Node', name: str) -> 'Optional[bpy.type
 	return get_socket_input_safe(node.inputs.get(name))
 
 
-def prepare_and_get_teximage_node(mat: 'bpy.types.Material', name: str) -> 'bpy.types.ShaderNodeTexImage':
+def prepare_and_get_teximage_node(mat: 'Material', name: str) -> 'ShaderNodeTexImage':
 	nodes = mat.node_tree.nodes
 	n_teximage = get_shader_node_by_label(mat, name, bpy.types.ShaderNodeTexImage)
 	if n_teximage is None:
@@ -75,13 +75,14 @@ def prepare_and_get_teximage_node(mat: 'bpy.types.Material', name: str) -> 'bpy.
 	return n_teximage
 
 
-def prepare_and_get_node_for_baking(mat: 'bpy.types.Material') -> 'bpy.types.ShaderNodeTexImage':
+def prepare_and_get_node_for_baking(mat: 'Material') -> 'ShaderNodeTexImage':
 	# Cycles запекает в активный TEX_IMAGE
 	# Возвращает или создает новый ShaderNodeTexImage
 	# Даёт ему имя KAWA_BAKE_TARGET
 	# Делает его выбраным и активным
 	nodes = mat.node_tree.nodes
 	n_bake = prepare_and_get_teximage_node(mat, KAWA_BAKE_TARGET)
+	n_bake.interpolation = 'Cubic'
 	for node in nodes:
 		node.select = False
 	n_bake.select = True
@@ -89,7 +90,7 @@ def prepare_and_get_node_for_baking(mat: 'bpy.types.Material') -> 'bpy.types.Sha
 	return n_bake
 
 
-def get_material_output(mat: 'bpy.types.Material') -> 'Optional[bpy.types.ShaderNodeOutputMaterial]':
+def get_material_output(mat: 'Material') -> 'Optional[ShaderNodeOutputMaterial]':
 	# Находит Material Output
 	nodes = mat.node_tree.nodes
 	outputs = [n for n in nodes if isinstance(n, bpy.types.ShaderNodeOutputMaterial)]
@@ -98,7 +99,7 @@ def get_material_output(mat: 'bpy.types.Material') -> 'Optional[bpy.types.Shader
 	return outputs[0]
 
 
-def get_material_output_socket(mat: 'bpy.types.Material') -> 'Optional[bpy.types.NodeSocket]':
+def get_material_output_socket(mat: 'Material') -> 'Optional[NodeSocket]':
 	# Находит Material Output
 	nodes = mat.node_tree.nodes
 	outputs = [n for n in nodes if isinstance(n, bpy.types.ShaderNodeOutputMaterial)]
@@ -107,7 +108,7 @@ def get_material_output_socket(mat: 'bpy.types.Material') -> 'Optional[bpy.types
 	return outputs[0].inputs.get('Surface')
 
 
-def get_material_output_surface(mat: 'bpy.types.Material') -> 'Optional[bpy.types.ShaderNode]':
+def get_material_output_surface(mat: 'Material') -> 'Optional[ShaderNode]':
 	# Находит node, который подключен как Surface Material Output
 	# Срёт ошибкой, если нету или несколько ShaderNodeOutputMaterial или там кривые связи
 	n_out = get_material_output_socket(mat)
@@ -119,7 +120,7 @@ def get_material_output_surface(mat: 'bpy.types.Material') -> 'Optional[bpy.type
 	return n_sh_s.node
 
 
-def prepare_and_get_default_shader_node(mat: 'bpy.types.Material') -> 'bpy.types.ShaderNode':
+def prepare_and_get_default_shader_node(mat: 'Material') -> 'ShaderNode':
 	# Находет ShaderNode с именем KAWA_BAKE_DEFAULT
 	# Если такого нет, то ищет с меткой KAWA_BAKE_DEFAULT
 	# Если такого нет, то пытается понять что подключено в Surface
@@ -135,7 +136,7 @@ def prepare_and_get_default_shader_node(mat: 'bpy.types.Material') -> 'bpy.types
 	return sh_default
 
 
-def prepare_and_get_alpha_shader_node(mat: 'bpy.types.Material'):
+def prepare_and_get_alpha_shader_node(mat: 'Material'):
 	# Находет ShaderNode с именем KAWA_BAKE_ALPHA
 	# Если такого нет, то ищет с меткой KAWA_BAKE_ALPHA
 	try:
@@ -149,7 +150,7 @@ def prepare_and_get_alpha_shader_node(mat: 'bpy.types.Material'):
 		sh_alpha_in = sh_alpha.inputs['Color']
 		if sh_default is not None:
 			# Если есть default шейдер, то размещаем новый над ним и пытаемся своровать 'Alpha'
-			sh_alpha.location = sh_default.location + mathutils.Vector((0, 200))
+			sh_alpha.location = sh_default.location + Vector((0, 200))
 			n_alpha = get_node_input_safe(sh_default, 'Alpha')
 			if n_alpha is not None and get_socket_input_safe(sh_alpha_in) is None:
 				# Если ничего не забинджено в ALPHA шедер, то подрубаем из DEFAULT
@@ -171,7 +172,7 @@ def prepare_and_get_alpha_shader_node(mat: 'bpy.types.Material'):
 	mat.node_tree.links.new(sh_alpha.outputs['Emission'], output_s)
 
 
-def configure_for_baking_default(mat: 'bpy.types.Material'):
+def configure_for_baking_default(mat: 'Material'):
 	# TODO broken
 	# Подключает default шейдер на выход материала
 	# Если не найден выход или DEFAULT, срёт ошибками

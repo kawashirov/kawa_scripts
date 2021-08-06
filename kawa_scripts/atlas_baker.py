@@ -7,7 +7,8 @@
 # work.  If not, see <http://creativecommons.org/licenses/by-nc-sa/3.0/>.
 #
 #
-
+import sys
+import gc
 import time
 import random
 import logging
@@ -20,8 +21,8 @@ from mathutils import Vector
 from mathutils.geometry import box_pack_2d
 
 from .commons import ensure_deselect_all_objects, ensure_op_finished, activate_object, \
-	merge_same_material_slots, get_mesh_safe, find_tex_size, Reporter
-from .uv import UVBoxTransform, IslandsBuilder, uv_area
+	merge_same_material_slots, get_mesh_safe, LambdaReporter, dict_get_or_add, common_str_slots
+from .uv import IslandsBuilder, uv_area
 from .shader_nodes import get_material_output, prepare_and_get_node_for_baking, get_node_input_safe
 
 if typing.TYPE_CHECKING:
@@ -31,14 +32,69 @@ if typing.TYPE_CHECKING:
 log = logging.getLogger('kawa.bake')
 
 
+class UVTransform:
+	__slots__ = ('material', 'origin_norm', 'padded_norm', 'packed_norm')
+	
+	def __init__(self):
+		# Хранить множество вариантов координат затратно по памяти,
+		# но удобно в отладке и избавляет от велосипедов
+		self.material = None  # type: Material
+		# Оригинальная uv в нормальных координатах и в пикселях текстуры
+		self.origin_norm = None  # type: Vector # len == 4
+		# self.origin_tex = None  # type: Vector # len == 4
+		# Оригинальная uv c отступами в нормальных и в пикселях текстуры
+		self.padded_norm = None  # type: Vector # len == 4
+		# self.padded_tex = None  # type: Vector # len == 4
+		# packed использует промежуточные координаты во время упаковки,
+		# использует нормализованные координаты после упаковки
+		self.packed_norm = None  # type: Vector # len == 4
+	
+	def __str__(self) -> str: return common_str_slots(self, self.__slots__)
+	
+	def __repr__(self) -> str: return common_str_slots(self, self.__slots__)
+	
+	def is_match(self, vec2_norm: 'Vector', epsilon_x: 'float' = 0, epsilon_y: 'float' = 0):
+		v = self.origin_norm
+		x1, x2 = v.x - epsilon_x, v.x + v.z + epsilon_x
+		y1, y2 = v.y - epsilon_y, v.y + v.w + epsilon_y
+		return x1 <= vec2_norm.x <= x2 and y1 <= vec2_norm.y <= y2
+	
+	@staticmethod
+	def _in_box(v2: 'Vector', box: 'Vector'):
+		# Координаты vec2 внутри box как 0..1
+		v2.x = (v2.x - box.x) / box.z
+		v2.y = (v2.y - box.y) / box.w
+		
+	@staticmethod
+	def _out_box(v2: 'Vector', box: 'Vector'):
+		# Координаты 0..1 внутри box вне его
+		v2.x = v2.x * box.z + box.x
+		v2.y = v2.y * box.w + box.y
+	
+	def apply(self, vec2_norm: 'Vector') -> 'Vector':
+		# Преобразование padded_norm -> packed_norm
+		uv = vec2_norm.xy  # копирование
+		self._in_box(uv, self.padded_norm)
+		self._out_box(uv, self.packed_norm)
+		return uv
+	
+	def iterate_corners(self) -> 'Generator[Tuple[int, Tuple[float, float]]]':
+		# Обходу углов: #, оригинальная UV, атласная UV
+		pd, pk = self.padded_norm, self.packed_norm
+		yield 0, (pd.x, pd.y), (pk.x, pk.y)  # vert 0: left, bottom
+		yield 1, (pd.x + pd.z, pd.y), (pk.x + pk.z, pk.y)  # vert 1: right, bottom
+		yield 2, (pd.x + pd.z, pd.y + pd.w), (pk.x + pk.z, pk.y + pk.w)  # vert 2: right, up
+		yield 3, (pd.x, pd.y + pd.w), (pk.x, pk.y + pk.w)  # vert 2: right, up
+
+
 class BaseAtlasBaker:
 	# Тип поиска островов, из чего делаются bboxы:
 	# - POLYGON - из каждого полигона
 	# - OBJECT - из кусков объектов
 	# Возможны доп. режимы в будущем
-	ISLAND_TYPES = {'POLYGON', 'OBJECT'}
+	ISLAND_TYPES = ('POLYGON', 'OBJECT')
 	
-	BAKE_TYPES = {'DIFFUSE', 'EMIT', 'NORMAL', 'ALPHA'}
+	BAKE_TYPES = ('DIFFUSE', 'ALPHA', 'EMIT', 'NORMAL', 'ROUGHNESS', 'METALLIC')
 	
 	# Имена UV на ._bake_obj
 	UV_ORIGINAL = "UV-Original"
@@ -66,17 +122,15 @@ class BaseAtlasBaker:
 		
 		self._materials = dict()  # type: Dict[Tuple[Object, Material], Material]
 		self._matsizes = dict()  # type: Dict[Material, Tuple[float, float]]
-		self._bake_types = dict()  # type: Dict[str, Image]
+		self._bake_types = list()  # type: List[Tuple[str, Image]]
 		# Объекты, скопированные для операций по поиску UV развёрток
 		self._copies = set()  # type: Set[Object]
 		# Группы объектов по материалам из ._copies
 		self._groups = dict()  # type: Dict[Material, Set[Object]]
 		# Острова UV найденые на материалах из ._groups
 		self._islands = dict()  # type: Dict[Material, IslandsBuilder]
-		# Острова UV, сконвертированые в формат, который понимает mathutils
-		self._mathutils_boxes = list()  # type: List[List[Union[float, Material]]]
 		# Преобразования, необходимые для получения нового UV для атласса
-		self._transforms = dict()  # type: Dict[Material, List[UVBoxTransform]]
+		self._transforms = dict()  # type: Dict[Material, List[UVTransform]]
 		# Вспомогательный объект, необходимый для запекания атласа
 		self._bake_obj = None  # type: Optional[Object]
 		self._node_editor_override = False
@@ -86,8 +140,7 @@ class BaseAtlasBaker:
 	def get_material_size(self, src_mat: 'Material') -> 'Optional[Tuple[float, float]]':
 		# Функция, которая будет возвращать средний размер тестур материала.
 		# Используется для определения размера текстуры на атласе
-		# Если не задано или возвращает None, то осуществляется попытка автоопределить размер
-		return None
+		raise NotImplementedError('get_material_size')
 	
 	def get_target_material(self, origin: 'Object', src_mat: 'Material') -> 'Material':
 		# Функция, которая будет говоорить, на какой материал следует заменить исходный материал,
@@ -128,10 +181,19 @@ class BaseAtlasBaker:
 		return origin_obj
 	
 	def _get_matsize_safe(self, mat: 'Material') -> 'Tuple[float, float]':
+		default_size = (16, 16)
 		size = None
 		try:
 			# TODO если размер текстуры не выявлен, нужно отрабатывать чётче
-			size = self.get_material_size(mat) or find_tex_size(mat) or (32, 32)
+			size = self.get_material_size(mat)
+			if not size:
+				size = default_size
+			if not isinstance(size, tuple) or len(size) != 2 or not isinstance(size[0], (int, float)) or not isinstance(size[1], (int, float)):
+				log.warning("Material %s have invalid material size: %s", mat, repr(size))
+				size = default_size
+			if size[0] <= 0 or size[1] <= 0:
+				log.warning("Material %s have invalid material size: %s", mat, repr(size))
+				size = default_size
 			return size
 		except Exception as exc:
 			msg = 'Can not get size of material {0}.'.format(mat)
@@ -184,7 +246,7 @@ class BaseAtlasBaker:
 			target_image = self._get_bake_image_safe(bake_type)
 			if target_image is None or target_image is False:
 				continue
-			self._bake_types[bake_type] = target_image
+			self._bake_types.append((bake_type, target_image))
 	
 	def _prepare_materials(self):
 		for obj in self.objects:
@@ -193,7 +255,7 @@ class BaseAtlasBaker:
 					log.warning("Empty material slot detected: %s", obj)
 					continue
 				tmat = self._get_target_material_safe(obj, slot.material)
-				if tmat is not None:
+				if isinstance(tmat, bpy.types.Material):
 					self._materials[(obj, slot.material)] = tmat
 		mats = set(x[1] for x in self._materials.keys())
 		log.info("Validating %d source materials...", len(mats))
@@ -205,10 +267,11 @@ class BaseAtlasBaker:
 		mat_i = 0
 		smats = set(x[1] for x in self._materials.keys())
 		
-		class MatSizeReporter(Reporter):
-			def do_report(self, time_passed):
-				log.info("Preparing material sizes, Materials=%d/%d, Time=%f sec...", mat_i, len(smats), time_passed)
-		reporter = MatSizeReporter(self.report_time)
+		reporter = LambdaReporter(self.report_time)
+		reporter.func = lambda r, t: log.info(
+			"Preparing material sizes, Materials=%d/%d, Time=%.1f sec, ETA=%.1f sec...",
+			mat_i, len(smats), t, r.get_eta(1.0 * mat_i / len(smats))
+		)
 		
 		for smat in smats:
 			self._matsizes[smat] = self._get_matsize_safe(smat)
@@ -302,26 +365,24 @@ class BaseAtlasBaker:
 	
 	def _find_islands(self):
 		mat_i, obj_i = 0, 0
-		copies_c = len(self._copies)
-		_self = self
 		
-		class FindIslandsReporter(Reporter):
-			def do_report(self, time_passed):
-				islands = sum(len(b.bboxes) for _, b in _self._islands.items())
-				log.info("Searching UV islands: Objects=%d/%d, Materials=%d/%d, Islands=%d, Time=%f sec...", obj_i, copies_c, mat_i,
-					len(_self._groups.keys()), islands, time_passed)
+		def do_report(r, t):
+			islands = sum(len(x.bboxes) for x in self._islands.values())
+			merges = sum(x.merges for x in self._islands.values())
+			log.info(
+				"Searching UV islands: Objects=%d/%d, Materials=%d/%d, Islands=%d, Merges=%d, Time=%.1f sec, ETA=%.1f sec...",
+				obj_i, len(self._copies), mat_i, len(self._groups), islands, merges, t, r.get_eta(1.0 * obj_i / len(self._copies))
+			)
 		
-		reporter = FindIslandsReporter(self.report_time)
+		reporter = LambdaReporter(self.report_time)
+		reporter.func = do_report
 		
 		log.info("Searching islands...")
 		# Поиск островов, наполнение self._islands
 		for mat, group in self._groups.items():
 			# log.info("Searching islands of material %s in %d objects...", mat.name, len(group))
 			mat_size_x, mat_size_y = self._matsizes.get(mat)
-			builder = self._islands.get(mat)
-			if builder is None:
-				builder = IslandsBuilder()
-				self._islands[mat] = builder
+			builder = dict_get_or_add(self._islands, mat, IslandsBuilder)
 			for obj in group:
 				origin = self._get_source_object(obj)
 				mesh = get_mesh_safe(obj)
@@ -366,11 +427,14 @@ class BaseAtlasBaker:
 			mat_i += 1
 			reporter.ask_report(False)
 		reporter.ask_report(True)
-		log.info("Done islands search.")
+		
 		# for mat, builder in self._islands.items():
 		# 	log.info("\tMaterial %s have %d islands:", mat, len(builder.bboxes))
 		# 	for bbox in builder.bboxes:
 		# 		log.info("\t\t%s", str(bbox))
+		# В процессе работы с остравами мы могли настрать много мусора,
+		# можно явно от него избавиться
+		gc.collect()
 		pass
 	
 	def _delete_groups(self):
@@ -387,78 +451,59 @@ class BaseAtlasBaker:
 			raise RuntimeError("len(bpy.context.selected_objects) > 0", list(bpy.context.selected_objects))
 		log.info("Removed %d temp objects.", count)
 	
-	def _islands_to_mathutils_boxes(self):
+	def _create_transforms_from_islands(self):
 		# Преобразует острава в боксы в формате mathutils.geometry.box_pack_2d
-		aspect_target = 1.0 * self.target_size[0] / self.target_size[1]
 		for mat, builder in self._islands.items():
 			for bbox in builder.bboxes:
 				if not bbox.is_valid():
 					raise ValueError("box is invalid: ", bbox, mat, builder, builder.bboxes)
-				scale_bbox = 1  # TODO
+				origin_w, origin_h = self._matsizes[mat]
+				t = UVTransform()
+				t.material = mat
 				# две точки -> одна точка + размер
 				x, w = bbox.mn.x, (bbox.mx.x - bbox.mn.x)
 				y, h = bbox.mn.y, (bbox.mx.y - bbox.mn.y)
+				# t.origin_tex = (x, y, w, h)
+				t.origin_norm = Vector((x / origin_w, y / origin_h, w / origin_w, h / origin_h))
 				# добавляем отступы
-				x, y = x - self.padding, y - self.padding,
-				w, h = w + 2 * self.padding, h + 2 * self.padding
-				# Для целевого квадарата - пропорция
-				bx, by = x * scale_bbox, y * scale_bbox
-				bw, bh = w * scale_bbox, h * scale_bbox
-				# Для целевого квадарата - корректировка соотнощения сторон
-				bx, bw = bx / aspect_target, bw / aspect_target
-				self._mathutils_boxes.append([
-					bx, by, bw, bh,  # 0:X, 1:Y, 2:W, 3:H - Перобразуемые box_pack_2d (далее) координаты (не нормализованные)
-					x, y, w, h,  # 4:X, 5:Y, 6:W, 7:H - Исходные координаты (не нормализованные)
-					mat,  # 8
-				])
+				xp, yp = x - self.padding, y - self.padding,
+				wp, hp = w + 2 * self.padding, h + 2 * self.padding
+				# meta.padded_tex = (xp, yp, wp, hp)
+				t.padded_norm = Vector((xp / origin_w, yp / origin_h, wp / origin_w, hp / origin_h))
+				# Координаты для упаковки
+				# Т.к. box_pack_2d пытается запаковать в квадрат, а у нас может быть текстура любой формы,
+				# то необходимо скорректировать пропорции
+				xb, yb = xp / self.target_size[0], yp / self.target_size[1]
+				wb, hb = wp / self.target_size[0], hp / self.target_size[1]
+				t.packed_norm = Vector((xb, yb, wb, hb))
+				metas = dict_get_or_add(self._transforms, mat, list)
+				metas.append(t)
 	
 	def _pack_islands(self):
 		# Несколько итераций перепаковки
 		# TODO вернуть систему с раундами
-		log.info("Atlas: Packing %d islands...", len(self._mathutils_boxes))
-		pack_x, pack_y = box_pack_2d(self._mathutils_boxes)
-		log.info("Atlas: Packed size: %f x %f", pack_x, pack_y)
-		random.shuffle(self._mathutils_boxes)
-		pack_x, pack_y = box_pack_2d(self._mathutils_boxes)
-		log.info("Atlas: Packed size: %f x %f", pack_x, pack_y)
-		random.shuffle(self._mathutils_boxes)
-		pack_x, pack_y = box_pack_2d(self._mathutils_boxes)
-		log.info("Atlas: Packed size: %f x %f", pack_x, pack_y)
-		pack_mx = max(pack_x, pack_y)
-		# for mu_box in self._mathutils_boxes:
-		# 	log.info("\t%s", str(mu_box))
-		for mu_box in self._mathutils_boxes:
-			# Преобразование целевых координат в 0..1
-			mu_box[0], mu_box[1] = mu_box[0] / pack_mx, mu_box[1] / pack_mx
-			mu_box[2], mu_box[3] = mu_box[2] / pack_mx, mu_box[3] / pack_mx
-		# log.info("Atlas: Packed size: %f x %f", pack_x, pack_y)
-		pass
-	
-	def _mathutils_boxes_to_transforms(self):
-		mathutils_boxes_groups = dict()  # type: Dict[Material, List[List[Union[float, Material]]]]
-		for mu_box in self._mathutils_boxes:
-			mat = mu_box[8]
-			group = mathutils_boxes_groups.get(mat)
-			if group is None:
-				group = list()
-				mathutils_boxes_groups[mat] = group
-			group.append(mu_box)
-		for mat, group in mathutils_boxes_groups.items():
-			mat_size = self._matsizes.get(mat)
-			transforms = self._transforms.get(mat)
-			if transforms is None:
-				transforms = list()
-				self._transforms[mat] = transforms
-			for mu_box in group:
-				#  Преобразование исходных координат в 0..1
-				ax, aw = mu_box[4] / mat_size[0], mu_box[6] / mat_size[0]
-				ay, ah = mu_box[5] / mat_size[1], mu_box[7] / mat_size[1]
-				transforms.append(UVBoxTransform(ax, ay, aw, ah, mu_box[0], mu_box[1], mu_box[2], mu_box[3]))
-		# for mat, transforms in self._transforms.items():
-		# 	log.info("\tMaterial %s have %d transforms:", mat, len(transforms))
-		# 	for t in transforms:
-		# 		log.info("\t\t%s", str(t))
-		pass
+		boxes = list()  # type: List[List[Union[float, UVTransform]]]
+		for metas in self._transforms.values():
+			for meta in metas:
+				boxes.append([*meta.packed_norm, meta])
+		log.info("Packing %d islands...", len(boxes))
+		best = sys.maxsize
+		rounds = 15  # TODO
+		while rounds > 0:
+			rounds -= 1
+			# Т.к. box_pack_2d псевдослучайный и может давать несколько результатов,
+			# то итеративно отбираем лучшие
+			random.shuffle(boxes)
+			pack_x, pack_y = box_pack_2d(boxes)
+			score = max(pack_x, pack_y)
+			log.info("Packing round: %d, score: %d...", rounds, score)
+			if score >= best:
+				continue
+			for box in boxes:
+				box[4].packed_norm = Vector(tuple(box[i] / score for i in range(4)))
+			best = score
+		if best == sys.maxsize:
+			raise AssertionError()
 	
 	def _prepare_bake_obj(self):
 		ensure_deselect_all_objects()
@@ -466,7 +511,7 @@ class BaseAtlasBaker:
 		# Создаем столько полигонов, сколько трансформов
 		bm = bmesh.new()
 		try:
-			for _, transforms in self._transforms.items():
+			for transforms in self._transforms.values():
 				for _ in range(len(transforms)):
 					v0, v1, v2, v3 = bm.verts.new(), bm.verts.new(), bm.verts.new(), bm.verts.new()
 					bm.faces.new((v0, v1, v2, v3))
@@ -492,13 +537,7 @@ class BaseAtlasBaker:
 					raise AssertionError("len(poly.loop_indices) != 4", mesh, poly_idx, poly, len(poly.loop_indices))
 				if len(poly.vertices) != 4:
 					raise AssertionError("len(poly.vertices) != 4", mesh, poly_idx, poly, len(poly.vertices))
-				corners = (
-					(0, (t.ax, t.ay), (t.bx, t.by)),  # vert 0: left, bottom
-					(1, (t.ax + t.aw, t.ay), (t.bx + t.bw, t.by)),  # vert 1: right, bottom
-					(2, (t.ax + t.aw, t.ay + t.ah), (t.bx + t.bw, t.by + t.bh)),  # vert 2: right, up
-					(3, (t.ax, t.ay + t.ah), (t.bx, t.by + t.bh)),  # vert 3: left, up
-				)
-				for vert_idx, uv_a, uv_b in corners:
+				for vert_idx, uv_a, uv_b in t.iterate_corners():
 					mesh.vertices[poly.vertices[vert_idx]].co.xy = uv_b
 					mesh.vertices[poly.vertices[vert_idx]].co.z = poly_idx * 1.0 / len(mesh.polygons)
 					uvd_original[poly.loop_indices[vert_idx]].uv = uv_a
@@ -638,7 +677,8 @@ class BaseAtlasBaker:
 				node_tree.links.remove(src_shader_link)
 			node_tree.links.new(bake_shader.outputs['Emission'], surface)
 			# log.info("Replacing shader %s -> %s on %s", src_shader, bake_shader, mat)
-			return bake_shader
+			bake_color = bake_shader.inputs['Color'] # type: NodeSocketColor
+			return bake_shader, bake_color
 		
 		def copy_input(from_in_socket: 'NodeSocket', to_in_socket: 'NodeSocket'):
 			links = from_in_socket.links
@@ -647,19 +687,46 @@ class BaseAtlasBaker:
 				node_tree.links.new(link.from_socket, to_in_socket)
 		
 		def copy_input_color(from_in_socket: 'NodeSocketColor', to_in_socket: 'NodeSocketColor'):
-			to_in_socket.default_value = from_in_socket.default_value
+			to_in_socket.default_value[:] = from_in_socket.default_value[:]
+			copy_input(from_in_socket, to_in_socket)
+		
+		def copy_input_value(from_in_socket: 'NodeSocketFloat', to_in_socket: 'NodeSocketColor'):
+			v = from_in_socket.default_value
+			to_in_socket.default_value[:] = (v, v, v, 1.0)
 			copy_input(from_in_socket, to_in_socket)
 		
 		if bake_type == 'ALPHA':
-			bake_shader = replace_shader()
+			bake_shader, bake_color = replace_shader()
 			src_alpha = get_node_input_safe(src_shader, 'Alpha')
 			if src_alpha is not None:  # TODO RGB <-> value
-				copy_input(src_alpha, bake_shader.inputs['Color'])
+				copy_input_value(src_alpha, bake_color)
+			else:
+				# По умолчанию непрозрачность
+				bake_color.default_value[:] = (1, 1, 1, 1.0)
 		elif bake_type == 'DIFFUSE':
-			bake_shader = replace_shader()
+			bake_shader, bake_color = replace_shader()
 			src_shader_color = src_shader.inputs.get('Base Color') or src_shader.inputs.get('Color')  # type: NodeSocket
 			if src_shader_color is not None:
-				copy_input_color(src_shader_color, bake_shader.inputs['Color'])
+				copy_input_color(src_shader_color, bake_color)
+			else:
+				# По умолчанию 75% отражаемости
+				bake_color.default_value[:] = (0.75, 0.75, 0.75, 1.0)
+		elif bake_type == 'METALLIC':
+			bake_shader, bake_color = replace_shader()
+			src_metallic = src_shader.inputs.get('Metallic') or src_shader.inputs.get('Specular')  # type: NodeSocket
+			if src_metallic is not None:  # TODO RGB <-> value
+				copy_input_value(src_metallic, bake_color)
+			else:
+				# По умолчанию 10% металличности
+				bake_color.default_value[:] = (0.1, 0.1, 0.1, 1.0)
+		elif bake_type == 'ROUGHNESS':
+			bake_shader, bake_color = replace_shader()
+			src_roughness = src_shader.inputs.get('Roughness')  # type: NodeSocket
+			if src_roughness is not None:  # TODO RGB <-> value
+				copy_input_value(src_roughness, bake_color)
+			else:
+				# По умолчанию 90% шершавости
+				bake_color.default_value[:] = (0.9, 0.9, 0.9, 1.0)
 	
 	def _edit_mats_for_bake(self, bake_obj: 'Object', bake_type: 'str'):
 		ensure_deselect_all_objects()
@@ -683,8 +750,8 @@ class BaseAtlasBaker:
 	
 	def _bake_image(self, bake_type: 'str', target_image: 'Image'):
 		log.info(
-			"Preparing for bake atlas Image='%s' type='%s' size=%s...",
-			target_image, bake_type, tuple(target_image.size)
+			"Preparing for bake atlas Image=%s type=%s size=%s...",
+			repr(target_image.name), bake_type, tuple(target_image.size)
 		)
 		
 		# Поскольку cycles - ссанина, нам проще сделать копию ._bake_obj
@@ -704,16 +771,14 @@ class BaseAtlasBaker:
 			object=True, obdata=True, material=True, animation=False,
 		), name='bpy.ops.object.make_single_user')
 		
-		if bake_type == 'ALPHA':
-			self._try_edit_mats_for_bake(local_bake_obj, bake_type)
-		if bake_type == 'DIFFUSE':
+		if bake_type in ('ALPHA', 'DIFFUSE', 'METALLIC', 'ROUGHNESS'):
 			self._try_edit_mats_for_bake(local_bake_obj, bake_type)
 		
 		for slot in local_bake_obj.material_slots:  # type: MaterialSlot
 			n_bake = prepare_and_get_node_for_baking(slot.material)
 			n_bake.image = target_image
 		
-		emit_types = {'EMIT', 'ALPHA', 'DIFFUSE'}
+		emit_types = ('EMIT', 'ALPHA', 'DIFFUSE', 'METALLIC', 'ROUGHNESS')
 		cycles_bake_type = 'EMIT' if bake_type in emit_types else bake_type
 		bpy.context.scene.cycles.bake_type = cycles_bake_type
 		bpy.context.scene.render.bake.use_pass_direct = False
@@ -727,15 +792,15 @@ class BaseAtlasBaker:
 		self._call_before_bake_safe(bake_type, target_image)
 		
 		log.info(
-			"Trying to bake atlas Image='%s' type='%s'/'%s' size=%s...",
-			target_image, bake_type, cycles_bake_type, tuple(target_image.size)
+			"Trying to bake atlas Image=%s type=%s/%s size=%s...",
+			repr(target_image.name), bake_type, cycles_bake_type, tuple(target_image.size)
 		)
 		ensure_deselect_all_objects()
 		activate_object(local_bake_obj)
 		bake_start = time.perf_counter()
 		ensure_op_finished(bpy.ops.object.bake(type=cycles_bake_type, use_clear=True))
 		bake_time = time.perf_counter() - bake_start
-		log.info("Baked atlas Texture='%s' type='%s', time spent: %f sec.", target_image.name, bake_type, bake_time)
+		log.info("Baked atlas Image=%s type=%s, time spent: %f sec.", repr(target_image.name), bake_type, bake_time)
 		
 		garbage_materials = set(slot.material for slot in local_bake_obj.material_slots)
 		mesh = local_bake_obj.data
@@ -754,8 +819,9 @@ class BaseAtlasBaker:
 			layer.active = layer.name == self.UV_ATLAS
 			layer.active_render = layer.name == self.UV_ORIGINAL
 			layer.active_clone = False
-		for bake_type, target_image in self._bake_types.items():
+		for bake_type, target_image in self._bake_types:
 			self._bake_image(bake_type, target_image)
+			gc.collect()
 		
 		ensure_deselect_all_objects()
 		if self._bake_obj is not None:
@@ -784,14 +850,12 @@ class BaseAtlasBaker:
 		# После обхода всех полигонов материала применяем transform на найденые индексы.
 		
 		log.info("Applying UV...")
-		mat_i, obj_i = 0, 0
-		objects = self.objects
-		
-		class UVTransformReporter(Reporter):
-			def do_report(self, time_passed):
-				log.info("Transforming UVs: Object=%d/%d, Slots=%d, Time=%f sec...", obj_i, len(objects), mat_i, time_passed)
-		
-		reporter = UVTransformReporter(self.report_time)
+		mat_i, obj_i, loop_i = 0, 0, 0
+		reporter = LambdaReporter(self.report_time)
+		reporter.func = lambda r, t: log.info(
+			"Transforming UVs: Object=%d/%d, Slots=%d, Loops=%d, Time=%.1f sec, ETA=%.1f sec...",
+			obj_i, len(self.objects), mat_i, loop_i, t, r.get_eta(1.0 * obj_i / len(self.objects))
+		)
 		
 		for obj in self.objects:
 			mesh = get_mesh_safe(obj)
@@ -800,7 +864,13 @@ class BaseAtlasBaker:
 				transforms = self._transforms.get(source_mat)
 				if transforms is None:
 					continue  # Нет преобразований для данного материала
-				maps = dict()  # type: Dict[int, UVBoxTransform]
+				# Дегенеративная геометрия вызывает проблемы, по этому нужен epsilon.
+				# Зазор между боксами не менее epsilon материала, по этому возьмём половину.
+				epsilon = self._get_epsilon_safe(obj, source_mat)
+				src_size_x, src_size_y = self._matsizes[source_mat]
+				epsilon_x, epsilon_y = epsilon / src_size_x / 2, epsilon / src_size_y / 2
+				
+				maps = dict()  # type: Dict[int, UVTransform]
 				target_mat = self._materials.get((obj, source_mat))
 				uv_data = self._get_uv_data_safe(obj, source_mat, mesh)
 				for poly in mesh.polygons:
@@ -811,17 +881,24 @@ class BaseAtlasBaker:
 						mean_uv = mean_uv + uv_data[loop].uv
 					mean_uv /= len(poly.loop_indices)
 					transform = None
-					for t in transforms:
-						t.match_a(mean_uv)
-						transform = t
-						break
+					for transform in transforms:
+						# Должно работать без эпсилонов
+						if transform.is_match(mean_uv, epsilon_x=epsilon_x, epsilon_y=epsilon_y):
+							transform = transform
+							break
 					if transform is None:
-						raise AssertionError("No UV transform", obj, source_mat, poly)
+						msg = 'No UV transform for Obj={0}, Mesh={1}, SMat={2}, Poly={3}, UV={4}, Transforms:'\
+							.format(repr(obj.name), repr(mesh.name), repr(source_mat.name), repr(mean_uv), poly)
+						log.error(msg)
+						for transform in transforms:
+							log.error('\t- %s', repr(transform))
+						raise AssertionError(msg, obj, source_mat, poly, mean_uv, transforms)
 					for loop in poly.loop_indices:
 						maps[loop] = transform
 				for loop, transform in maps.items():
+					loop_i += 1
 					vec2 = uv_data[loop].uv  # type: Vector
-					vec2 = transform.apply_vec2(vec2)
+					vec2 = transform.apply(vec2)
 					uv_data[loop].uv = vec2
 				mesh.materials[material_index] = target_mat
 				obj.material_slots[material_index].material = target_mat
@@ -855,9 +932,8 @@ class BaseAtlasBaker:
 		# Острава нужно разместить на атласе.
 		# Для этого используется mathutils.geometry.box_pack_2d
 		# Для этого нужно сконвертировать
-		self._islands_to_mathutils_boxes()
+		self._create_transforms_from_islands()
 		self._pack_islands()
-		self._mathutils_boxes_to_transforms()
 		# Не трогаем исходники, создаем вспомогательный меш-объект для запекания
 		self._prepare_bake_obj()
 		self._bake_images()

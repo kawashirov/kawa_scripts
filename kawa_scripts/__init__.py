@@ -30,8 +30,8 @@ log = None
 
 def reimport():
 	import importlib
-	from . import atlas_baker, combiner, commons, instantiator, shader_nodes, uv
-	for m in (atlas_baker, combiner, commons, instantiator, shader_nodes, uv):
+	from . import atlas_baker, combiner, commons, instantiator, shader_nodes, uv, tex_size_finder
+	for m in (atlas_baker, combiner, commons, instantiator, shader_nodes, uv, tex_size_finder):
 		importlib.reload(m)
 
 
