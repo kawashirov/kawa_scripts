@@ -50,7 +50,7 @@ class KawaApplyAllModifiersNoShapeKeys(_bpy.types.Operator):
 		return True
 	
 	def execute(self, context: 'Context'):
-		objs = list(context.selected_objects) # type: List[Object]
+		objs = list(context.selected_objects)  # type: List[Object]
 		with _commons.TemporaryViewLayer(name=type(self).__name__):
 			counter_objs, counter_mods = 0, 0
 			for obj in objs:

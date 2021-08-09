@@ -59,11 +59,6 @@ def poly2_area2(ps: 'Sequence[Vector]'):
 		return 0.5 * abs(s)
 
 
-def uv_area(poly: 'MeshPolygon', uv_layer_data: 'Sequence[MeshUVLoop]'):
-	# tuple чуть-чуть быстрее на малых длинах, тестил через timeit
-	return poly2_area2(tuple(uv_layer_data[loop].uv for loop in poly.loop_indices))
-
-
 def is_none_or_bool(value: 'Optional[bool]') -> 'bool':
 	return value is None or isinstance(value, bool)
 
@@ -208,19 +203,6 @@ def ensure_deselect_all_objects():
 		_C.selected_objects[0].select_set(False)
 
 
-def ensure_selected_single(selected_object, *args):
-	if len(_C.selected_objects) != 1:
-		raise AssertionError(
-			"len(bpy.context.selected_objects) != 1 or selected_object not in bpy.context.selected_objects",
-			len(_C.selected_objects), _C.selected_objects, selected_object, args
-		)
-	if selected_object is not None and selected_object not in _C.selected_objects:
-		raise AssertionError(
-			"selected_object not in bpy.context.selected_objects",
-			_C.selected_objects, selected_object, args
-		)
-
-
 class TemporaryViewLayer(_contextlib.ContextDecorator):
 	def __init__(self, name=None):
 		self.name = None if name is None else str(name)
@@ -245,51 +227,6 @@ class TemporaryViewLayer(_contextlib.ContextDecorator):
 			self.scene.view_layers.remove(self.temp_view_layer)
 		except ReferenceError:
 			pass  # this is fine
-	
-def repack_active_uv(
-		obj: 'Object', get_scale: 'Optional[Callable[[Material], float]]' = None,
-		rotate: 'bool' = None, margin: 'float' = 0.0
-):
-	e = ensure_op_finished
-	try:
-		ensure_deselect_all_objects()
-		activate_object(obj)
-		# Перепаковка...
-		e(_bpy.ops.object.mode_set_with_submode(mode='EDIT', mesh_select_mode={'FACE'}), name='object.mode_set_with_submode')
-		e(_bpy.ops.mesh.reveal(select=True), name='mesh.reveal')
-		e(_bpy.ops.mesh.select_all(action='SELECT'), name='mesh.select_all')
-		_C.scene.tool_settings.use_uv_select_sync = True
-		area_type = _C.area.type
-		try:
-			_C.area.type = 'IMAGE_EDITOR'
-			_C.area.ui_type = 'UV'
-			e(_bpy.ops.uv.reveal(select=True), name='uv.reveal')
-			e(_bpy.ops.mesh.select_all(action='SELECT'), name='mesh.select_all')
-			e(_bpy.ops.uv.select_all(action='SELECT'), name='uv.select_all')
-			e(_bpy.ops.uv.average_islands_scale(), name='uv.average_islands_scale')
-			for index in range(len(obj.material_slots)):
-				scale = 1.0
-				if get_scale is not None:
-					scale = get_scale(obj.material_slots[index].material)
-				if scale <= 0 or scale == 1.0:
-					continue
-				_C.scene.tool_settings.use_uv_select_sync = True
-				e(_bpy.ops.mesh.select_all(action='DESELECT'), name='mesh.select_all', index=index)
-				e(_bpy.ops.uv.select_all(action='DESELECT'), name='uv.select_all', index=index)
-				obj.active_material_index = index
-				if 'FINISHED' in _bpy.ops.object.material_slot_select():
-					# Может быть не FINISHED если есть не использованые материалы
-					e(_bpy.ops.uv.select_linked(), name='uv.select_linked', index=index)
-					e(_bpy.ops.transform.resize(value=(scale, scale, scale)), name='transform.resize', value=scale, index=index)
-			e(_bpy.ops.mesh.select_all(action='SELECT'), name='mesh.select_all')
-			e(_bpy.ops.uv.select_all(action='SELECT'), name='uv.select_all')
-			e(_bpy.ops.uv.pack_islands(rotate=rotate, margin=margin), name='uv.pack_islands')
-			e(_bpy.ops.uv.select_all(action='DESELECT'), name='uv.select_all')
-			e(_bpy.ops.mesh.select_all(action='DESELECT'), name='mesh.select_all')
-		finally:
-			_C.area.type = area_type
-	finally:
-		e(_bpy.ops.object.mode_set(mode='OBJECT'), name='object.mode_set')
 
 
 def any_not_none(*args):
@@ -321,21 +258,6 @@ def remove_all_geometry(obj: 'Object'):
 		bm.free()
 
 
-def remove_all_shape_keys(obj: 'Object'):
-	# mesh = get_mesh_safe(obj)
-	# while mesh.shape_keys is not None and len(mesh.shape_keys.key_blocks) > 0:
-	# 	sk = mesh.shape_keys.key_blocks[0]
-	# 	# Я ебал в рот того, кто придумал удалять шейпкеи из меши через интерфейс объекта
-	# 	obj.shape_key_remove(sk)
-	obj.shape_key_clear() # TODO
-
-
-def remove_all_uv_layers(obj: 'Object'):
-	mesh = get_mesh_safe(obj)
-	while len(mesh.uv_layers) > 0:
-		mesh.uv_layers.remove(mesh.uv_layers[0])
-
-
 def remove_all_vertex_colors(obj: 'Object'):
 	mesh = get_mesh_safe(obj)
 	while len(mesh.vertex_colors) > 0:
@@ -346,27 +268,6 @@ def remove_all_material_slots(obj: 'Object', slots=0):
 	while len(obj.material_slots) > slots:
 		_C.view_layer.objects.active = obj
 		ensure_op_finished(_bpy.ops.object.material_slot_remove(), name='bpy.ops.object.material_slot_remove')
-
-
-def remove_uv_layer_by_condition(
-		mesh: 'Mesh',
-		func_should_delete: 'Callable[str, MeshTexturePolyLayer, bool]',
-		func_on_delete: 'Callable[str, MeshTexturePolyLayer, None]'
-):
-	while True:
-		# Удаление таким нелепым образом, потому что после вызова remove()
-		# все MeshTexturePolyLayer взятые из uv_textures становтся сломанными и крешат скрипт
-		# По этому, после удаления обход начинается заново, до тех пор, пока не кончатся объекты к удалению
-		# TODO Проверить баг в 2.83
-		to_delete_name = None
-		to_delete = None
-		for uv_layer_name, uv_layer in mesh.uv_layers.items():
-			if func_should_delete(uv_layer_name, uv_layer):
-				to_delete_name, to_delete = uv_layer_name, uv_layer
-				break
-		if to_delete is None: return
-		if func_on_delete is not None: func_on_delete(to_delete_name, to_delete)
-		mesh.uv_layers.remove(to_delete)
 
 
 def find_objects_with_material(material: 'Material', where: 'Iterable[Object]' = None) -> 'Set[Object]':

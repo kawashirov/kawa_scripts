@@ -8,6 +8,8 @@
 #
 #
 
+import bpy as _bpy
+from bpy import context as _C
 from mathutils import Vector as _Vector
 
 from . import commons as _commons
@@ -21,6 +23,85 @@ if _typing.TYPE_CHECKING:
 
 import logging as _logging
 _log = _logging.getLogger('kawa.uv')
+
+
+def uv_area(poly: 'MeshPolygon', uv_layer_data: 'Union[bpy_prop_collection, List[MeshUVLoop]]'):
+	# tuple чуть-чуть быстрее на малых длинах, тестил через timeit
+	return _commons.poly2_area2(tuple(uv_layer_data[loop].uv for loop in poly.loop_indices))
+
+
+def repack_active_uv(
+		obj: 'Object', get_scale: 'Optional[Callable[[Material], float]]' = None,
+		rotate: 'bool' = None, margin: 'float' = 0.0
+):
+	e = _commons.ensure_op_finished
+	try:
+		_commons.ensure_deselect_all_objects()
+		_commons.activate_object(obj)
+		# Перепаковка...
+		e(_bpy.ops.object.mode_set_with_submode(mode='EDIT', mesh_select_mode={'FACE'}), name='object.mode_set_with_submode')
+		e(_bpy.ops.mesh.reveal(select=True), name='mesh.reveal')
+		e(_bpy.ops.mesh.select_all(action='SELECT'), name='mesh.select_all')
+		_C.scene.tool_settings.use_uv_select_sync = True
+		area_type = _C.area.type
+		try:
+			_C.area.type = 'IMAGE_EDITOR'
+			_C.area.ui_type = 'UV'
+			e(_bpy.ops.uv.reveal(select=True), name='uv.reveal')
+			e(_bpy.ops.mesh.select_all(action='SELECT'), name='mesh.select_all')
+			e(_bpy.ops.uv.select_all(action='SELECT'), name='uv.select_all')
+			e(_bpy.ops.uv.average_islands_scale(), name='uv.average_islands_scale')
+			for index in range(len(obj.material_slots)):
+				scale = 1.0
+				if get_scale is not None:
+					scale = get_scale(obj.material_slots[index].material)
+				if scale <= 0 or scale == 1.0:
+					continue
+				_C.scene.tool_settings.use_uv_select_sync = True
+				e(_bpy.ops.mesh.select_all(action='DESELECT'), name='mesh.select_all', index=index)
+				e(_bpy.ops.uv.select_all(action='DESELECT'), name='uv.select_all', index=index)
+				obj.active_material_index = index
+				if 'FINISHED' in _bpy.ops.object.material_slot_select():
+					# Может быть не FINISHED если есть не использованые материалы
+					e(_bpy.ops.uv.select_linked(), name='uv.select_linked', index=index)
+					e(_bpy.ops.transform.resize(value=(scale, scale, scale)), name='transform.resize', value=scale, index=index)
+			e(_bpy.ops.mesh.select_all(action='SELECT'), name='mesh.select_all')
+			e(_bpy.ops.uv.select_all(action='SELECT'), name='uv.select_all')
+			e(_bpy.ops.uv.pack_islands(rotate=rotate, margin=margin), name='uv.pack_islands')
+			e(_bpy.ops.uv.select_all(action='DESELECT'), name='uv.select_all')
+			e(_bpy.ops.mesh.select_all(action='DESELECT'), name='mesh.select_all')
+		finally:
+			_C.area.type = area_type
+	finally:
+		e(_bpy.ops.object.mode_set(mode='OBJECT'), name='object.mode_set')
+
+
+def remove_all_uv_layers(obj: 'Object'):
+	mesh = _commons.get_mesh_safe(obj)
+	while len(mesh.uv_layers) > 0:
+		mesh.uv_layers.remove(mesh.uv_layers[0])
+
+
+def _remove_uv_layer_by_condition(
+		mesh: 'Mesh',
+		func_should_delete: 'Callable[str, MeshTexturePolyLayer, bool]',
+		func_on_delete: 'Callable[str, MeshTexturePolyLayer, None]'
+):
+	# TODO лагаси говно переписать
+	while True:
+		# Удаление таким нелепым образом, потому что после вызова remove()
+		# все MeshTexturePolyLayer взятые из uv_textures становтся сломанными и крешат скрипт
+		# По этому, после удаления обход начинается заново, до тех пор, пока не кончатся объекты к удалению
+		# TODO Проверить баг в 2.83
+		to_delete_name = None
+		to_delete = None
+		for uv_layer_name, uv_layer in mesh.uv_layers.items():
+			if func_should_delete(uv_layer_name, uv_layer):
+				to_delete_name, to_delete = uv_layer_name, uv_layer
+				break
+		if to_delete is None: return
+		if func_on_delete is not None: func_on_delete(to_delete_name, to_delete)
+		mesh.uv_layers.remove(to_delete)
 
 
 class Island:
