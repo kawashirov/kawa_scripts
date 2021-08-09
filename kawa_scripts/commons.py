@@ -135,7 +135,7 @@ def set_parent_keep_world(child: 'Object', parent: 'Object'):
 	child.matrix_world = m
 
 
-def fix_matrix(obj: 'Object'):
+def apply_parent_inverse_matrix(obj: 'Object'):
 	identity = Matrix.Identity(4)
 	if obj.parent_type != 'OBJECT' or obj.matrix_parent_inverse == identity:
 		return False
@@ -144,6 +144,26 @@ def fix_matrix(obj: 'Object'):
 	obj.parent_type = 'OBJECT'
 	obj.matrix_world = mw
 	return True
+
+
+class KawaApplyParentInverseMatrices(bpy.types.Operator):
+	bl_idname = "object.kawa_apply_parent_inverse_matrices"
+	bl_label = "Apply Parent Inverse Transform Matricies"
+	bl_options = {'REGISTER', 'UNDO'}
+	
+	@classmethod
+	def poll(cls, context: 'Context'):
+		if len(context.selected_objects) < 1:
+			return False  # Должны быть выбраны какие-то объекты
+		if context.mode != 'OBJECT':
+			return False  # Требуется режим OBJECT
+		return True
+	
+	def execute(self, context: 'Context'):
+		applied = list(obj for obj in context.selected_objects if apply_parent_inverse_matrix(obj))
+		applied_strs = "".join("\n-\t{0}".format(repr(obj)) for obj in applied)
+		self.report({'INFO'}, "Applied {0} parent inverse matrices:{1}".format(len(applied), applied_strs))
+		return {'FINISHED'} if len(applied) > 0 else {'CANCELLED'}
 
 
 def ensure_op_result(result: 'Iterable[str]', allowed_results: 'Iterable[str]', **kwargs):
@@ -278,29 +298,13 @@ def remove_all_geometry(obj: 'Object'):
 		bm.free()
 
 
-def apply_all_modifiers(obj: 'Object') -> 'int':
-	prev_active = bpy.context.view_layer.objects.active
-	modifc = len(obj.modifiers)
-	while len(obj.modifiers) > 0:
-		modifier = next(iter(obj.modifiers))
-		# log.info("Applying Modifier='%s' on Object='%s'...", modifier.name, obj.name)
-		obj.select_set(True)
-		obj.hide_set(False)
-		bpy.context.view_layer.objects.active = obj
-		if bpy.app.version >= (2, 90, 0):
-			bpy.ops.object.modifier_apply(modifier=modifier.name)
-		else:
-			bpy.ops.object.modifier_apply(apply_as='DATA', modifier=modifier.name)
-	bpy.context.view_layer.objects.active = prev_active
-	return modifc
-
-
 def remove_all_shape_keys(obj: 'Object'):
-	mesh = get_mesh_safe(obj)
-	while mesh.shape_keys is not None and len(mesh.shape_keys.key_blocks) > 0:
-		sk = mesh.shape_keys.key_blocks[0]
-		# Я ебал в рот того, кто придумал удалять шейпкеи из меши через интерфейс объекта
-		obj.shape_key_remove(sk)
+	# mesh = get_mesh_safe(obj)
+	# while mesh.shape_keys is not None and len(mesh.shape_keys.key_blocks) > 0:
+	# 	sk = mesh.shape_keys.key_blocks[0]
+	# 	# Я ебал в рот того, кто придумал удалять шейпкеи из меши через интерфейс объекта
+	# 	obj.shape_key_remove(sk)
+	obj.shape_key_clear() # TODO
 
 
 def remove_all_uv_layers(obj: 'Object'):
@@ -381,6 +385,8 @@ def merge_same_material_slots(obj: 'Object'):
 	# Объединяет слоты с одинаковыми материалами:
 	# Сначала объединяет индексы, затем удаляет освободившиеся слоты.
 	# Игнорирует пустые слоты
+	if len(obj.material_slots) < 2:
+		return
 	ensure_deselect_all_objects()
 	activate_object(obj)
 	mesh = get_mesh_safe(obj)
@@ -452,3 +458,8 @@ class LambdaReporter(AbstractReporter):
 		
 	def do_report(self, time_passed):
 		self.func(self, time_passed)
+
+
+classes = (
+	KawaApplyParentInverseMatrices,
+)

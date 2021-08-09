@@ -8,11 +8,14 @@
 #
 #
 
-import typing
+from collections import OrderedDict as _OrderedDict
+import typing as _typing
 
-if typing.TYPE_CHECKING:
-	from typing import *
-	import logging, tempfile, subprocess
+if _typing.TYPE_CHECKING:
+	from types import ModuleType
+	from typing import Dict
+	# Эти итак заимпортированы через __import__ но PyCharm их не видит
+	from . import shapekeys, commons
 
 bl_info = {
 	"name": "Kawashirov's Scripts",
@@ -24,15 +27,65 @@ bl_info = {
 	"blender": (2, 83, 0),
 	"category": "Object",
 }
+addon_name = __name__
+
+if "bpy" in locals() and "_modules_loaded" in locals():
+	from importlib import reload
+
+	print("Reloading Kawashirov's Scripts...")
+	for key, mod in list(_modules_loaded.items()):
+		_modules_loaded[key] = reload(mod)
+	del reload
+	print("Reloaded Kawashirov's Scripts!")
+
+_modules = [
+	"atlas_baker",
+	"combiner",
+	"commons",
+	"instantiator",
+	"material_slots",
+	"shader_nodes",
+	"shapekeys",
+	"tex_size_finder",
+]
+
+import bpy
+
+__import__(name=__name__, fromlist=_modules)
+_namespace = globals()
+_modules_loaded = _OrderedDict()  # type: Dict[str, ModuleType]
+for _mod_name in _modules:
+	_modules_loaded[_mod_name] = _namespace[_mod_name]
+del _namespace
+
 
 log = None
 
 
-def reimport():
-	import importlib
-	from . import atlas_baker, combiner, commons, instantiator, shader_nodes, uv, tex_size_finder
-	for m in (atlas_baker, combiner, commons, instantiator, shader_nodes, uv, tex_size_finder):
-		importlib.reload(m)
+def _MESH_MT_shape_key_context_menu(self, context):
+	self.layout.separator()
+	self.layout.operator(shapekeys.KawaSelectVerticesAffectedByShapeKey.bl_idname, icon='VERTEXSEL')
+	self.layout.operator(shapekeys.KawaRevertSelectedVerticesToBasisShapeKey.bl_idname, icon='KEYINGSET')
+	self.layout.operator(shapekeys.KawaRemoveEmptyShapeKeys.bl_idname, icon='KEY_DEHLT')
+
+
+def _VIEW3D_MT_object(self, context):
+	self.layout.separator()
+	self.layout.operator(shapekeys.KawaRemoveEmptyShapeKeys.bl_idname, icon='KEY_DEHLT')
+	self.layout.operator(commons.KawaApplyParentInverseMatrices.bl_idname, icon='ORIENTATION_LOCAL')
+	self.layout.operator(commons.KawaApplyAllModifiers.bl_idname, icon='MODIFIER')
+
+
+def _VIEW3D_MT_edit_mesh_vertices(self, context):
+	self.layout.separator()
+	self.layout.operator(shapekeys.KawaSelectVerticesAffectedByShapeKey.bl_idname, icon='VERTEXSEL')
+	self.layout.operator(shapekeys.KawaRevertSelectedVerticesToBasisShapeKey.bl_idname, icon='KEYINGSET')
+
+
+def _VIEW3D_MT_edit_mesh_context_menu(self, context):
+	self.layout.separator()
+	self.layout.operator(shapekeys.KawaSelectVerticesAffectedByShapeKey.bl_idname, icon='VERTEXSEL')
+	self.layout.operator(shapekeys.KawaRevertSelectedVerticesToBasisShapeKey.bl_idname, icon='KEYINGSET')
 
 
 def register():
@@ -50,9 +103,34 @@ def register():
 		log_handler.setFormatter(log_formatter)
 		log.addHandler(log_handler)
 		log.info("Log handler updated!")
-	reimport()
+	
+	from bpy.utils import register_class
+	for mod in _modules_loaded.values():
+		if hasattr(mod, 'classes'):
+			for cls in mod.classes:
+				register_class(cls)
+
+	bpy.types.VIEW3D_MT_object.append(_VIEW3D_MT_object)
+	bpy.types.VIEW3D_MT_object_context_menu.append(_VIEW3D_MT_object)
+	bpy.types.VIEW3D_MT_edit_mesh_context_menu.append(_VIEW3D_MT_edit_mesh_context_menu)
+	bpy.types.VIEW3D_MT_edit_mesh_vertices.append(_VIEW3D_MT_edit_mesh_vertices)
+	bpy.types.MESH_MT_shape_key_context_menu.append(_MESH_MT_shape_key_context_menu)
+	
 	log.info("Hello from Kawashirov's Scripts again!")
 
 
 def unregister():
+	from bpy.utils import unregister_class
+
+	bpy.types.VIEW3D_MT_object.remove(_VIEW3D_MT_object)
+	bpy.types.VIEW3D_MT_object_context_menu.remove(_VIEW3D_MT_object)
+	bpy.types.VIEW3D_MT_edit_mesh_context_menu.remove(_VIEW3D_MT_edit_mesh_context_menu)
+	bpy.types.VIEW3D_MT_edit_mesh_vertices.remove(_VIEW3D_MT_edit_mesh_vertices)
+	bpy.types.MESH_MT_shape_key_context_menu.remove(_MESH_MT_shape_key_context_menu)
+	
+	for mod in reversed(_modules_loaded.values()):
+		if hasattr(mod, 'classes'):
+			for cls in reversed(mod.classes):
+				if cls.is_registered:
+					unregister_class(cls)
 	print("Goodbye from Kawashirov's Scripts!")

@@ -850,64 +850,81 @@ class BaseAtlasBaker:
 		# После обхода всех полигонов материала применяем transform на найденые индексы.
 		
 		log.info("Applying UV...")
-		mat_i, obj_i, loop_i = 0, 0, 0
+		mat_i, obj_i = 0, 0
 		reporter = LambdaReporter(self.report_time)
 		reporter.func = lambda r, t: log.info(
-			"Transforming UVs: Object=%d/%d, Slots=%d, Loops=%d, Time=%.1f sec, ETA=%.1f sec...",
-			obj_i, len(self.objects), mat_i, loop_i, t, r.get_eta(1.0 * obj_i / len(self.objects))
+			"Transforming UVs: Object=%d/%d, Slots=%d, Time=%.1f sec, ETA=%.1f sec...",
+			obj_i, len(self.objects), mat_i, t, r.get_eta(1.0 * obj_i / len(self.objects))
 		)
 		
+		self._perf_find_transform = 0
+		self._perf_apply_transform = 0
+		self._perf_iter_polys = 0
+		
 		for obj in self.objects:
-			mesh = get_mesh_safe(obj)
-			for material_index in range(len(mesh.materials)):
-				source_mat = mesh.materials[material_index]
-				transforms = self._transforms.get(source_mat)
-				if transforms is None:
-					continue  # Нет преобразований для данного материала
-				# Дегенеративная геометрия вызывает проблемы, по этому нужен epsilon.
-				# Зазор между боксами не менее epsilon материала, по этому возьмём половину.
-				epsilon = self._get_epsilon_safe(obj, source_mat)
-				src_size_x, src_size_y = self._matsizes[source_mat]
-				epsilon_x, epsilon_y = epsilon / src_size_x / 2, epsilon / src_size_y / 2
-				
-				maps = dict()  # type: Dict[int, UVTransform]
-				target_mat = self._materials.get((obj, source_mat))
-				uv_data = self._get_uv_data_safe(obj, source_mat, mesh)
-				for poly in mesh.polygons:
-					if poly.material_index != material_index:
-						continue
-					mean_uv = Vector((0, 0))
-					for loop in poly.loop_indices:
-						mean_uv = mean_uv + uv_data[loop].uv
-					mean_uv /= len(poly.loop_indices)
-					transform = None
-					for transform in transforms:
-						# Должно работать без эпсилонов
-						if transform.is_match(mean_uv, epsilon_x=epsilon_x, epsilon_y=epsilon_y):
-							transform = transform
-							break
-					if transform is None:
-						msg = 'No UV transform for Obj={0}, Mesh={1}, SMat={2}, Poly={3}, UV={4}, Transforms:'\
-							.format(repr(obj.name), repr(mesh.name), repr(source_mat.name), repr(mean_uv), poly)
-						log.error(msg)
-						for transform in transforms:
-							log.error('\t- %s', repr(transform))
-						raise AssertionError(msg, obj, source_mat, poly, mean_uv, transforms)
-					for loop in poly.loop_indices:
-						maps[loop] = transform
-				for loop, transform in maps.items():
-					loop_i += 1
-					vec2 = uv_data[loop].uv  # type: Vector
-					vec2 = transform.apply(vec2)
-					uv_data[loop].uv = vec2
-				mesh.materials[material_index] = target_mat
-				obj.material_slots[material_index].material = target_mat
-				mat_i += 1
-				reporter.ask_report(False)
+			self._apply_baked_materials_on_obj(obj)
 			obj_i += 1
+			mat_i += len(obj.material_slots)
 			reporter.ask_report(False)
 			merge_same_material_slots(obj)
 		reporter.ask_report(True)
+		log.info("Perf: find_transform: %f, apply_transform: %f, iter_polys: %f", self._perf_find_transform, self._perf_apply_transform, self._perf_iter_polys)
+		
+	def _apply_baked_materials_on_obj(self, obj: 'Object'):
+		mesh = get_mesh_safe(obj)
+		for material_index in range(len(mesh.materials)):
+			source_mat = mesh.materials[material_index]
+			transforms = self._transforms.get(source_mat)
+			if transforms is None:
+				continue  # Нет преобразований для данного материала
+			# Дегенеративная геометрия вызывает проблемы, по этому нужен epsilon.
+			# Зазор между боксами не менее epsilon материала, по этому возьмём половину.
+			epsilon = self._get_epsilon_safe(obj, source_mat)
+			src_size_x, src_size_y = self._matsizes[source_mat]
+			epsilon_x, epsilon_y = epsilon / src_size_x / 2, epsilon / src_size_y / 2
+			
+			maps = dict()  # type: Dict[int, UVTransform]
+			target_mat = self._materials.get((obj, source_mat))
+			uv_data = self._get_uv_data_safe(obj, source_mat, mesh)
+			
+			_t3 = time.perf_counter()
+			for poly in mesh.polygons:
+				if poly.material_index != material_index:
+					continue
+				mean_uv = Vector((0, 0))
+				for loop in poly.loop_indices:
+					mean_uv = mean_uv + uv_data[loop].uv
+				mean_uv /= len(poly.loop_indices)
+				transform = None
+				# Поиск трансформа для данного полигона
+				_t1 = time.perf_counter()
+				for transform in transforms:
+					# Должно работать без эпсилонов
+					if transform.is_match(mean_uv, epsilon_x=epsilon_x, epsilon_y=epsilon_y):
+						transform = transform
+						break
+				self._perf_find_transform += time.perf_counter() - _t1
+				if transform is None:
+					# Такая ситуация не должна случаться:
+					# Если материал подлежал запеканию, то все участки должны были ранее покрыты трансформами.
+					msg = 'No UV transform for Obj={0}, Mesh={1}, SMat={2}, Poly={3}, UV={4}, Transforms:' \
+						.format(repr(obj.name), repr(mesh.name), repr(source_mat.name), repr(mean_uv), poly)
+					log.error(msg)
+					for transform in transforms:
+						log.error('\t- %s', repr(transform))
+					raise AssertionError(msg, obj, source_mat, poly, mean_uv, transforms)
+				for loop in poly.loop_indices:
+					maps[loop] = transform
+			self._perf_iter_polys += time.perf_counter() - _t3
+			# Применение трансформов.
+			_t2 = time.perf_counter()
+			for loop, transform in maps.items():
+				vec2 = uv_data[loop].uv  # type: Vector
+				vec2 = transform.apply(vec2)
+				uv_data[loop].uv = vec2
+			self._perf_apply_transform += time.perf_counter() - _t2
+			mesh.materials[material_index] = target_mat
+			obj.material_slots[material_index].material = target_mat
 	
 	def bake_atlas(self):
 		log.info("Baking atlas!")
