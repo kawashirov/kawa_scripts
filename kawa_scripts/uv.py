@@ -11,6 +11,7 @@
 from mathutils import Vector as _Vector
 
 from . import commons as _commons
+from ._internals import common_str_slots
 
 import typing as _typing
 if _typing.TYPE_CHECKING:
@@ -32,9 +33,9 @@ class Island:
 		self.mx = mx  # type: Optional[Vector]
 		self.extends = 0  # Для диагностических целей
 	
-	def __str__(self) -> str: return _commons.common_str_slots(self, self.__slots__)
+	def __str__(self) -> str: return common_str_slots(self, self.__slots__)
 	
-	def __repr__(self) -> str: return _commons.common_str_slots(self, self.__slots__)
+	def __repr__(self) -> str: return common_str_slots(self, self.__slots__)
 	
 	def is_valid(self):
 		return self.mn is not None and self.mx is not None
@@ -109,9 +110,9 @@ class IslandsBuilder:
 		self.bboxes = list()  # type: List[Island]
 		self.merges = 0  # Для диагностических целей
 	
-	def __str__(self) -> str: return _commons.common_str_slots(self, self.__slots__)
+	def __str__(self) -> str: return common_str_slots(self, self.__slots__)
 	
-	def __repr__(self) -> str: return _commons.common_str_slots(self, self.__slots__)
+	def __repr__(self) -> str: return common_str_slots(self, self.__slots__)
 	
 	def add_bbox(self, bbox: 'Island', epsilon: 'float' = 0):
 		# Добавляет набор точек

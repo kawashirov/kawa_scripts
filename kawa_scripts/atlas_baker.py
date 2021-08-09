@@ -22,6 +22,7 @@ from mathutils.geometry import box_pack_2d as _box_pack_2d
 from . import commons as _commons
 from . import uv as _uv
 from . import shader_nodes as _snodes
+from ._internals import common_str_slots
 
 import typing as _typing
 
@@ -51,9 +52,9 @@ class UVTransform:
 		# использует нормализованные координаты после упаковки
 		self.packed_norm = None  # type: Vector # len == 4
 	
-	def __str__(self) -> str: return _commons.common_str_slots(self, self.__slots__)
+	def __str__(self) -> str: return common_str_slots(self, self.__slots__)
 	
-	def __repr__(self) -> str: return _commons.common_str_slots(self, self.__slots__)
+	def __repr__(self) -> str: return common_str_slots(self, self.__slots__)
 	
 	def is_match(self, vec2_norm: 'Vector', epsilon_x: 'float' = 0, epsilon_y: 'float' = 0):
 		v = self.origin_norm
