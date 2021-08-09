@@ -17,25 +17,28 @@ if _typing.TYPE_CHECKING:
 	from typing import *
 	from bpy.types import *
 
+import logging as _logging
+_log = _logging.getLogger('kawa.modifiers')
+
 
 def apply_all_modifiers(obj: 'Object') -> 'int':
+	# No context capture here
 	_commons.ensure_deselect_all_objects()
 	modifc = 0
-	while len(obj.modifiers) > 0:
-		modifier = next(iter(obj.modifiers))
-		_commons.activate_object(obj)
-		if _bpy.app.version >= (2, 90, 0):
-			_bpy.ops.object.modifier_apply(modifier=modifier.name)
+	for mod_i, mod_name in list(enumerate(m.name for m in obj.modifiers)):
+		if 'FINISHED' in _bpy.ops.object.modifier_apply(modifier=mod_name):
+			modifc += 1
 		else:
-			_bpy.ops.object.modifier_apply(apply_as='DATA', modifier=modifier.name)
+			_log.warning("Can not apply modifier #{0} {1} on {2}!".format(mod_i, repr(mod_name), repr(obj)))
 		modifc += 1
 	_commons.ensure_deselect_all_objects()
 	return modifc
 
 
-class KawaApplyAllModifiers(_bpy.types.Operator):
-	bl_idname = "object.kawa_apply_all_modifiers"
-	bl_label = "Apply All Modifiers"
+class KawaApplyAllModifiersNoShapeKeys(_bpy.types.Operator):
+	bl_idname = "object.kawa_apply_all_modifiers_no_shape_keys"
+	bl_label = "Apply All Modifiers (No Shape Keys)"
+	bl_description = "Apply all Modifiers on all selected objects, except for Mesh-Objects with Shape Keys."
 	bl_options = {'REGISTER', 'UNDO'}
 	
 	@classmethod
@@ -47,28 +50,29 @@ class KawaApplyAllModifiers(_bpy.types.Operator):
 		return True
 	
 	def execute(self, context: 'Context'):
-		last_active = context.view_layer.objects.active
-		try:
+		objs = list(context.selected_objects) # type: List[Object]
+		with _commons.TemporaryViewLayer(name=type(self).__name__):
 			counter_objs, counter_mods = 0, 0
-			for obj in context.selected_objects:
+			for obj in objs:
+				if obj.type == 'MESH' and obj.data.shape_keys is not None:
+					continue  # Меш с кейпкеями, пропускаем
+				_commons.activate_object(obj)
 				modifc = 0
-				while len(obj.modifiers) > 0:
-					modifier = next(iter(obj.modifiers))
-					context.view_layer.objects.active = obj
-					_bpy.ops.object.modifier_apply(modifier=modifier.name)
-					modifc += 1
+				for mod_i, mod_name in list(enumerate(m.name for m in obj.modifiers)):
+					if 'FINISHED' in _bpy.ops.object.modifier_apply(modifier=mod_name):
+						modifc += 1
+					else:
+						self.report({'WARNING'}, "Can not apply modifier #{0} {1} on {2}!".format(mod_i, repr(mod_name), repr(obj)))
 				counter_mods += modifc
 				counter_objs += 1 if modifc > 0 else 0
 			self.report({'INFO'}, "Applied {0} modifiers on {1} objects!".format(counter_mods, counter_objs))
 			return {'FINISHED'} if counter_mods > 0 else {'CANCELLED'}
-		finally:  # TODO overrides dont work here
-			context.view_layer.objects.active = last_active
-	
+
 	def invoke(self, context: 'Context', event: 'Event'):
 		return self.execute(context)
 
 
 classes = (
-	KawaApplyAllModifiers,
+	KawaApplyAllModifiersNoShapeKeys,
 )
 

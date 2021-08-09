@@ -76,7 +76,7 @@ def _VIEW3D_MT_object(self, context):
 	self.layout.separator()
 	self.layout.operator(shapekeys.KawaRemoveEmptyShapeKeys.bl_idname, icon='KEY_DEHLT')
 	self.layout.operator(commons.KawaApplyParentInverseMatrices.bl_idname, icon='ORIENTATION_LOCAL')
-	self.layout.operator(modifiers.KawaApplyAllModifiers.bl_idname, icon='MODIFIER')
+	self.layout.operator(modifiers.KawaApplyAllModifiersNoShapeKeys.bl_idname, icon='MODIFIER')
 
 
 def _VIEW3D_MT_edit_mesh_vertices(self, context):
