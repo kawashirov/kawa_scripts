@@ -9,6 +9,7 @@
 #
 from collections import deque as _deque
 from time import perf_counter as _perf_counter
+import contextlib as _contextlib
 
 import bpy as _bpy
 from bpy import context as _C
@@ -220,6 +221,31 @@ def ensure_selected_single(selected_object, *args):
 		)
 
 
+class TemporaryViewLayer(_contextlib.ContextDecorator):
+	def __init__(self, name=None):
+		self.name = None if name is None else str(name)
+		self.scene = None  # type: Scene
+		self.temp_view_layer = None  # type: ViewLayer
+		self.original_view_layer = None  # type: ViewLayer
+	
+	def __enter__(self):
+		self.scene = _C.window.scene
+		self.original_view_layer = _C.window.view_layer
+		name = '__Temporary'
+		if self.name:
+			name += '-' + self.name
+		self.temp_view_layer = self.scene.view_layers.new(name)
+		_C.window.view_layer = self.temp_view_layer
+		return self
+	
+	def __exit__(self, *exc):
+		try:
+			_C.window.scene = self.scene
+			_C.window.view_layer = self.original_view_layer
+			self.scene.view_layers.remove(self.temp_view_layer)
+		except ReferenceError:
+			pass  # this is fine
+	
 def repack_active_uv(
 		obj: 'Object', get_scale: 'Optional[Callable[[Material], float]]' = None,
 		rotate: 'bool' = None, margin: 'float' = 0.0
