@@ -166,9 +166,9 @@ class KawaRemoveEmptyShapeKeys(_bpy.types.Operator):
 		return {'FINISHED'} if empty_keys_count > 0 else {'CANCELLED'}
 
 
-class KawaRevertSelectedVerticesToBasisShapeKey(_bpy.types.Operator):
-	bl_idname = "mesh.kawa_revert_selected_vertices_to_basis_shape_key"
-	bl_label = "Revert Selected Vertices to Basis Shape Key"
+class KawaRevertSelectedInActiveToBasis(_bpy.types.Operator):
+	bl_idname = "mesh.kawa_revert_selected_in_active_to_basis"
+	bl_label = "Revert SELECTED Vertices in ACTIVE Shape Key to Basis"
 	bl_options = {'REGISTER', 'UNDO'}
 	
 	@classmethod
@@ -212,8 +212,58 @@ class KawaRevertSelectedVerticesToBasisShapeKey(_bpy.types.Operator):
 		return {'FINISHED'}
 
 
+class KawaRevertSelectedInAllToBasis(_bpy.types.Operator):
+	bl_idname = "mesh.kawa_revert_selected_in_all_to_basis"
+	bl_label = "Revert SELECTED Vertices in ALL Shape Keys to Basis"
+	bl_options = {'REGISTER', 'UNDO'}
+	
+	@classmethod
+	def poll(cls, context: 'Context'):
+		if not context.object or context.object.type != 'MESH':
+			return False  # Требуется активный меш-объект
+		data = context.object.data  # type: Mesh
+		if data.shape_keys is None or len(data.shape_keys.key_blocks) < 2:
+			return False  # Требуется что бы было 2 или более шейпкея
+		if context.mode != 'EDIT_MESH':
+			return False  # Требуется режим  EDIT_MESH
+		return True
+	
+	def execute(self, context: 'Context'):
+		# Рофл в том, что операции над мешью надо проводить вне эдит-мода
+		_bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+		mesh = context.view_layer.objects.active.data  # type: Mesh
+		reference = mesh.shape_keys.reference_key
+		
+		if not _ensure_len_match(self, mesh, reference):
+			return {'CANCELLED'}
+		
+		for p in mesh.polygons:
+			if p.select:
+				for i in p.vertices:
+					mesh.vertices[i].select = True
+		
+		for e in mesh.edges:
+			if e.select:
+				for i in e.vertices:
+					mesh.vertices[i].select = True
+		
+		for shape_key in mesh.shape_keys.key_blocks:
+			if shape_key == reference:
+				continue
+			if not _ensure_len_match(self, mesh, shape_key):
+				continue
+			for i in range(len(mesh.vertices)):
+				if mesh.vertices[i].select:
+					shape_key.data[i].co = reference.data[i].co
+			
+		_bpy.ops.object.mode_set_with_submode(mode='EDIT', toggle=False, mesh_select_mode={'VERT'})
+		
+		return {'FINISHED'}
+
+
 classes = (
 	KawaSelectVerticesAffectedByShapeKey,
 	KawaRemoveEmptyShapeKeys,
-	KawaRevertSelectedVerticesToBasisShapeKey,
+	KawaRevertSelectedInActiveToBasis,
+	KawaRevertSelectedInAllToBasis,
 )

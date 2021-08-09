@@ -67,7 +67,8 @@ _log = None
 def _MESH_MT_shape_key_context_menu(self, context):
 	self.layout.separator()
 	self.layout.operator(shapekeys.KawaSelectVerticesAffectedByShapeKey.bl_idname, icon='VERTEXSEL')
-	self.layout.operator(shapekeys.KawaRevertSelectedVerticesToBasisShapeKey.bl_idname, icon='KEYINGSET')
+	self.layout.operator(shapekeys.KawaRevertSelectedInActiveToBasis.bl_idname, icon='KEYINGSET')
+	self.layout.operator(shapekeys.KawaRevertSelectedInAllToBasis.bl_idname, icon='KEYINGSET')
 	self.layout.operator(shapekeys.KawaRemoveEmptyShapeKeys.bl_idname, icon='KEY_DEHLT')
 
 
@@ -81,13 +82,15 @@ def _VIEW3D_MT_object(self, context):
 def _VIEW3D_MT_edit_mesh_vertices(self, context):
 	self.layout.separator()
 	self.layout.operator(shapekeys.KawaSelectVerticesAffectedByShapeKey.bl_idname, icon='VERTEXSEL')
-	self.layout.operator(shapekeys.KawaRevertSelectedVerticesToBasisShapeKey.bl_idname, icon='KEYINGSET')
+	self.layout.operator(shapekeys.KawaRevertSelectedInActiveToBasis.bl_idname, icon='KEYINGSET')
+	self.layout.operator(shapekeys.KawaRevertSelectedInAllToBasis.bl_idname, icon='KEYINGSET')
 
 
 def _VIEW3D_MT_edit_mesh_context_menu(self, context):
 	self.layout.separator()
 	self.layout.operator(shapekeys.KawaSelectVerticesAffectedByShapeKey.bl_idname, icon='VERTEXSEL')
-	self.layout.operator(shapekeys.KawaRevertSelectedVerticesToBasisShapeKey.bl_idname, icon='KEYINGSET')
+	self.layout.operator(shapekeys.KawaRevertSelectedInActiveToBasis.bl_idname, icon='KEYINGSET')
+	self.layout.operator(shapekeys.KawaRevertSelectedInAllToBasis.bl_idname, icon='KEYINGSET')
 
 
 def register():
