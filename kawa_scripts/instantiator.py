@@ -13,6 +13,7 @@ import bpy as _bpy
 
 from . import commons as _commons
 from . import modifiers as _modifiers
+from .reporter import LambdaReporter as _LambdaReporter
 
 
 import typing as _typing
@@ -128,7 +129,7 @@ class BaseInstantiator:
 		_log.info('Instantiating collections...')
 		
 		created, obj_i, inst_i = 0, 0, 0
-		reporter = _commons.LambdaReporter(self.report_time)
+		reporter = _LambdaReporter(self.report_time)
 		reporter.func = lambda r, t: _log.info(
 			"Instantiating collections: Objects=%d/%d, Instantiated=%d, Created=%d, Time=%.1f sec...",
 			obj_i, len(self.copies), inst_i, created, t
@@ -193,7 +194,7 @@ class BaseInstantiator:
 	def _instantiate_material_slots(self):
 		obj_i, slot_i = 0, 0
 		
-		reporter = _commons.LambdaReporter(self.report_time)
+		reporter = _LambdaReporter(self.report_time)
 		reporter.func = lambda r, t: _log.info(
 			"Instantiating material slots: Objects=%d/%d, Slots=%d, Time=%.1f sec, ETA=%.1f sec...",
 			obj_i, len(self.copies), slot_i, t, r.get_eta(1.0 * obj_i / len(self.copies))
@@ -218,7 +219,7 @@ class BaseInstantiator:
 	def _apply_modifiers(self):
 		obj_n, obj_i, mod_i = len(self.copies), 0, 0
 		
-		reporter = _commons.LambdaReporter(self.report_time)
+		reporter = _LambdaReporter(self.report_time)
 		reporter.func = lambda r, t: _log.info(
 			"Applying modifiers: Objects=%d/%d, Modifiers=%d, Time=%.1f sec, ETA=%.1f sec...",
 			obj_i, obj_n, mod_i, t, r.get_eta(1.0 * obj_i / obj_n)

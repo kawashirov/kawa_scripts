@@ -22,6 +22,7 @@ from mathutils.geometry import box_pack_2d as _box_pack_2d
 from . import commons as _commons
 from . import uv as _uv
 from . import shader_nodes as _snodes
+from .reporter import LambdaReporter as _LambdaReporter
 from ._internals import common_str_slots
 
 import typing as _typing
@@ -270,7 +271,7 @@ class BaseAtlasBaker:
 		mat_i = 0
 		smats = set(x[1] for x in self._materials.keys())
 		
-		reporter = _commons.LambdaReporter(self.report_time)
+		reporter = _LambdaReporter(self.report_time)
 		reporter.func = lambda r, t: _log.info(
 			"Preparing material sizes, Materials=%d/%d, Time=%.1f sec, ETA=%.1f sec...",
 			mat_i, len(smats), t, r.get_eta(1.0 * mat_i / len(smats))
@@ -366,7 +367,7 @@ class BaseAtlasBaker:
 				obj_i, len(self._copies), mat_i, len(self._groups), islands, merges, t, r.get_eta(1.0 * obj_i / len(self._copies))
 			)
 		
-		reporter = _commons.LambdaReporter(self.report_time)
+		reporter = _LambdaReporter(self.report_time)
 		reporter.func = do_report
 		
 		_log.info("Searching islands...")
@@ -839,7 +840,7 @@ class BaseAtlasBaker:
 		
 		_log.info("Applying UV...")
 		mat_i, obj_i = 0, 0
-		reporter = _commons.LambdaReporter(self.report_time)
+		reporter = _LambdaReporter(self.report_time)
 		reporter.func = lambda r, t: _log.info(
 			"Transforming UVs: Object=%d/%d, Slots=%d, Time=%.1f sec, ETA=%.1f sec...",
 			obj_i, len(self.objects), mat_i, t, r.get_eta(1.0 * obj_i / len(self.objects))

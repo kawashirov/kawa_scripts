@@ -15,6 +15,7 @@ from bpy import data as _D
 from bpy import context as _C
 
 from . import commons as _commons
+from .reporter import LambdaReporter as _LambdaReporter
 
 import typing as _typing
 if _typing.TYPE_CHECKING:
@@ -264,7 +265,7 @@ class BaseMeshCombiner:
 		self._check_roots()
 		
 		obj_n, obj_i, joins = len(self.roots_names), 0, 0
-		reporter = _commons.LambdaReporter(self.report_time)
+		reporter = _LambdaReporter(self.report_time)
 		reporter.func = lambda r, t: _log.info(
 			"Joining meshes: Roots=%d/%d, Joined=%d, Time=%.1f sec, ETA=%.1f sec...",
 			obj_i, obj_n, joins, t, r.get_eta(1.0 * obj_i / obj_n)
