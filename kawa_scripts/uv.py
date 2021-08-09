@@ -7,17 +7,19 @@
 # work.  If not, see <http://creativecommons.org/licenses/by-nc-sa/3.0/>.
 #
 #
-import logging
-import typing
 
-from .commons import *
-from mathutils import Vector
+from mathutils import Vector as _Vector
 
-if typing.TYPE_CHECKING:
+from . import commons as _commons
+
+import typing as _typing
+if _typing.TYPE_CHECKING:
 	from typing import *
 	from bpy.types import *
+	from mathutils import Vector
 
-log = logging.getLogger('kawa.uv')
+import logging as _logging
+_log = _logging.getLogger('kawa.uv')
 
 
 class Island:
@@ -30,15 +32,15 @@ class Island:
 		self.mx = mx  # type: Optional[Vector]
 		self.extends = 0  # Для диагностических целей
 	
-	def __str__(self) -> str: return common_str_slots(self, self.__slots__)
+	def __str__(self) -> str: return _commons.common_str_slots(self, self.__slots__)
 	
-	def __repr__(self) -> str: return common_str_slots(self, self.__slots__)
+	def __repr__(self) -> str: return _commons.common_str_slots(self, self.__slots__)
 	
 	def is_valid(self):
 		return self.mn is not None and self.mx is not None
 	
 	def is_inside_vec2(self, item: 'Vector', epsilon: 'float' = 0):
-		if type(item) != Vector:
+		if type(item) != _Vector:
 			raise ValueError("type(item) != Vector")
 		if len(item) != 2:
 			raise ValueError("len(item) != 2")
@@ -59,7 +61,7 @@ class Island:
 		return True
 	
 	def get_points(self) -> 'Sequence[Vector]':
-		return self.mn, self.mx, Vector((self.mn.x, self.mx.y)), Vector((self.mx.x, self.mn.y))
+		return self.mn, self.mx, _Vector((self.mn.x, self.mx.y)), _Vector((self.mx.x, self.mn.y))
 	
 	def any_inside_vec2(self, items: 'Iterable[Vector]', epsilon: 'float' = 0):
 		return any(self.is_inside_vec2(x, epsilon=epsilon) for x in items)
@@ -107,9 +109,9 @@ class IslandsBuilder:
 		self.bboxes = list()  # type: List[Island]
 		self.merges = 0  # Для диагностических целей
 	
-	def __str__(self) -> str: return common_str_slots(self, self.__slots__)
+	def __str__(self) -> str: return _commons.common_str_slots(self, self.__slots__)
 	
-	def __repr__(self) -> str: return common_str_slots(self, self.__slots__)
+	def __repr__(self) -> str: return _commons.common_str_slots(self, self.__slots__)
 	
 	def add_bbox(self, bbox: 'Island', epsilon: 'float' = 0):
 		# Добавляет набор точек

@@ -8,8 +8,9 @@
 #
 #
 
-import bpy
+import bpy as _bpy
 import typing as _typing
+
 from . import commons as _commons
 
 if _typing.TYPE_CHECKING:
@@ -23,16 +24,16 @@ def apply_all_modifiers(obj: 'Object') -> 'int':
 	while len(obj.modifiers) > 0:
 		modifier = next(iter(obj.modifiers))
 		_commons.activate_object(obj)
-		if bpy.app.version >= (2, 90, 0):
-			bpy.ops.object.modifier_apply(modifier=modifier.name)
+		if _bpy.app.version >= (2, 90, 0):
+			_bpy.ops.object.modifier_apply(modifier=modifier.name)
 		else:
-			bpy.ops.object.modifier_apply(apply_as='DATA', modifier=modifier.name)
+			_bpy.ops.object.modifier_apply(apply_as='DATA', modifier=modifier.name)
 		modifc += 1
 	_commons.ensure_deselect_all_objects()
 	return modifc
 
 
-class KawaApplyAllModifiers(bpy.types.Operator):
+class KawaApplyAllModifiers(_bpy.types.Operator):
 	bl_idname = "object.kawa_apply_all_modifiers"
 	bl_label = "Apply All Modifiers"
 	bl_options = {'REGISTER', 'UNDO'}
@@ -46,25 +47,22 @@ class KawaApplyAllModifiers(bpy.types.Operator):
 		return True
 	
 	def execute(self, context: 'Context'):
-		last_active = bpy.context.view_layer.objects.active
+		last_active = context.view_layer.objects.active
 		try:
 			counter_objs, counter_mods = 0, 0
 			for obj in context.selected_objects:
 				modifc = 0
 				while len(obj.modifiers) > 0:
 					modifier = next(iter(obj.modifiers))
-					bpy.context.view_layer.objects.active = obj
-					if bpy.app.version >= (2, 90, 0):
-						bpy.ops.object.modifier_apply(modifier=modifier.name)
-					else:
-						bpy.ops.object.modifier_apply(apply_as='DATA', modifier=modifier.name)
+					context.view_layer.objects.active = obj
+					_bpy.ops.object.modifier_apply(modifier=modifier.name)
 					modifc += 1
 				counter_mods += modifc
 				counter_objs += 1 if modifc > 0 else 0
 			self.report({'INFO'}, "Applied {0} modifiers on {1} objects!".format(counter_mods, counter_objs))
 			return {'FINISHED'} if counter_mods > 0 else {'CANCELLED'}
 		finally:  # TODO overrides dont work here
-			bpy.context.view_layer.objects.active = last_active
+			context.view_layer.objects.active = last_active
 	
 	def invoke(self, context: 'Context', event: 'Event'):
 		return self.execute(context)

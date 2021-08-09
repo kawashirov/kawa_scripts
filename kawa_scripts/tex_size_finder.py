@@ -7,16 +7,17 @@
 # work.  If not, see <http://creativecommons.org/licenses/by-nc-sa/3.0/>.
 #
 #
-import collections
-import logging
-import typing
-import bpy
+from collections import deque as _deque
 
-if typing.TYPE_CHECKING:
+import bpy as _bpy
+
+import typing as _typing
+if _typing.TYPE_CHECKING:
 	from typing import *
 	from bpy.types import *
 
-log = logging.getLogger('kawa.tex_size_finder')
+import logging as _logging
+_log = _logging.getLogger('kawa.tex_size_finder')
 
 
 class TexSizeFinder:
@@ -45,7 +46,7 @@ class TexSizeFinder:
 		return tuple(image.size)
 	
 	def iterate_nodes(self, node_tree: 'ShaderNodeTree') -> 'Iterator[ShaderNodeTexImage]':
-		node_trees = collections.deque()  # type: Deque[ShaderNodeTree]
+		node_trees = _deque()  # type: Deque[ShaderNodeTree]
 		node_trees.append(node_tree)
 		node_trees_history = set()  # type: Set[ShaderNodeTree]
 		while len(node_trees) > 0:
@@ -54,9 +55,9 @@ class TexSizeFinder:
 				continue
 			node_trees_history.add(node_tree)
 			for node in node_tree.nodes:
-				if isinstance(node, bpy.types.ShaderNodeTexImage) and node.image is not None:
+				if isinstance(node, _bpy.types.ShaderNodeTexImage) and node.image is not None:
 					yield node
-				elif isinstance(node, bpy.types.ShaderNodeGroup):
+				elif isinstance(node, _bpy.types.ShaderNodeGroup):
 					node_trees.append(node.node_tree)
 
 	def iterate_sizes(self, node_tree: 'ShaderNodeTree') -> 'Iterator[Tuple[float, float]]':

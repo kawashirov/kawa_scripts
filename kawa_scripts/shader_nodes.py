@@ -8,18 +8,19 @@
 #
 #
 
-import logging
-import typing
-import bpy
-from mathutils import Vector
+import bpy as _bpy
+from mathutils import Vector as _Vector
 
-from .commons import MaterialConfigurationError
+from . import commons as _commons
 
-if typing.TYPE_CHECKING:
+import typing as _typing
+if _typing.TYPE_CHECKING:
 	from typing import *
 	from bpy.types import *
 	
-log = logging.getLogger('kawa.shader_nodes')
+
+import logging as _logging
+_log = _logging.getLogger('kawa.shader_nodes')
 
 
 KAWA_BAKE_TARGET = 'KAWA_BAKE_TARGET'
@@ -32,11 +33,11 @@ def get_shader_node_by_label(mat: 'Material', name: str, _type: type):
 	sh_default = nodes.get(name)
 	if sh_default is not None and not isinstance(sh_default, _type):
 		msg = "Has shader node with label {0}, but it has type {1} instead of {2}.".format(name, type(sh_default), _type)
-		raise MaterialConfigurationError(mat, msg)
+		raise _commons.MaterialConfigurationError(mat, msg)
 	if sh_default is None:
 		sh_defaults = [n for n in nodes.values() if isinstance(n, _type) and n.label == name]
 		if len(sh_defaults) > 1:
-			raise MaterialConfigurationError(mat, "Has {0} shader nodes with label {1}.".format(len(sh_defaults), name))
+			raise _commons.MaterialConfigurationError(mat, "Has {0} shader nodes with label {1}.".format(len(sh_defaults), name))
 		if len(sh_defaults) == 1:
 			sh_default = sh_defaults[0]
 			sh_default.name = name
@@ -67,7 +68,7 @@ def get_node_input_safe(node: 'Node', name: str) -> 'Optional[NodeSocket]':
 
 def prepare_and_get_teximage_node(mat: 'Material', name: str) -> 'ShaderNodeTexImage':
 	nodes = mat.node_tree.nodes
-	n_teximage = get_shader_node_by_label(mat, name, bpy.types.ShaderNodeTexImage)
+	n_teximage = get_shader_node_by_label(mat, name, _bpy.types.ShaderNodeTexImage)
 	if n_teximage is None:
 		n_teximage = nodes.new('ShaderNodeTexImage')
 		n_teximage.name = name
@@ -93,7 +94,7 @@ def prepare_and_get_node_for_baking(mat: 'Material') -> 'ShaderNodeTexImage':
 def get_material_output(mat: 'Material') -> 'Optional[ShaderNodeOutputMaterial]':
 	# Находит Material Output
 	nodes = mat.node_tree.nodes
-	outputs = [n for n in nodes if isinstance(n, bpy.types.ShaderNodeOutputMaterial)]
+	outputs = [n for n in nodes if isinstance(n, _bpy.types.ShaderNodeOutputMaterial)]
 	if len(outputs) != 1:
 		return None
 	return outputs[0]
@@ -102,7 +103,7 @@ def get_material_output(mat: 'Material') -> 'Optional[ShaderNodeOutputMaterial]'
 def get_material_output_socket(mat: 'Material') -> 'Optional[NodeSocket]':
 	# Находит Material Output
 	nodes = mat.node_tree.nodes
-	outputs = [n for n in nodes if isinstance(n, bpy.types.ShaderNodeOutputMaterial)]
+	outputs = [n for n in nodes if isinstance(n, _bpy.types.ShaderNodeOutputMaterial)]
 	if len(outputs) != 1:
 		return None
 	return outputs[0].inputs.get('Surface')
@@ -113,10 +114,10 @@ def get_material_output_surface(mat: 'Material') -> 'Optional[ShaderNode]':
 	# Срёт ошибкой, если нету или несколько ShaderNodeOutputMaterial или там кривые связи
 	n_out = get_material_output_socket(mat)
 	if n_out is None:
-		raise MaterialConfigurationError(mat, "Can not find output socket.")
+		raise _commons.MaterialConfigurationError(mat, "Can not find output socket.")
 	n_sh_s = n_out.links[0].from_socket if len(n_out.links) == 1 else None
 	if n_sh_s is None:
-		raise MaterialConfigurationError(mat, "Can not find connected 'Surface' output shader.")
+		raise _commons.MaterialConfigurationError(mat, "Can not find connected 'Surface' output shader.")
 	return n_sh_s.node
 
 
@@ -126,11 +127,11 @@ def prepare_and_get_default_shader_node(mat: 'Material') -> 'ShaderNode':
 	# Если такого нет, то пытается понять что подключено в Surface
 	# Если найдено, то убеждается, что имя и метка = KAWA_BAKE_DEFAULT
 	# Срёт ошибками если метки выставлены не верно.
-	sh_default = get_shader_node_by_label(mat, KAWA_BAKE_DEFAULT, bpy.types.ShaderNode)
+	sh_default = get_shader_node_by_label(mat, KAWA_BAKE_DEFAULT, _bpy.types.ShaderNode)
 	if sh_default is None:
 		sh_default = get_material_output_surface(mat)
 		if sh_default is None:
-			raise MaterialConfigurationError(mat, "Can not find KAWA_BAKE_DEFAULT shader node.")
+			raise _commons.MaterialConfigurationError(mat, "Can not find KAWA_BAKE_DEFAULT shader node.")
 		sh_default.name = KAWA_BAKE_DEFAULT
 		sh_default.label = KAWA_BAKE_DEFAULT
 	return sh_default
@@ -142,7 +143,7 @@ def prepare_and_get_alpha_shader_node(mat: 'Material'):
 	try:
 		nodes = mat.node_tree.nodes
 		sh_default = prepare_and_get_default_shader_node(mat)
-		sh_alpha = get_shader_node_by_label(mat, KAWA_BAKE_ALPHA, bpy.types.ShaderNodeEmission)
+		sh_alpha = get_shader_node_by_label(mat, KAWA_BAKE_ALPHA, _bpy.types.ShaderNodeEmission)
 		if sh_alpha is None:
 			sh_alpha = nodes.new('ShaderNodeEmission')
 			sh_alpha.name = KAWA_BAKE_ALPHA
@@ -150,14 +151,14 @@ def prepare_and_get_alpha_shader_node(mat: 'Material'):
 		sh_alpha_in = sh_alpha.inputs['Color']
 		if sh_default is not None:
 			# Если есть default шейдер, то размещаем новый над ним и пытаемся своровать 'Alpha'
-			sh_alpha.location = sh_default.location + Vector((0, 200))
+			sh_alpha.location = sh_default.location + _Vector((0, 200))
 			n_alpha = get_node_input_safe(sh_default, 'Alpha')
 			if n_alpha is not None and get_socket_input_safe(sh_alpha_in) is None:
 				# Если ничего не забинджено в ALPHA шедер, то подрубаем из DEFAULT
 				mat.node_tree.links.new(n_alpha, sh_alpha.inputs['Color'])
 		return sh_alpha
 	except Exception as exc:
-		raise MaterialConfigurationError(mat, "Can not prepare ALPHA shader node") from exc
+		raise _commons.MaterialConfigurationError(mat, "Can not prepare ALPHA shader node") from exc
 	
 	sh_default = prepare_and_get_default_shader_node(mat)
 	if sh_default is None:
@@ -179,11 +180,11 @@ def configure_for_baking_default(mat: 'Material'):
 	
 	n_out_s = get_material_output_socket(mat)
 	if n_out_s is None:
-		raise MaterialConfigurationError(mat, "Can not find output socket.")
+		raise _commons.MaterialConfigurationError(mat, "Can not find output socket.")
 	
 	sh_default = prepare_and_get_default_shader_node(mat)
 	if sh_default is None:
-		raise MaterialConfigurationError(mat, "There is no DEFAULT shader node, can not switch to ALPHA.")
+		raise _commons.MaterialConfigurationError(mat, "There is no DEFAULT shader node, can not switch to ALPHA.")
 	
 	sockets = [s for s in sh_default.outputs if s.type == 'SHADER']
 	

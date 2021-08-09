@@ -7,20 +7,23 @@
 # work.  If not, see <http://creativecommons.org/licenses/by-nc-sa/3.0/>.
 #
 #
-import collections
-import logging
-import typing
-import time
+from collections import deque as _deque
+from time import perf_counter as _perf_counter
 
-import bpy
-from mathutils import Vector, Quaternion, Matrix
-from mathutils.geometry import area_tri
+import bpy as _bpy
+from bpy import context as _C
+from mathutils import Vector as _Vector
+from mathutils import Quaternion as _Quaternion
+from mathutils import Matrix as _Matrix
+from mathutils.geometry import area_tri as _area_tri
 
-if typing.TYPE_CHECKING:
+import typing as _typing
+if _typing.TYPE_CHECKING:
 	from typing import *
 	from bpy.types import *
 	
-log = logging.getLogger('kawa.commons')
+import logging as _logging
+_log = _logging.getLogger('kawa.commons')
 
 
 class ConfigurationError(RuntimeError):
@@ -48,10 +51,10 @@ def poly2_area2(ps: 'Sequence[Vector]'):
 		return 0
 	elif length == 3:
 		# Частый случай, оптимизация для треугольника
-		return area_tri(ps[0], ps[1], ps[2])
+		return _area_tri(ps[0], ps[1], ps[2])
 	elif length == 4:
 		# Частый случай, оптимизация для квада
-		return area_tri(ps[0], ps[1], ps[2]) + area_tri(ps[0], ps[2], ps[3])
+		return _area_tri(ps[0], ps[1], ps[2]) + _area_tri(ps[0], ps[2], ps[3])
 	else:
 		# Для пентагона и выше - Формула Гаусса
 		s = ps[length - 1].x * ps[0].y - ps[0].x * ps[length - 1].y
@@ -107,10 +110,10 @@ def is_none_or_valid_string(string: 'str') -> 'bool':
 
 
 def identity_transform(obj: 'Object'):
-	obj.location = Vector.Fill(3, 0.0)
+	obj.location = _Vector.Fill(3, 0.0)
 	obj.rotation_mode = 'QUATERNION'
-	obj.rotation_quaternion = Quaternion()
-	obj.scale = Vector.Fill(3, 1.0)
+	obj.rotation_quaternion = _Quaternion()
+	obj.scale = _Vector.Fill(3, 1.0)
 
 
 def copy_transform(from_obj: 'Object', to_obj: 'Object'):
@@ -131,12 +134,12 @@ def set_parent_keep_world(child: 'Object', parent: 'Object'):
 	m = child.matrix_world.copy()
 	child.parent = parent
 	child.parent_type = 'OBJECT'
-	child.matrix_parent_inverse = Matrix.Identity(4)
+	child.matrix_parent_inverse = _Matrix.Identity(4)
 	child.matrix_world = m
 
 
 def apply_parent_inverse_matrix(obj: 'Object'):
-	identity = Matrix.Identity(4)
+	identity = _Matrix.Identity(4)
 	if obj.parent_type != 'OBJECT' or obj.matrix_parent_inverse == identity:
 		return False
 	mw = obj.matrix_world.copy()
@@ -146,7 +149,7 @@ def apply_parent_inverse_matrix(obj: 'Object'):
 	return True
 
 
-class KawaApplyParentInverseMatrices(bpy.types.Operator):
+class KawaApplyParentInverseMatrices(_bpy.types.Operator):
 	bl_idname = "object.kawa_apply_parent_inverse_matrices"
 	bl_label = "Apply Parent Inverse Transform Matricies"
 	bl_options = {'REGISTER', 'UNDO'}
@@ -168,17 +171,17 @@ class KawaApplyParentInverseMatrices(bpy.types.Operator):
 
 def ensure_op_result(result: 'Iterable[str]', allowed_results: 'Iterable[str]', **kwargs):
 	if set(result) >= set(allowed_results):
-		raise RuntimeError('Operator has invalid result:', result, allowed_results, list(bpy.context.selected_objects), kwargs)
+		raise RuntimeError('Operator has invalid result:', result, allowed_results, list(_C.selected_objects), kwargs)
 
 
 def ensure_op_finished(result, **kwargs):
 	if 'FINISHED' not in result:
-		raise RuntimeError('Operator is not FINISHED: ', result, list(bpy.context.selected_objects), kwargs)
+		raise RuntimeError('Operator is not FINISHED: ', result, list(_C.selected_objects), kwargs)
 
 
 def ensure_op_finished_or_cancelled(result, **kwargs):
 	if 'FINISHED' not in result and 'CANCELLED' not in result:
-		raise RuntimeError('Operator is not FINISHED: ', result, list(bpy.context.selected_objects), kwargs)
+		raise RuntimeError('Operator is not FINISHED: ', result, list(_C.selected_objects), kwargs)
 
 
 def select_set_all(objects: 'Iterable[Object]', state: bool):
@@ -187,15 +190,15 @@ def select_set_all(objects: 'Iterable[Object]', state: bool):
 			obj.hide_set(False)
 			obj.select_set(state)
 		except Exception as exc:
-			log.error("%s", exc)
-			log.error("%s", repr(objects))
+			_log.error("%s", exc)
+			_log.error("%s", repr(objects))
 			raise exc
 		
 
 def activate_object(obj: 'Object'):
 	obj.hide_set(False)
 	obj.select_set(True)
-	bpy.context.view_layer.objects.active = obj
+	_C.view_layer.objects.active = obj
 
 
 def activate_objects(objs: 'Iterable[Object]'):
@@ -206,20 +209,20 @@ def activate_objects(objs: 'Iterable[Object]'):
 def ensure_deselect_all_objects():
 	# ensure_op_finished(bpy.ops.object.select_all(action='DESELECT'), name="bpy.ops.object.select_all(action='DESELECT')")
 	# Это быстрее, чем оператор, и позволяет отжать скрытые объекты
-	while len(bpy.context.selected_objects) > 0:
-		bpy.context.selected_objects[0].select_set(False)
+	while len(_C.selected_objects) > 0:
+		_C.selected_objects[0].select_set(False)
 
 
 def ensure_selected_single(selected_object, *args):
-	if len(bpy.context.selected_objects) != 1:
+	if len(_C.selected_objects) != 1:
 		raise AssertionError(
 			"len(bpy.context.selected_objects) != 1 or selected_object not in bpy.context.selected_objects",
-			len(bpy.context.selected_objects), bpy.context.selected_objects, selected_object, args
+			len(_C.selected_objects), _C.selected_objects, selected_object, args
 		)
-	if selected_object is not None and selected_object not in bpy.context.selected_objects:
+	if selected_object is not None and selected_object not in _C.selected_objects:
 		raise AssertionError(
 			"selected_object not in bpy.context.selected_objects",
-			bpy.context.selected_objects, selected_object, args
+			_C.selected_objects, selected_object, args
 		)
 
 
@@ -232,41 +235,41 @@ def repack_active_uv(
 		ensure_deselect_all_objects()
 		activate_object(obj)
 		# Перепаковка...
-		e(bpy.ops.object.mode_set_with_submode(mode='EDIT', mesh_select_mode={'FACE'}), name='object.mode_set_with_submode')
-		e(bpy.ops.mesh.reveal(select=True), name='mesh.reveal')
-		e(bpy.ops.mesh.select_all(action='SELECT'), name='mesh.select_all')
-		bpy.context.scene.tool_settings.use_uv_select_sync = True
-		area_type = bpy.context.area.type
+		e(_bpy.ops.object.mode_set_with_submode(mode='EDIT', mesh_select_mode={'FACE'}), name='object.mode_set_with_submode')
+		e(_bpy.ops.mesh.reveal(select=True), name='mesh.reveal')
+		e(_bpy.ops.mesh.select_all(action='SELECT'), name='mesh.select_all')
+		_C.scene.tool_settings.use_uv_select_sync = True
+		area_type = _C.area.type
 		try:
-			bpy.context.area.type = 'IMAGE_EDITOR'
-			bpy.context.area.ui_type = 'UV'
-			e(bpy.ops.uv.reveal(select=True), name='uv.reveal')
-			e(bpy.ops.mesh.select_all(action='SELECT'), name='mesh.select_all')
-			e(bpy.ops.uv.select_all(action='SELECT'), name='uv.select_all')
-			e(bpy.ops.uv.average_islands_scale(), name='uv.average_islands_scale')
+			_C.area.type = 'IMAGE_EDITOR'
+			_C.area.ui_type = 'UV'
+			e(_bpy.ops.uv.reveal(select=True), name='uv.reveal')
+			e(_bpy.ops.mesh.select_all(action='SELECT'), name='mesh.select_all')
+			e(_bpy.ops.uv.select_all(action='SELECT'), name='uv.select_all')
+			e(_bpy.ops.uv.average_islands_scale(), name='uv.average_islands_scale')
 			for index in range(len(obj.material_slots)):
 				scale = 1.0
 				if get_scale is not None:
 					scale = get_scale(obj.material_slots[index].material)
 				if scale <= 0 or scale == 1.0:
 					continue
-				bpy.context.scene.tool_settings.use_uv_select_sync = True
-				e(bpy.ops.mesh.select_all(action='DESELECT'), name='mesh.select_all', index=index)
-				e(bpy.ops.uv.select_all(action='DESELECT'), name='uv.select_all', index=index)
+				_C.scene.tool_settings.use_uv_select_sync = True
+				e(_bpy.ops.mesh.select_all(action='DESELECT'), name='mesh.select_all', index=index)
+				e(_bpy.ops.uv.select_all(action='DESELECT'), name='uv.select_all', index=index)
 				obj.active_material_index = index
-				if 'FINISHED' in bpy.ops.object.material_slot_select():
+				if 'FINISHED' in _bpy.ops.object.material_slot_select():
 					# Может быть не FINISHED если есть не использованые материалы
-					e(bpy.ops.uv.select_linked(), name='uv.select_linked', index=index)
-					e(bpy.ops.transform.resize(value=(scale, scale, scale)), name='transform.resize', value=scale, index=index)
-			e(bpy.ops.mesh.select_all(action='SELECT'), name='mesh.select_all')
-			e(bpy.ops.uv.select_all(action='SELECT'), name='uv.select_all')
-			e(bpy.ops.uv.pack_islands(rotate=rotate, margin=margin), name='uv.pack_islands')
-			e(bpy.ops.uv.select_all(action='DESELECT'), name='uv.select_all')
-			e(bpy.ops.mesh.select_all(action='DESELECT'), name='mesh.select_all')
+					e(_bpy.ops.uv.select_linked(), name='uv.select_linked', index=index)
+					e(_bpy.ops.transform.resize(value=(scale, scale, scale)), name='transform.resize', value=scale, index=index)
+			e(_bpy.ops.mesh.select_all(action='SELECT'), name='mesh.select_all')
+			e(_bpy.ops.uv.select_all(action='SELECT'), name='uv.select_all')
+			e(_bpy.ops.uv.pack_islands(rotate=rotate, margin=margin), name='uv.pack_islands')
+			e(_bpy.ops.uv.select_all(action='DESELECT'), name='uv.select_all')
+			e(_bpy.ops.mesh.select_all(action='DESELECT'), name='mesh.select_all')
 		finally:
-			bpy.context.area.type = area_type
+			_C.area.type = area_type
 	finally:
-		e(bpy.ops.object.mode_set(mode='OBJECT'), name='object.mode_set')
+		e(_bpy.ops.object.mode_set(mode='OBJECT'), name='object.mode_set')
 
 
 def any_not_none(*args):
@@ -279,7 +282,7 @@ def any_not_none(*args):
 
 def get_mesh_safe(obj: 'Object') -> 'Mesh':
 	mesh = obj.data
-	if not isinstance(mesh, bpy.types.Mesh):
+	if not isinstance(mesh, _bpy.types.Mesh):
 		raise ValueError("Object.data is not Mesh!", obj, mesh)
 	return mesh
 
@@ -321,8 +324,8 @@ def remove_all_vertex_colors(obj: 'Object'):
 
 def remove_all_material_slots(obj: 'Object', slots=0):
 	while len(obj.material_slots) > slots:
-		bpy.context.view_layer.objects.active = obj
-		ensure_op_finished(bpy.ops.object.material_slot_remove(), name='bpy.ops.object.material_slot_remove')
+		_C.view_layer.objects.active = obj
+		ensure_op_finished(_bpy.ops.object.material_slot_remove(), name='bpy.ops.object.material_slot_remove')
 
 
 def remove_uv_layer_by_condition(
@@ -349,9 +352,9 @@ def remove_uv_layer_by_condition(
 def find_objects_with_material(material: 'Material', where: 'Iterable[Object]' = None) -> 'Set[Object]':
 	objects = set()
 	if where is None:
-		where = bpy.context.scene.objects
+		where = _C.scene.objects
 	for obj in where:
-		if not isinstance(obj.data, bpy.types.Mesh):
+		if not isinstance(obj.data, _bpy.types.Mesh):
 			continue
 		for slot in obj.material_slots:
 			if slot.material == material:
@@ -370,7 +373,7 @@ def is_parent(parent_object: 'Object', child_object: 'Object') -> 'bool':
 
 def find_all_child_objects(parent_object: 'Object', where: 'Optional[Container[Object]]' = None) -> 'Set[Object]':
 	child_objects = set()
-	deque = collections.deque()  # type: Deque[Object]
+	deque = _deque()  # type: Deque[Object]
 	deque.append(parent_object)
 	while len(deque) > 0:
 		child_obj = deque.pop()
@@ -412,13 +415,13 @@ def merge_same_material_slots(obj: 'Object'):
 					poly.material_index = main_idx
 	if run_op:
 		ensure_op_finished_or_cancelled(
-			bpy.ops.object.material_slot_remove_unused(), name='bpy.ops.object.material_slot_remove_unused'
+			_bpy.ops.object.material_slot_remove_unused(), name='bpy.ops.object.material_slot_remove_unused'
 		)
 	ensure_deselect_all_objects()
 
 
-_K = typing.TypeVar('_K')
-_V = typing.TypeVar('_V')
+_K = _typing.TypeVar('_K')
+_V = _typing.TypeVar('_V')
 
 
 def dict_get_or_add(_dict: 'Dict[_K,_V]', _key: 'Optional[_K]', _creator: 'Callable[[],_V]') -> '_V':
@@ -432,8 +435,8 @@ def dict_get_or_add(_dict: 'Dict[_K,_V]', _key: 'Optional[_K]', _creator: 'Calla
 class AbstractReporter:
 	def __init__(self, report_time=5.0):
 		self.report_time = report_time
-		self.time_begin = time.perf_counter()
-		self.time_progress = time.perf_counter()
+		self.time_begin = _perf_counter()
+		self.time_progress = _perf_counter()
 	
 	def get_eta(self, progress) -> 'float':
 		time_passed = self.time_progress - self.time_begin
@@ -444,7 +447,7 @@ class AbstractReporter:
 		raise NotImplementedError('do_report')
 	
 	def ask_report(self, force=False):
-		now = time.perf_counter()
+		now = _perf_counter()
 		if force is False and now - self.time_progress < self.report_time:
 			return
 		self.time_progress = now

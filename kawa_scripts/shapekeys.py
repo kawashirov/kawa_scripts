@@ -8,9 +8,9 @@
 #
 #
 
-import typing as _typing
-import bpy
+import bpy as _bpy
 
+import typing as _typing
 if _typing.TYPE_CHECKING:
 	from typing import *
 	from bpy.types import *
@@ -26,12 +26,12 @@ def _ensure_len_match(op: 'Operator', mesh: 'Mesh', shape_key: 'ShapeKey'):
 	return False
 
 
-class KawaSelectVerticesAffectedByShapeKey(bpy.types.Operator):
+class KawaSelectVerticesAffectedByShapeKey(_bpy.types.Operator):
 	bl_idname = "mesh.kawa_select_vertices_affected_by_shape_key"
 	bl_label = "Select Vertices Affected by Active Shape Key"
 	bl_options = {'REGISTER', 'UNDO'}
 
-	epsilon: bpy.props.FloatProperty(
+	epsilon: _bpy.props.FloatProperty(
 		name="Epsilon",
 		description="Selection precision in local space",
 		min=1e-07,
@@ -59,7 +59,7 @@ class KawaSelectVerticesAffectedByShapeKey(bpy.types.Operator):
 	
 	def execute(self, context: 'Context'):
 		# Рофл в том, что операции над мешью надо проводить вне эдит-мода
-		bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+		_bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 		
 		mesh = context.view_layer.objects.active.data  # type: Mesh
 		shape_key = context.view_layer.objects.active.active_shape_key
@@ -80,17 +80,17 @@ class KawaSelectVerticesAffectedByShapeKey(bpy.types.Operator):
 			mesh.vertices[i].select = (shape_key.data[i].co - reference.data[i].co).magnitude > self.epsilon
 			pass
 		
-		bpy.ops.object.mode_set_with_submode(mode='EDIT', toggle=False, mesh_select_mode={'VERT'})
+		_bpy.ops.object.mode_set_with_submode(mode='EDIT', toggle=False, mesh_select_mode={'VERT'})
 		
 		return {'FINISHED'}
 
 
-class KawaRemoveEmptyShapeKeys(bpy.types.Operator):
+class KawaRemoveEmptyShapeKeys(_bpy.types.Operator):
 	bl_idname = "mesh.kawa_remove_empty_shape_keys"
 	bl_label = "Remove Empty Shape Keys"
 	bl_options = {'REGISTER', 'UNDO'}
 	
-	epsilon: bpy.props.FloatProperty(
+	epsilon: _bpy.props.FloatProperty(
 		name="Epsilon",
 		description="Selection precision in local space",
 		min=1e-07,
@@ -166,7 +166,7 @@ class KawaRemoveEmptyShapeKeys(bpy.types.Operator):
 		return {'FINISHED'} if empty_keys_count > 0 else {'CANCELLED'}
 
 
-class KawaRevertSelectedVerticesToBasisShapeKey(bpy.types.Operator):
+class KawaRevertSelectedVerticesToBasisShapeKey(_bpy.types.Operator):
 	bl_idname = "mesh.kawa_revert_selected_vertices_to_basis_shape_key"
 	bl_label = "Revert Selected Vertices to Basis Shape Key"
 	bl_options = {'REGISTER', 'UNDO'}
@@ -183,7 +183,7 @@ class KawaRevertSelectedVerticesToBasisShapeKey(bpy.types.Operator):
 	
 	def execute(self, context: 'Context'):
 		# Рофл в том, что операции над мешью надо проводить вне эдит-мода
-		bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+		_bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 		mesh = context.view_layer.objects.active.data  # type: Mesh
 		shape_key = context.view_layer.objects.active.active_shape_key
 		reference = mesh.shape_keys.reference_key
@@ -207,7 +207,7 @@ class KawaRevertSelectedVerticesToBasisShapeKey(bpy.types.Operator):
 			if mesh.vertices[i].select:
 				shape_key.data[i].co = reference.data[i].co
 		
-		bpy.ops.object.mode_set_with_submode(mode='EDIT', toggle=False, mesh_select_mode={'VERT'})
+		_bpy.ops.object.mode_set_with_submode(mode='EDIT', toggle=False, mesh_select_mode={'VERT'})
 		
 		return {'FINISHED'}
 

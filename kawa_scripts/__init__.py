@@ -9,13 +9,13 @@
 #
 
 from collections import OrderedDict as _OrderedDict
-import typing as _typing
 
+import typing as _typing
 if _typing.TYPE_CHECKING:
 	from types import ModuleType
 	from typing import Dict
 	# Эти итак заимпортированы через __import__ но PyCharm их не видит
-	from . import shapekeys, commons
+	from . import shapekeys, commons, modifiers
 
 bl_info = {
 	"name": "Kawashirov's Scripts",
@@ -44,9 +44,11 @@ _modules = [
 	"commons",
 	"instantiator",
 	"material_slots",
+	"modifiers",
 	"shader_nodes",
 	"shapekeys",
 	"tex_size_finder",
+	"uv",
 ]
 
 import bpy
@@ -59,7 +61,7 @@ for _mod_name in _modules:
 del _namespace
 
 
-log = None
+_log = None
 
 
 def _MESH_MT_shape_key_context_menu(self, context):
@@ -73,7 +75,7 @@ def _VIEW3D_MT_object(self, context):
 	self.layout.separator()
 	self.layout.operator(shapekeys.KawaRemoveEmptyShapeKeys.bl_idname, icon='KEY_DEHLT')
 	self.layout.operator(commons.KawaApplyParentInverseMatrices.bl_idname, icon='ORIENTATION_LOCAL')
-	self.layout.operator(commons.KawaApplyAllModifiers.bl_idname, icon='MODIFIER')
+	self.layout.operator(modifiers.KawaApplyAllModifiers.bl_idname, icon='MODIFIER')
 
 
 def _VIEW3D_MT_edit_mesh_vertices(self, context):
@@ -91,18 +93,18 @@ def _VIEW3D_MT_edit_mesh_context_menu(self, context):
 def register():
 	print("Hello from Kawashirov's Scripts!")
 	import logging
-	global log
-	log = logging.getLogger('kawa')
-	log.setLevel(logging.DEBUG)
-	if len(log.handlers) < 1:
+	global _log
+	_log = logging.getLogger('kawa')
+	_log.setLevel(logging.DEBUG)
+	if len(_log.handlers) < 1:
 		import tempfile
 		print("Updating kawa_scripts log handler!")
 		log_file = tempfile.gettempdir() + '/kawa.log'
 		log_formatter = logging.Formatter(fmt='[%(asctime)s][%(levelname)s] %(message)s')
 		log_handler = logging.FileHandler(log_file, mode='w', encoding='utf-8', delay=False)
 		log_handler.setFormatter(log_formatter)
-		log.addHandler(log_handler)
-		log.info("Log handler updated!")
+		_log.addHandler(log_handler)
+		_log.info("Log handler updated!")
 	
 	from bpy.utils import register_class
 	for mod in _modules_loaded.values():
@@ -116,7 +118,7 @@ def register():
 	bpy.types.VIEW3D_MT_edit_mesh_vertices.append(_VIEW3D_MT_edit_mesh_vertices)
 	bpy.types.MESH_MT_shape_key_context_menu.append(_MESH_MT_shape_key_context_menu)
 	
-	log.info("Hello from Kawashirov's Scripts again!")
+	_log.info("Hello from Kawashirov's Scripts again!")
 
 
 def unregister():

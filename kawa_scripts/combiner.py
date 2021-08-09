@@ -8,21 +8,21 @@
 #
 #
 
-import logging
-import typing
-import collections
+from collections import deque as _deque
 
-import bpy
-from mathutils import Vector, Quaternion
+import bpy as _bpy
+from bpy import data as _D
+from bpy import context as _C
 
-from .commons import ensure_deselect_all_objects, select_set_all, activate_object,\
-	ensure_op_finished, LambdaReporter, identity_transform, move_children_to_grandparent
+from . import commons as _commons
 
-if typing.TYPE_CHECKING:
+import typing as _typing
+if _typing.TYPE_CHECKING:
 	from typing import *
 	from bpy.types import *
 
-log = logging.getLogger('kawa.combiner')
+import logging as _logging
+_log = _logging.getLogger('kawa.combiner')
 
 
 class BaseMeshCombiner:
@@ -90,7 +90,7 @@ class BaseMeshCombiner:
 		pass
 	
 	def _check_roots(self):
-		scene = self.scene or bpy.context.scene
+		scene = self.scene or _C.scene
 		wrong = list()
 		for root_name in self.roots_names:
 			if root_name not in scene.collection.objects:
@@ -99,7 +99,7 @@ class BaseMeshCombiner:
 			wrongstr = ', '.join('"' + r + '"' for r in wrong)
 			msg = 'There is {0} root-objects not from scene "{1}": {2}.' \
 				.format(len(wrong), scene.name, wrongstr)
-			log.error(msg)
+			_log.error(msg)
 			raise RuntimeError(msg, wrong)
 		
 		# Проверяем, что бы объекты в .roots были независимы друг от друга,
@@ -107,9 +107,9 @@ class BaseMeshCombiner:
 		# TODO Довольно много итераций, можно ли это как-то ускорить?
 		related = list()
 		for obja_n in self.roots_names:
-			obja = bpy.data.objects[obja_n]
+			obja = _D.objects[obja_n]
 			for objb_n in self.roots_names:
-				objb = bpy.data.objects[objb_n]
+				objb = _D.objects[objb_n]
 				if obja is objb:
 					continue
 				objc = obja
@@ -122,7 +122,7 @@ class BaseMeshCombiner:
 			pairs = ', '.join('"{0}" is child of "{1}"'.format(a, b) for a, b in related)
 			msg = 'There is {0} objects pairs have child-parent relations between each other: {1}.'\
 				.format(len(related), pairs)
-			log.error(msg)
+			_log.error(msg)
 			raise RuntimeError(msg, related)
 
 	def _call_before_group(self, root_name: 'str', child_name: 'Set[str]'):
@@ -137,25 +137,25 @@ class BaseMeshCombiner:
 			group_name = self.group_child(root_name, child_name)
 			if not isinstance(group_name, (type(None), str)) and group_name is not False:
 				msg = 'Group should be None, False or str, got ({0}) "{1}" from .group_child'.format(type(group_name), str(group_name))
-				log.error(msg)
+				_log.error(msg)
 				raise RuntimeError(msg, group_name)
 			return group_name
 		except Exception as exc:
 			msg = 'Can not group object "{0}" in object "{1}" ({2})'.format(child_name, root_name, repr(group_name))
-			log.error(msg)
+			_log.error(msg)
 			raise RuntimeError(msg, root_name, child_name, group_name) from exc
 
 	def _join_objects(self, target: 'Object', children: 'Iterable[str]'):
 		# log.info("Joining: %s <- %s", target.name, children)
-		ensure_deselect_all_objects()
+		_commons.ensure_deselect_all_objects()
 		for child_name in children:
-			obj = bpy.data.objects[child_name]
+			obj = _D.objects[child_name]
 			obj.hide_set(False)
 			obj.select_set(True)
-			move_children_to_grandparent(obj)
-		activate_object(target)
-		ensure_op_finished(bpy.ops.object.join(), name='bpy.ops.object.join')
-		ensure_deselect_all_objects()
+			_commons.move_children_to_grandparent(obj)
+		_commons.activate_object(target)
+		_commons.ensure_op_finished(_bpy.ops.object.join(), name='bpy.ops.object.join')
+		_commons.ensure_deselect_all_objects()
 		# log.info("Joined: %s <- %s", target, children)
 		pass
 	
@@ -177,17 +177,17 @@ class BaseMeshCombiner:
 	
 	def _process_root(self, root_name: 'str') -> 'int':
 		# Поиск меш-объектов-детей root на этой же сцене.
-		scene_objs = (self.scene or bpy.context.scene).collection.objects
-		children_queue = collections.deque()  # type: Deque[str]
+		scene_objs = (self.scene or _C.scene).collection.objects
+		children_queue = _deque()  # type: Deque[str]
 		children = set()  # type: Set[str]
-		children_queue.extend(x.name for x in bpy.data.objects[root_name].children)
+		children_queue.extend(x.name for x in _D.objects[root_name].children)
 		while len(children_queue) > 0:
 			child_name = children_queue.pop()
-			child = bpy.data.objects[child_name]
+			child = _D.objects[child_name]
 			children_queue.extend(x.name for x in child.children)
 			if child_name not in scene_objs:
 				continue
-			if not isinstance(child.data, bpy.types.Mesh):
+			if not isinstance(child.data, _bpy.types.Mesh):
 				continue
 			children.add(child_name)
 
@@ -207,8 +207,8 @@ class BaseMeshCombiner:
 		# log.info('%s %s', root_name, repr(groups))
 	
 		def create_mesh_obj(name):
-			new_mesh = bpy.data.meshes.new(name + '-Mesh')
-			new_obj = bpy.data.objects.new(name, object_data=new_mesh)
+			new_mesh = _D.meshes.new(name + '-Mesh')
+			new_obj = _D.objects.new(name, object_data=new_mesh)
 			new_obj.name = name  # force rename
 			scene_objs.link(new_obj)
 			return new_obj
@@ -219,13 +219,13 @@ class BaseMeshCombiner:
 		for group_name, obj_group in groups.items():
 			join_to = None
 			if group_name is None:
-				if isinstance(bpy.data.objects[root_name].data, bpy.types.Mesh):
+				if isinstance(_D.objects[root_name].data, _bpy.types.Mesh):
 					# root - Это меш, приклееваем к нему.
-					join_to = bpy.data.objects[root_name]
+					join_to = _D.objects[root_name]
 				elif self.force_mesh_root:
 					# root - Это НЕ меш, но force_mesh_root.
 					base_name = root_name
-					old_root = bpy.data.objects[root_name]
+					old_root = _D.objects[root_name]
 					old_root.name = base_name + '-Replaced'
 					self.replaced_objects.add(old_root.name)
 					join_to = create_mesh_obj(base_name)
@@ -245,15 +245,15 @@ class BaseMeshCombiner:
 					# root - Это НЕ меш, создаём подгруппу.
 					join_to = create_mesh_obj(root_name + '-' + self.default_group)
 					self.created_objects.add(join_to.name)
-					join_to.parent = bpy.data.objects[root_name]
+					join_to.parent = _D.objects[root_name]
 					join_to.parent_type = 'OBJECT'
-					identity_transform(join_to)
+					_commons.identity_transform(join_to)
 			else:
 				join_to = create_mesh_obj(root_name + '-' + group_name)
 				self.created_objects.add(join_to.name)
-				join_to.parent = bpy.data.objects[root_name]
+				join_to.parent = _D.objects[root_name]
 				join_to.parent_type = 'OBJECT'
-				identity_transform(join_to)
+				_commons.identity_transform(join_to)
 			self._call_before_join(root_name, join_to.name, group_name, obj_group)
 			self._join_objects(join_to, obj_group)
 			self._call_after_join(root_name, join_to.name, group_name)
@@ -264,8 +264,8 @@ class BaseMeshCombiner:
 		self._check_roots()
 		
 		obj_n, obj_i, joins = len(self.roots_names), 0, 0
-		reporter = LambdaReporter(self.report_time)
-		reporter.func = lambda r, t: log.info(
+		reporter = _commons.LambdaReporter(self.report_time)
+		reporter.func = lambda r, t: _log.info(
 			"Joining meshes: Roots=%d/%d, Joined=%d, Time=%.1f sec, ETA=%.1f sec...",
 			obj_i, obj_n, joins, t, r.get_eta(1.0 * obj_i / obj_n)
 		)

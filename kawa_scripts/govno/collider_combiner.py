@@ -8,7 +8,7 @@ from .commons import *
 if typing.TYPE_CHECKING:
 	from typing import *
 
-log = logging.getLogger('kawa.collider_combiner')
+_log = logging.getLogger('kawa.collider_combiner')
 
 
 def combinde_colliders_raw(**kwargs):
@@ -38,7 +38,7 @@ def combinde_colliders_raw(**kwargs):
 	for oobj_name in raw_original:
 		oobj = bpy.context.scene.objects.get(oobj_name)
 		if oobj is None:
-			log.warning("There is no original Object='%s'! Skip.", oobj_name)
+			_log.warning("There is no original Object='%s'! Skip.", oobj_name)
 			continue
 		oobjs.add(oobj)
 	

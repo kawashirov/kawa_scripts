@@ -8,11 +8,11 @@
 #
 #
 
-import logging
-import typing
-import bpy
+import bpy as _bpy
+from bpy import data as _D
 
-if typing.TYPE_CHECKING:
+import typing as _typing
+if _typing.TYPE_CHECKING:
 	from typing import *
 	from bpy.types import *
 
@@ -32,7 +32,7 @@ class BaseMaterialPool:
 	
 	def find_materials(self):
 		self.pool.clear()
-		for mat in bpy.data.materials:
+		for mat in _D.materials:
 			if self.select_material(mat):
 				self.pool.append(mat)
 	
@@ -44,7 +44,7 @@ class BaseMaterialPool:
 		
 	def delete_materials(self):
 		for mat in self.pool:
-			bpy.data.materials.remove(mat)
+			_D.materials.remove(mat)
 		self.pool.clear()
 
 
@@ -53,5 +53,5 @@ class KawaMaterialSlotsPool(BaseMaterialPool):
 		return mat is not None and mat.name.startswith('_KawaMaterialSlot')
 	
 	def create_material(self, index: 'int') -> 'Material':
-		return bpy.data.materials.new('_KawaMaterialSlot.000')
+		return _D.materials.new('_KawaMaterialSlot.000')
 
