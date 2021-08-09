@@ -64,23 +64,28 @@ _log = None
 
 
 def _MESH_MT_shape_key_context_menu(self, context):
-	self.layout.separator()
+	self.layout.separator()  # EDIT-mode
 	self.layout.operator(shapekeys.KawaSelectVerticesAffectedByShapeKey.bl_idname, icon='VERTEXSEL')
+	self.layout.operator(shapekeys.KawaApplySelectedInActiveToAll.bl_idname, icon='KEYINGSET')
 	self.layout.operator(shapekeys.KawaRevertSelectedInActiveToBasis.bl_idname, icon='KEYINGSET')
 	self.layout.operator(shapekeys.KawaRevertSelectedInAllToBasis.bl_idname, icon='KEYINGSET')
-	self.layout.operator(shapekeys.KawaRemoveEmptyShapeKeys.bl_idname, icon='KEY_DEHLT')
+	self.layout.separator()  # OBJECT-mode
+	self.layout.operator(shapekeys.KawaRemoveEmpty.bl_idname, icon='KEY_DEHLT')
+	self.layout.operator(shapekeys.KawaApplyActiveToAll.bl_idname, icon='KEY_DEHLT')
 
 
 def _VIEW3D_MT_object(self, context):
 	self.layout.separator()
-	self.layout.operator(shapekeys.KawaRemoveEmptyShapeKeys.bl_idname, icon='KEY_DEHLT')
+	self.layout.operator(shapekeys.KawaRemoveEmpty.bl_idname, icon='KEY_DEHLT')
+	self.layout.operator(shapekeys.KawaApplyActiveToAll.bl_idname, icon='KEY_DEHLT')
 	self.layout.operator(commons.KawaApplyParentInverseMatrices.bl_idname, icon='ORIENTATION_LOCAL')
-	self.layout.operator(modifiers.KawaApplyAllModifiersNoShapeKeys.bl_idname, icon='MODIFIER')
+	self.layout.operator(modifiers.KawaApplyAllModifiersShapeKeysSupported.bl_idname, icon='MODIFIER')
 
 
 def _VIEW3D_MT_edit_mesh_vertices(self, context):
 	self.layout.separator()
 	self.layout.operator(shapekeys.KawaSelectVerticesAffectedByShapeKey.bl_idname, icon='VERTEXSEL')
+	self.layout.operator(shapekeys.KawaApplySelectedInActiveToAll.bl_idname, icon='KEYINGSET')
 	self.layout.operator(shapekeys.KawaRevertSelectedInActiveToBasis.bl_idname, icon='KEYINGSET')
 	self.layout.operator(shapekeys.KawaRevertSelectedInAllToBasis.bl_idname, icon='KEYINGSET')
 
@@ -88,6 +93,7 @@ def _VIEW3D_MT_edit_mesh_vertices(self, context):
 def _VIEW3D_MT_edit_mesh_context_menu(self, context):
 	self.layout.separator()
 	self.layout.operator(shapekeys.KawaSelectVerticesAffectedByShapeKey.bl_idname, icon='VERTEXSEL')
+	self.layout.operator(shapekeys.KawaApplySelectedInActiveToAll.bl_idname, icon='KEYINGSET')
 	self.layout.operator(shapekeys.KawaRevertSelectedInActiveToBasis.bl_idname, icon='KEYINGSET')
 	self.layout.operator(shapekeys.KawaRevertSelectedInAllToBasis.bl_idname, icon='KEYINGSET')
 

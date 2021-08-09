@@ -203,7 +203,8 @@ def ensure_deselect_all_objects():
 		_C.selected_objects[0].select_set(False)
 
 
-class TemporaryViewLayer(_contextlib.ContextDecorator):
+class _TemporaryViewLayer(_contextlib.ContextDecorator):
+	# Does not work
 	def __init__(self, name=None):
 		self.name = None if name is None else str(name)
 		self.scene = None  # type: Scene
@@ -211,22 +212,81 @@ class TemporaryViewLayer(_contextlib.ContextDecorator):
 		self.original_view_layer = None  # type: ViewLayer
 	
 	def __enter__(self):
-		self.scene = _C.window.scene
-		self.original_view_layer = _C.window.view_layer
+		self.scene = _C.scene
+		self.original_view_layer = _C.view_layer
 		name = '__Temporary'
 		if self.name:
 			name += '-' + self.name
 		self.temp_view_layer = self.scene.view_layers.new(name)
-		_C.window.view_layer = self.temp_view_layer
+		# _C.window.view_layer = self.temp_view_layer
+		_C.view_layer = self.temp_view_layer
 		return self
 	
 	def __exit__(self, *exc):
 		try:
-			_C.window.scene = self.scene
-			_C.window.view_layer = self.original_view_layer
+			# _C.window.scene = self.scene
+			# _C.window.view_layer = self.original_view_layer
+			_C.scene = self.scene
+			_C.view_layer = self.original_view_layer
 			self.scene.view_layers.remove(self.temp_view_layer)
 		except ReferenceError:
 			pass  # this is fine
+
+
+class SaveSelection(_contextlib.ContextDecorator):
+	# TODO
+	def __init__(self, name=None):
+		self.last_active_object = None  # type: Object
+		self.shown = None  # type: List[Object]
+		self.selected = None  # type: List[Object]
+	
+	def __enter__(self):
+		self.last_active_object = _C.view_layer.objects.active
+		self.selected = list(_C.view_layer.objects.selected)
+		return self
+	
+	# def hide_set(self, obj: 'Object', state: 'bool'):
+	# 	if self.hide_state is None:
+	# 		self.hide_state = dict()
+	# 	if obj not in self.hide_state.keys():
+	# 		self.hide_state[obj] = obj.hide_get()
+	# 	obj.hide_set(state)
+	#
+	# def select_set(self, obj: 'Object', state: 'bool'):
+	# 	if self.select_state is None:
+	# 		self.select_state = dict()
+	# 	if obj not in self.select_state.keys():
+	# 		self.select_state[obj] = obj.select_get()
+	# 	obj.select_set(state)
+	#
+	# def activate_object(self, obj: 'Object'):
+	# 	self.hide_set(obj, False)
+	# 	self.select_set(obj, True)
+	# 	_C.view_layer.objects.selected = obj
+	#
+	# def activate_objects(self, objs: 'Iterable[Object]'):
+	# 	for obj in objs:
+	# 		self.activate_object(obj)
+	
+	def __exit__(self, *exc):
+		for obj in _C.view_layer.objects:
+			obj.select_set(obj in self.selected)
+		# if self.hide_state is not None:
+		# 	for obj, state in self.hide_state.items():
+		# 		try:
+		# 			obj.hide_set(state)
+		# 		except ReferenceError:
+		# 			pass  # object invalid, this is fine
+		# if self.select_state is not None:
+		# 	for obj, state in self.select_state.items():
+		# 		try:
+		# 			obj.select_set(state)
+		# 		except ReferenceError:
+		# 			pass  # object invalid, this is fine
+		try:
+			_C.view_layer.objects.active = self.last_active_object
+		except ReferenceError:
+			pass  # object invalid, this is fine
 
 
 def any_not_none(*args):
@@ -351,37 +411,6 @@ def dict_get_or_add(_dict: 'Dict[_K,_V]', _key: 'Optional[_K]', _creator: 'Calla
 		value = _creator()
 		_dict[_key] = value
 	return value
-
-
-class AbstractReporter:
-	def __init__(self, report_time=5.0):
-		self.report_time = report_time
-		self.time_begin = _perf_counter()
-		self.time_progress = _perf_counter()
-	
-	def get_eta(self, progress) -> 'float':
-		time_passed = self.time_progress - self.time_begin
-		time_total = time_passed / progress
-		return time_total - time_passed
-	
-	def do_report(self, time_passed):
-		raise NotImplementedError('do_report')
-	
-	def ask_report(self, force=False):
-		now = _perf_counter()
-		if force is False and now - self.time_progress < self.report_time:
-			return
-		self.time_progress = now
-		self.do_report(now - self.time_begin)
-
-
-class LambdaReporter(AbstractReporter):
-	def __init__(self, *args, **kwargs):
-		super().__init__(*args, **kwargs)
-		self.func = None  # type: Callable[[LambdaReporter, float], None]
-		
-	def do_report(self, time_passed):
-		self.func(self, time_passed)
 
 
 classes = (
