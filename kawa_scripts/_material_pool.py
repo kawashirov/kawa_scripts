@@ -16,6 +16,8 @@ if _typing.TYPE_CHECKING:
 	from typing import *
 	from bpy.types import *
 
+# TODO Сейчас это нигде не используется
+
 
 class BaseMaterialPool:
 	def __init__(self):

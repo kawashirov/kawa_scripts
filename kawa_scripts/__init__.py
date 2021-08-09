@@ -43,7 +43,6 @@ _modules = [
 	"combiner",
 	"commons",
 	"instantiator",
-	"material_slots",
 	"modifiers",
 	"shader_nodes",
 	"shapekeys",
