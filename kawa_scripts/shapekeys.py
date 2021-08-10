@@ -17,7 +17,7 @@ if _typing.TYPE_CHECKING:
 	from bpy.types import *
 
 
-def _ensure_len_match(mesh: 'Mesh', shape_key: 'ShapeKey'):
+def ensure_len_match(mesh: 'Mesh', shape_key: 'ShapeKey'):
 	len_vts = len(mesh.vertices)
 	len_skd = len(shape_key.data)
 	return len_vts == len_skd
@@ -45,7 +45,7 @@ def _mesh_selection_to_vertices(mesh: 'Mesh'):
 
 
 class KawaSelectVerticesAffectedByShapeKey(_bpy.types.Operator):
-	bl_idname = "mesh.kawa_select_vertices_affected_by_shape_key"
+	bl_idname = "kawa.select_vertices_affected_by_shape_key"
 	bl_label = "Select Vertices Affected by Active Shape Key"
 	bl_options = {'REGISTER', 'UNDO'}
 
@@ -104,7 +104,7 @@ class KawaSelectVerticesAffectedByShapeKey(_bpy.types.Operator):
 
 
 class KawaRemoveEmpty(_bpy.types.Operator):
-	bl_idname = "mesh.kawa_remove_empty_shape_keys"
+	bl_idname = "kawa.remove_empty_shape_keys"
 	bl_label = "Remove Empty Shape Keys"
 	bl_options = {'REGISTER', 'UNDO'}
 	
@@ -185,7 +185,7 @@ class KawaRemoveEmpty(_bpy.types.Operator):
 
 
 class KawaRevertSelectedInActiveToBasis(_bpy.types.Operator):
-	bl_idname = "mesh.kawa_revert_selected_in_active_to_basis"
+	bl_idname = "kawa.revert_selected_shape_keys_in_active_to_basis"
 	bl_label = "REVERT SELECTED Vertices in ACTIVE Shape Key to BASIS"
 	bl_options = {'REGISTER', 'UNDO'}
 	
@@ -223,7 +223,7 @@ class KawaRevertSelectedInActiveToBasis(_bpy.types.Operator):
 
 
 class KawaRevertSelectedInAllToBasis(_bpy.types.Operator):
-	bl_idname = "mesh.kawa_revert_selected_in_all_to_basis"
+	bl_idname = "kawa.revert_selected_shape_keys_in_all_to_basis"
 	bl_label = "REVERT SELECTED Vertices in ALL Shape Keys to BASIS"
 	bl_options = {'REGISTER', 'UNDO'}
 	
@@ -264,7 +264,7 @@ class KawaRevertSelectedInAllToBasis(_bpy.types.Operator):
 
 
 class KawaApplySelectedInActiveToAll(_bpy.types.Operator):
-	bl_idname = "mesh.kawa_apply_selected_in_active_to_all"
+	bl_idname = "kawa.apply_selected_shape_keys_in_active_to_all"
 	bl_label = "APPLY SELECTED Vertices in ACTIVE Shape Key to ALL Others"
 	bl_options = {'REGISTER', 'UNDO'}
 	
@@ -318,15 +318,15 @@ def apply_active_to_all(obj: 'Object'):
 	active_key = obj.active_shape_key
 	ref_key = mesh.shape_keys.reference_key
 	
-	match_active = _ensure_len_match(mesh, active_key)
-	match_ref = _ensure_len_match(mesh, ref_key)
+	match_active = ensure_len_match(mesh, active_key)
+	match_ref = ensure_len_match(mesh, ref_key)
 	if not match_active or not match_ref:
 		return False
 	
 	for other_key in mesh.shape_keys.key_blocks:
 		if other_key == active_key or other_key == ref_key:
 			continue
-		if not _ensure_len_match(mesh, other_key):
+		if not ensure_len_match(mesh, other_key):
 			continue
 		for i in range(len(mesh.vertices)):
 			other_offset = other_key.data[i].co - ref_key.data[i].co
@@ -342,7 +342,7 @@ def apply_active_to_all(obj: 'Object'):
 
 
 class KawaApplyActiveToAll(_bpy.types.Operator):
-	bl_idname = "mesh.kawa_apply_active_to_all"
+	bl_idname = "kawa.apply_active_shape_keys_to_all"
 	bl_label = "APPLY ACTIVE Shape Key to ALL Others"
 	bl_options = {'REGISTER', 'UNDO'}
 	

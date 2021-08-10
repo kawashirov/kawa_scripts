@@ -79,7 +79,9 @@ def _VIEW3D_MT_object(self, context):
 	self.layout.operator(shapekeys.KawaRemoveEmpty.bl_idname, icon='KEY_DEHLT')
 	self.layout.operator(shapekeys.KawaApplyActiveToAll.bl_idname, icon='KEY_DEHLT')
 	self.layout.operator(commons.KawaApplyParentInverseMatrices.bl_idname, icon='ORIENTATION_LOCAL')
-	self.layout.operator(modifiers.KawaApplyAllModifiersShapeKeysSupported.bl_idname, icon='MODIFIER')
+	self.layout.operator(modifiers.KawaApplyDeformModifierHighPrecision.bl_idname, icon='MODIFIER')
+	self.layout.operator(modifiers.KawaApplyAllModifiersHighPrecision.bl_idname, icon='MODIFIER')
+	self.layout.operator(modifiers.KawaApplyArmatureToMeshesHighPrecision.bl_idname, icon='ARMATURE_DATA')
 
 
 def _VIEW3D_MT_edit_mesh_vertices(self, context):
