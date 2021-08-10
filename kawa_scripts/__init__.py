@@ -66,41 +66,83 @@ del _namespace
 from ._internals import log
 
 
-def _MESH_MT_shape_key_context_menu(self, context):
-	self.layout.separator()  # EDIT-mode
+def _shape_key_edit_mode_context_menu(self, context):
+	self.layout.separator()  # EDIT-mode select
 	self.layout.operator(shapekeys.KawaSelectVerticesAffectedByShapeKey.bl_idname, icon='VERTEXSEL')
+	self.layout.separator()  # EDIT-mode revert
+	self.layout.operator(shapekeys.KawaRevertSelectedInActiveToBasis.bl_idname, icon='KEY_DEHLT')
+	self.layout.operator(shapekeys.KawaRevertSelectedInAllToBasis.bl_idname, icon='KEY_DEHLT')
+	self.layout.separator()  # EDIT-mode apply
+	self.layout.operator(shapekeys.KawaApplySelectedInActiveToBasis.bl_idname, icon='KEYINGSET')
 	self.layout.operator(shapekeys.KawaApplySelectedInActiveToAll.bl_idname, icon='KEYINGSET')
-	self.layout.operator(shapekeys.KawaRevertSelectedInActiveToBasis.bl_idname, icon='KEYINGSET')
-	self.layout.operator(shapekeys.KawaRevertSelectedInAllToBasis.bl_idname, icon='KEYINGSET')
-	self.layout.separator()  # OBJECT-mode
+
+
+def _shape_key_object_mode_context_menu(self, context):
+	self.layout.separator()  # OBJECT-mode apply
+	self.layout.operator(shapekeys.KawaApplyActiveToBasis.bl_idname, icon='KEYINGSET')
+	self.layout.operator(shapekeys.KawaApplyActiveToAll.bl_idname, icon='KEYINGSET')
+	self.layout.separator()  # OBJECT-mode clean
+	self.layout.operator(shapekeys.KawaCleanupActive.bl_idname, icon='KEY_DEHLT')
+	self.layout.operator(shapekeys.KawaCleanupAll.bl_idname, icon='KEY_DEHLT')
 	self.layout.operator(shapekeys.KawaRemoveEmpty.bl_idname, icon='KEY_DEHLT')
-	self.layout.operator(shapekeys.KawaApplyActiveToAll.bl_idname, icon='KEY_DEHLT')
+
+
+# # #
+
+
+class _MESH_MT_shape_key_context_kawa_sub_menu(bpy.types.Menu):
+	bl_label = "Kawashirov"
+	bl_idname = "MESH_MT_shape_key_context_kawa_sub_menu"
+
+	def draw(self, context):
+		_shape_key_edit_mode_context_menu(self, context)
+		_shape_key_object_mode_context_menu(self, context)
+
+
+def _MESH_MT_shape_key_context_menu(self, context):
+	self.layout.menu(_MESH_MT_shape_key_context_kawa_sub_menu.bl_idname)
+
+
+# # #
+
+
+class _VIEW3D_MT_object_kawa_sub_menu(bpy.types.Menu):
+	bl_label = "Kawashirov"
+	bl_idname = "VIEW3D_MT_object_kawa_sub_menu"
+
+	def draw(self, context):
+		self.layout.separator()  # transforms
+		self.layout.operator(commons.KawaApplyParentInverseMatrices.bl_idname, icon='ORIENTATION_LOCAL')
+		self.layout.separator()  # modifiers
+		self.layout.operator(modifiers.KawaApplyDeformModifierHighPrecision.bl_idname, icon='MODIFIER')
+		self.layout.operator(modifiers.KawaApplyAllModifiersHighPrecision.bl_idname, icon='MODIFIER')
+		self.layout.operator(modifiers.KawaApplyArmatureToMeshesHighPrecision.bl_idname, icon='ARMATURE_DATA')
+		_shape_key_object_mode_context_menu(self, context)
 
 
 def _VIEW3D_MT_object(self, context):
-	self.layout.separator()
-	self.layout.operator(shapekeys.KawaRemoveEmpty.bl_idname, icon='KEY_DEHLT')
-	self.layout.operator(shapekeys.KawaApplyActiveToAll.bl_idname, icon='KEY_DEHLT')
-	self.layout.operator(commons.KawaApplyParentInverseMatrices.bl_idname, icon='ORIENTATION_LOCAL')
-	self.layout.operator(modifiers.KawaApplyDeformModifierHighPrecision.bl_idname, icon='MODIFIER')
-	self.layout.operator(modifiers.KawaApplyAllModifiersHighPrecision.bl_idname, icon='MODIFIER')
-	self.layout.operator(modifiers.KawaApplyArmatureToMeshesHighPrecision.bl_idname, icon='ARMATURE_DATA')
+	self.layout.menu(_VIEW3D_MT_object_kawa_sub_menu.bl_idname)
+
+
+# # #
+
+class _VIEW3D_MT_edit_mesh_kawa_sub_menu(bpy.types.Menu):
+	bl_label = "Kawashirov"
+	bl_idname = "VIEW3D_MT_edit_mesh_kawa_sub_menu"
+	
+	def draw(self, context):
+		_shape_key_edit_mode_context_menu(self, context)
 
 
 def _VIEW3D_MT_edit_mesh_vertices(self, context):
-	self.layout.separator()
-	self.layout.operator(shapekeys.KawaSelectVerticesAffectedByShapeKey.bl_idname, icon='VERTEXSEL')
-	self.layout.operator(shapekeys.KawaApplySelectedInActiveToAll.bl_idname, icon='KEYINGSET')
-	self.layout.operator(shapekeys.KawaRevertSelectedInActiveToBasis.bl_idname, icon='KEYINGSET')
-	self.layout.operator(shapekeys.KawaRevertSelectedInAllToBasis.bl_idname, icon='KEYINGSET')
+	self.layout.menu(_VIEW3D_MT_edit_mesh_kawa_sub_menu.bl_idname)
 
 
 def _VIEW3D_MT_edit_mesh_context_menu(self, context):
-	self.layout.separator()
-	self.layout.operator(shapekeys.KawaSelectVerticesAffectedByShapeKey.bl_idname, icon='VERTEXSEL')
-	self.layout.operator(shapekeys.KawaApplySelectedInActiveToAll.bl_idname, icon='KEYINGSET')
-	self.layout.operator(shapekeys.KawaRevertSelectedInActiveToBasis.bl_idname, icon='KEYINGSET')
-	self.layout.operator(shapekeys.KawaRevertSelectedInAllToBasis.bl_idname, icon='KEYINGSET')
+	self.layout.menu(_VIEW3D_MT_edit_mesh_kawa_sub_menu.bl_idname)
+
+
+# # #
 
 
 def register():
@@ -124,7 +166,11 @@ def register():
 		if mod and hasattr(mod, 'classes'):
 			for cls in mod.classes:
 				register_class(cls)
-
+	
+	bpy.utils.register_class(_MESH_MT_shape_key_context_kawa_sub_menu)
+	bpy.utils.register_class(_VIEW3D_MT_object_kawa_sub_menu)
+	bpy.utils.register_class(_VIEW3D_MT_edit_mesh_kawa_sub_menu)
+	
 	bpy.types.VIEW3D_MT_object.append(_VIEW3D_MT_object)
 	bpy.types.VIEW3D_MT_object_context_menu.append(_VIEW3D_MT_object)
 	bpy.types.VIEW3D_MT_edit_mesh_context_menu.append(_VIEW3D_MT_edit_mesh_context_menu)
@@ -142,6 +188,10 @@ def unregister():
 	bpy.types.VIEW3D_MT_edit_mesh_context_menu.remove(_VIEW3D_MT_edit_mesh_context_menu)
 	bpy.types.VIEW3D_MT_edit_mesh_vertices.remove(_VIEW3D_MT_edit_mesh_vertices)
 	bpy.types.MESH_MT_shape_key_context_menu.remove(_MESH_MT_shape_key_context_menu)
+	
+	bpy.utils.unregister_class(_MESH_MT_shape_key_context_kawa_sub_menu)
+	bpy.utils.unregister_class(_VIEW3D_MT_object_kawa_sub_menu)
+	bpy.utils.unregister_class(_VIEW3D_MT_edit_mesh_kawa_sub_menu)
 	
 	for mod in reversed(_modules_loaded.values()):
 		if hasattr(mod, 'classes'):
