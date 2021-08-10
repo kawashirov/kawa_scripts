@@ -18,13 +18,13 @@ from mathutils import Quaternion as _Quaternion
 from mathutils import Matrix as _Matrix
 from mathutils.geometry import area_tri as _area_tri
 
+from ._internals import log as _log
+
 import typing as _typing
+
 if _typing.TYPE_CHECKING:
 	from typing import *
 	from bpy.types import *
-	
-import logging as _logging
-_log = _logging.getLogger('kawa.commons')
 
 
 class ConfigurationError(RuntimeError):
@@ -180,8 +180,8 @@ def select_set_all(objects: 'Iterable[Object]', state: bool):
 			obj.hide_set(False)
 			obj.select_set(state)
 		except Exception as exc:
-			_log.error("%s", exc)
-			_log.error("%s", repr(objects))
+			_log.error(str(exc))
+			_log.error(repr(objects))
 			raise exc
 		
 

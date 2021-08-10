@@ -11,13 +11,13 @@ from collections import deque as _deque
 
 import bpy as _bpy
 
+from ._internals import log as _log
+
 import typing as _typing
+
 if _typing.TYPE_CHECKING:
 	from typing import *
 	from bpy.types import *
-
-import logging as _logging
-_log = _logging.getLogger('kawa.tex_size_finder')
 
 
 class TexSizeFinder:

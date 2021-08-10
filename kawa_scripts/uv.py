@@ -14,15 +14,13 @@ from mathutils import Vector as _Vector
 
 from . import commons as _commons
 from ._internals import common_str_slots
+from ._internals import log as _log
 
 import typing as _typing
 if _typing.TYPE_CHECKING:
 	from typing import *
 	from bpy.types import *
 	from mathutils import Vector
-
-import logging as _logging
-_log = _logging.getLogger('kawa.uv')
 
 
 def uv_area(poly: 'MeshPolygon', uv_layer_data: 'Union[bpy_prop_collection, List[MeshUVLoop]]'):

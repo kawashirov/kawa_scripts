@@ -16,14 +16,13 @@ from bpy import context as _C
 
 from . import commons as _commons
 from .reporter import LambdaReporter as _LambdaReporter
+from ._internals import log as _log
 
 import typing as _typing
+
 if _typing.TYPE_CHECKING:
 	from typing import *
 	from bpy.types import *
-
-import logging as _logging
-_log = _logging.getLogger('kawa.combiner')
 
 
 class BaseMeshCombiner:
@@ -98,8 +97,7 @@ class BaseMeshCombiner:
 				wrong.append(root_name)
 		if len(wrong) > 0:
 			wrongstr = ', '.join('"' + r + '"' for r in wrong)
-			msg = 'There is {0} root-objects not from scene "{1}": {2}.' \
-				.format(len(wrong), scene.name, wrongstr)
+			msg = 'There is {0} root-objects not from scene "{1}": {2}.'.format(len(wrong), scene.name, wrongstr)
 			_log.error(msg)
 			raise RuntimeError(msg, wrong)
 		
@@ -164,16 +162,14 @@ class BaseMeshCombiner:
 		try:
 			self.before_join(root, join_to, group_name, group_objs)
 		except Exception as exc:
-			msg = 'Error before_join: root={0}, join_to={1}, group_name={2}, group_objs={3}'.\
-				format(root, join_to, group_name, group_objs)
+			msg = 'Error before_join: root={0}, join_to={1}, group_name={2}, group_objs={3}'.format(root, join_to, group_name, group_objs)
 			raise RuntimeError(msg, root, join_to, group_name, group_objs) from exc
 	
 	def _call_after_join(self, root: 'str', join_to: 'str', group_name: 'Optional[str]'):
 		try:
 			self.after_join(root, join_to, group_name)
 		except Exception as exc:
-			msg = 'Error after_join: root={0}, join_to={1}, group_name={2}'. \
-				format(root, join_to, group_name)
+			msg = 'Error after_join: root={0}, join_to={1}, group_name={2}'.format(root, join_to, group_name)
 			raise RuntimeError(msg, root, join_to, group_name) from exc
 	
 	def _process_root(self, root_name: 'str') -> 'int':
@@ -267,9 +263,8 @@ class BaseMeshCombiner:
 		obj_n, obj_i, joins = len(self.roots_names), 0, 0
 		reporter = _LambdaReporter(self.report_time)
 		reporter.func = lambda r, t: _log.info(
-			"Joining meshes: Roots=%d/%d, Joined=%d, Time=%.1f sec, ETA=%.1f sec...",
-			obj_i, obj_n, joins, t, r.get_eta(1.0 * obj_i / obj_n)
-		)
+			"Joining meshes: Roots={0}/{1}, Joined={2}, Time={3:.1f} sec, ETA={4:.1f} sec...".format(
+				obj_i, obj_n, joins, t, r.get_eta(1.0 * obj_i / obj_n)))
 		
 		for root_name in self.roots_names:
 			joins += self._process_root(root_name)

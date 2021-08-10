@@ -12,16 +12,13 @@ import bpy as _bpy
 from mathutils import Vector as _Vector
 
 from . import commons as _commons
+from ._internals import log as _log
 
 import typing as _typing
+
 if _typing.TYPE_CHECKING:
 	from typing import *
 	from bpy.types import *
-	
-
-import logging as _logging
-_log = _logging.getLogger('kawa.shader_nodes')
-
 
 KAWA_BAKE_TARGET = 'KAWA_BAKE_TARGET'
 KAWA_BAKE_DEFAULT = 'KAWA_BAKE_DEFAULT'

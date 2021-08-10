@@ -11,25 +11,23 @@
 import bpy as _bpy
 from bpy import context as _C
 
+from ._internals import log as _log
+from ._internals import KawaOperator as _KawaOperator
+
 import typing as _typing
+
 if _typing.TYPE_CHECKING:
 	from typing import *
 	from bpy.types import *
 
 
-def ensure_len_match(mesh: 'Mesh', shape_key: 'ShapeKey'):
-	len_vts = len(mesh.vertices)
-	len_skd = len(shape_key.data)
-	return len_vts == len_skd
-
-
-def _ensure_len_match_op(op: 'Operator', mesh: 'Mesh', shape_key: 'ShapeKey'):
+def ensure_len_match(mesh: 'Mesh', shape_key: 'ShapeKey', op: 'Operator' = None):
 	len_vts = len(mesh.vertices)
 	len_skd = len(shape_key.data)
 	if len_vts == len_skd:
 		return True
-	op.report({'ERROR'}, "Size of {0} ({1}) and size of {2} ({3}) does not match! Is shape key corrupted?"
-		.format(repr(mesh.vertices), len_vts, repr(shape_key.data), len_skd))
+	_log.error("Size of {0} ({1}) and size of {2} ({3}) does not match! Is shape key corrupted?"
+		.format(repr(mesh.vertices), len_vts, repr(shape_key.data), len_skd), op=op)
 	return False
 
 
@@ -44,7 +42,7 @@ def _mesh_selection_to_vertices(mesh: 'Mesh'):
 				mesh.vertices[i].select = True
 
 
-class KawaSelectVerticesAffectedByShapeKey(_bpy.types.Operator):
+class KawaSelectVerticesAffectedByShapeKey(_KawaOperator):
 	bl_idname = "kawa.select_vertices_affected_by_shape_key"
 	bl_label = "Select Vertices Affected by Active Shape Key"
 	bl_options = {'REGISTER', 'UNDO'}
@@ -61,9 +59,10 @@ class KawaSelectVerticesAffectedByShapeKey(_bpy.types.Operator):
 	
 	@classmethod
 	def poll(cls, context: 'Context'):
-		if not context.object or context.object.type != 'MESH':
+		obj = cls.get_active_obj(context)
+		if not obj or obj.type != 'MESH':
 			return False  # Требуется активный меш-объект
-		if not context.object.active_shape_key or context.object.active_shape_key_index == 0:
+		if not obj.active_shape_key or obj.active_shape_key_index == 0:
 			return False  # Требуется что бы был активный не первый шейпкей
 		if context.mode != 'EDIT_MESH' and context.mode != 'OBJECT':
 			return False  # Требуется режим OBJECT или EDIT_MESH
@@ -79,31 +78,33 @@ class KawaSelectVerticesAffectedByShapeKey(_bpy.types.Operator):
 		# Рофл в том, что операции над мешью надо проводить вне эдит-мода
 		_bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 		
-		mesh = context.view_layer.objects.active.data  # type: Mesh
-		shape_key = context.view_layer.objects.active.active_shape_key
+		obj = self.get_active_obj(context)
+		mesh = obj.data  # type: Mesh
+		shape_key = obj.active_shape_key
 		reference = mesh.shape_keys.reference_key
 		
-		match_skd = _ensure_len_match_op(self, mesh, shape_key)
-		match_ref = _ensure_len_match_op(self, mesh, reference)
+		match_skd = ensure_len_match(mesh, shape_key, op=self)
+		match_ref = ensure_len_match(mesh, reference, op=self)
 		if not match_skd or not match_ref:
 			return {'CANCELLED'}
 
 		for p in mesh.polygons:
 			p.select = False
-			
 		for e in mesh.edges:
 			e.select = False
 		
+		counter = 0
 		for i in range(len(mesh.vertices)):
 			mesh.vertices[i].select = (shape_key.data[i].co - reference.data[i].co).magnitude > self.epsilon
-			pass
+			counter += 1
+		_log.info("Selected {0} vertices affected by {1} in {2}".format(counter, repr(shape_key), repr(obj)))
 		
 		_bpy.ops.object.mode_set_with_submode(mode='EDIT', toggle=False, mesh_select_mode={'VERT'})
 		
 		return {'FINISHED'}
 
 
-class KawaRemoveEmpty(_bpy.types.Operator):
+class KawaRemoveEmpty(_KawaOperator):
 	bl_idname = "kawa.remove_empty_shape_keys"
 	bl_label = "Remove Empty Shape Keys"
 	bl_options = {'REGISTER', 'UNDO'}
@@ -120,7 +121,7 @@ class KawaRemoveEmpty(_bpy.types.Operator):
 	
 	@classmethod
 	def poll(cls, context: 'Context'):
-		if len(context.selected_objects) < 1:
+		if len(cls.get_selected_objs(context)) < 1:
 			return False  # Должны быть выбраны какие-то объекты
 		if context.mode != 'OBJECT':
 			return False  # Требуется режим OBJECT
@@ -134,7 +135,7 @@ class KawaRemoveEmpty(_bpy.types.Operator):
 	
 	def execute(self, context: 'Context'):
 		objs = list()  # type: List[Object]
-		for obj in context.selected_objects:
+		for obj in self.get_selected_objs(context):
 			if obj.type != 'MESH':
 				continue
 			if obj.data.shape_keys is None:
@@ -144,7 +145,7 @@ class KawaRemoveEmpty(_bpy.types.Operator):
 			objs.append(obj)
 		
 		if len(objs) < 1:
-			self.report({'WARNING'}, "No mesh-objects with multiple shape keys selected.")
+			_log.warning("No mesh-objects with multiple shape keys selected.", op=self)
 			return {'CANCELLED'}
 		
 		for obj in objs:
@@ -152,7 +153,7 @@ class KawaRemoveEmpty(_bpy.types.Operator):
 	
 		empty_keys_count = 0
 		for obj in objs:
-			context.view_layer.objects.active = obj
+			# context.view_layer.objects.active = obj
 			mesh = obj.data  # type: Mesh
 			if mesh.tag:
 				continue  # Уже трогали
@@ -166,13 +167,13 @@ class KawaRemoveEmpty(_bpy.types.Operator):
 				len_ref = len(reference.data)
 				len_shk = len(shape_key.data)
 				if len_ref != len_shk:
-					self.report({'ERROR'}, "Data size ({0}) of key {1} and data size ({2}) of key {3} in mesh {4} does not match! Is shape key corrupted?"
-						.format(len_ref, repr(reference), len_shk, repr(shape_key), repr(mesh)))
+					_log.error("Data size ({0}) of key {1} and data size ({2}) of key {3} in mesh {4} does not match! Is shape key corrupted?"
+						.format(len_ref, repr(reference), len_shk, repr(shape_key), repr(mesh)), op=self)
 					continue
 				# Имеются ли различия между шейпами?
 				if not any((shape_key.data[i].co - reference.data[i].co).magnitude > self.epsilon for i in range(len_shk)):
 					empty_keys.add(shape_key.name)
-			self.report({'INFO'}, "Found {0} empty shape keys in mesh {1}: {2}, removing...".format(len(empty_keys), repr(mesh), repr(empty_keys)))
+			_log.info("Found {0} empty shape keys in mesh {1}: {2}, removing...".format(len(empty_keys), repr(mesh), repr(empty_keys)), op=self)
 			if len(empty_keys) < 1:
 				continue
 			for empty_key in empty_keys:
@@ -180,34 +181,36 @@ class KawaRemoveEmpty(_bpy.types.Operator):
 				# Не спроста же Key-блоки можно редактировать только через Object-блоки
 				obj.shape_key_remove(obj.data.shape_keys.key_blocks[empty_key])
 			empty_keys_count += len(empty_keys)
-		self.report({'INFO'}, "Total {0} shape keys removed.".format(empty_keys_count))
+		_log.info("Total {0} shape keys removed.".format(empty_keys_count), op=self)
 		return {'FINISHED'} if empty_keys_count > 0 else {'CANCELLED'}
 
 
-class KawaRevertSelectedInActiveToBasis(_bpy.types.Operator):
+class KawaRevertSelectedInActiveToBasis(_KawaOperator):
 	bl_idname = "kawa.revert_selected_shape_keys_in_active_to_basis"
 	bl_label = "REVERT SELECTED Vertices in ACTIVE Shape Key to BASIS"
 	bl_options = {'REGISTER', 'UNDO'}
 	
 	@classmethod
 	def poll(cls, context: 'Context'):
-		if not context.object or context.object.type != 'MESH':
+		obj = cls.get_active_obj(context)
+		if not obj or obj.type != 'MESH':
 			return False  # Требуется активный меш-объект
-		if not context.object.active_shape_key or context.object.active_shape_key_index == 0:
+		if not obj.active_shape_key or obj.active_shape_key_index == 0:
 			return False  # Требуется что бы был активный не первый шейпкей
 		if context.mode != 'EDIT_MESH':
 			return False  # Требуется режим  EDIT_MESH
 		return True
 	
 	def execute(self, context: 'Context'):
+		obj = self.get_active_obj(context)
 		# Рофл в том, что операции над мешью надо проводить вне эдит-мода
 		_bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-		mesh = context.view_layer.objects.active.data  # type: Mesh
-		shape_key = context.view_layer.objects.active.active_shape_key
+		mesh = obj.data  # type: Mesh
+		shape_key = obj.active_shape_key
 		reference = mesh.shape_keys.reference_key
 		
-		match_skd = _ensure_len_match_op(self, mesh, shape_key)
-		match_ref = _ensure_len_match_op(self, mesh, reference)
+		match_skd = ensure_len_match(mesh, shape_key, op=self)
+		match_ref = ensure_len_match(mesh, reference, op=self)
 		if not match_skd or not match_ref:
 			return {'CANCELLED'}
 		
@@ -222,16 +225,17 @@ class KawaRevertSelectedInActiveToBasis(_bpy.types.Operator):
 		return {'FINISHED'}
 
 
-class KawaRevertSelectedInAllToBasis(_bpy.types.Operator):
+class KawaRevertSelectedInAllToBasis(_KawaOperator):
 	bl_idname = "kawa.revert_selected_shape_keys_in_all_to_basis"
 	bl_label = "REVERT SELECTED Vertices in ALL Shape Keys to BASIS"
 	bl_options = {'REGISTER', 'UNDO'}
 	
 	@classmethod
 	def poll(cls, context: 'Context'):
-		if not context.object or context.object.type != 'MESH':
+		obj = cls.get_active_obj(context)
+		if not obj or obj.type != 'MESH':
 			return False  # Требуется активный меш-объект
-		data = context.object.data  # type: Mesh
+		data = obj.data  # type: Mesh
 		if data.shape_keys is None or len(data.shape_keys.key_blocks) < 2:
 			return False  # Требуется что бы было 2 или более шейпкея
 		if context.mode != 'EDIT_MESH':
@@ -239,12 +243,13 @@ class KawaRevertSelectedInAllToBasis(_bpy.types.Operator):
 		return True
 	
 	def execute(self, context: 'Context'):
+		obj = self.get_active_obj(context)
 		# Рофл в том, что операции над мешью надо проводить вне эдит-мода
 		_bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-		mesh = context.view_layer.objects.active.data  # type: Mesh
+		mesh = obj.data  # type: Mesh
 		reference = mesh.shape_keys.reference_key
 		
-		if not _ensure_len_match_op(self, mesh, reference):
+		if not ensure_len_match(mesh, reference, op=self):
 			return {'CANCELLED'}
 		
 		_mesh_selection_to_vertices(mesh)
@@ -252,41 +257,43 @@ class KawaRevertSelectedInAllToBasis(_bpy.types.Operator):
 		for shape_key in mesh.shape_keys.key_blocks:
 			if shape_key == reference:
 				continue
-			if not _ensure_len_match_op(self, mesh, shape_key):
+			if not ensure_len_match(mesh, shape_key, op=self):
 				continue
 			for i in range(len(mesh.vertices)):
 				if mesh.vertices[i].select:
 					shape_key.data[i].co = reference.data[i].co
-			
+		
 		_bpy.ops.object.mode_set_with_submode(mode='EDIT', toggle=False, mesh_select_mode={'VERT'})
 		
 		return {'FINISHED'}
 
 
-class KawaApplySelectedInActiveToAll(_bpy.types.Operator):
+class KawaApplySelectedInActiveToAll(_KawaOperator):
 	bl_idname = "kawa.apply_selected_shape_keys_in_active_to_all"
 	bl_label = "APPLY SELECTED Vertices in ACTIVE Shape Key to ALL Others"
 	bl_options = {'REGISTER', 'UNDO'}
 	
 	@classmethod
 	def poll(cls, context: 'Context'):
-		if not context.object or context.object.type != 'MESH':
+		obj = cls.get_active_obj(context)
+		if not obj or obj.type != 'MESH':
 			return False  # Требуется активный меш-объект
-		if not context.object.active_shape_key or context.object.active_shape_key_index == 0:
+		if not obj.active_shape_key or obj.active_shape_key_index == 0:
 			return False  # Требуется что бы был активный не первый шейпкей
 		if context.mode != 'EDIT_MESH':
 			return False  # Требуется режим  EDIT_MESH
 		return True
 	
 	def execute(self, context: 'Context'):
+		obj = self.get_active_obj(context)
 		# Рофл в том, что операции над мешью надо проводить вне эдит-мода
 		_bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-		mesh = context.view_layer.objects.active.data  # type: Mesh
-		active_key = context.view_layer.objects.active.active_shape_key
+		mesh = obj.data  # type: Mesh
+		active_key = obj.active_shape_key
 		ref_key = mesh.shape_keys.reference_key
 		
-		match_active = _ensure_len_match_op(self, mesh, active_key)
-		match_ref = _ensure_len_match_op(self, mesh, ref_key)
+		match_active = ensure_len_match(mesh, active_key, op=self)
+		match_ref = ensure_len_match(mesh, ref_key, op=self)
 		if not match_active or not match_ref:
 			return {'CANCELLED'}
 		
@@ -295,7 +302,7 @@ class KawaApplySelectedInActiveToAll(_bpy.types.Operator):
 		for other_key in mesh.shape_keys.key_blocks:
 			if other_key == active_key or other_key == ref_key:
 				continue
-			if not _ensure_len_match_op(self, mesh, other_key):
+			if not ensure_len_match(mesh, other_key, op=self):
 				continue
 			for i in range(len(mesh.vertices)):
 				if mesh.vertices[i].select:
@@ -312,21 +319,21 @@ class KawaApplySelectedInActiveToAll(_bpy.types.Operator):
 		return {'FINISHED'}
 
 
-def apply_active_to_all(obj: 'Object'):
+def apply_active_to_all(obj: 'Object', op: 'Operator' = None):
 	# No context control
 	mesh = obj.data  # type: Mesh
 	active_key = obj.active_shape_key
 	ref_key = mesh.shape_keys.reference_key
 	
-	match_active = ensure_len_match(mesh, active_key)
-	match_ref = ensure_len_match(mesh, ref_key)
+	match_active = ensure_len_match(mesh, active_key, op=op)
+	match_ref = ensure_len_match(mesh, ref_key, op=op)
 	if not match_active or not match_ref:
 		return False
 	
 	for other_key in mesh.shape_keys.key_blocks:
 		if other_key == active_key or other_key == ref_key:
 			continue
-		if not ensure_len_match(mesh, other_key):
+		if not ensure_len_match(mesh, other_key, op=op):
 			continue
 		for i in range(len(mesh.vertices)):
 			other_offset = other_key.data[i].co - ref_key.data[i].co
@@ -341,26 +348,27 @@ def apply_active_to_all(obj: 'Object'):
 	return True
 
 
-class KawaApplyActiveToAll(_bpy.types.Operator):
+class KawaApplyActiveToAll(_KawaOperator):
 	bl_idname = "kawa.apply_active_shape_keys_to_all"
 	bl_label = "APPLY ACTIVE Shape Key to ALL Others"
 	bl_options = {'REGISTER', 'UNDO'}
 	
 	@classmethod
 	def poll(cls, context: 'Context'):
-		if not context.object or context.object.type != 'MESH':
+		obj = cls.get_active_obj(context)
+		if not obj or obj.type != 'MESH':
 			return False  # Требуется активный меш-объект
-		if not context.object.active_shape_key or context.object.active_shape_key_index == 0:
+		if not obj.active_shape_key or obj.active_shape_key_index == 0:
 			return False  # Требуется что бы был активный не первый шейпкей
 		if context.mode != 'OBJECT':
 			return False  # Требуется режим OBJECT
 		return True
 	
 	def execute(self, context: 'Context'):
+		obj = self.get_active_obj(context)
 		# Рофл в том, что операции над мешью надо проводить вне эдит-мода
 		_bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-		obj = context.view_layer.objects.active  # type: Object
-		if not apply_active_to_all(obj):
+		if not apply_active_to_all(obj, op=self):
 			return {'CANCELLED'}
 		_bpy.ops.object.mode_set_with_submode(mode='EDIT', toggle=False, mesh_select_mode={'VERT'})
 		return {'FINISHED'}

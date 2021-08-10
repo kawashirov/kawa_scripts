@@ -14,16 +14,15 @@ import bpy as _bpy
 from . import commons as _commons
 from . import modifiers as _modifiers
 from .reporter import LambdaReporter as _LambdaReporter
-
+from ._internals import log as _log
 
 import typing as _typing
+
 if _typing.TYPE_CHECKING:
 	from typing import *
 	from bpy.types import *
+	
 	Collection = _bpy.types.Collection
-
-import logging as _logging
-_log = _logging.getLogger('kawa.instantiator')
 
 
 class BaseInstantiator:
@@ -103,7 +102,7 @@ class BaseInstantiator:
 	def _duplicate(self):
 		_commons.ensure_op_finished(_bpy.ops.object.duplicate(linked=False), name='bpy.ops.object.duplicate')
 		self.copies.update(_bpy.context.selected_objects)
-		_log.info('Basic copies created: %d', len(self.copies))
+		_log.info('Basic copies created: {0}'.format(len(self.copies)))
 		_commons.ensure_deselect_all_objects()
 		
 	def _unlink_originals_from_working(self):
@@ -131,9 +130,8 @@ class BaseInstantiator:
 		created, obj_i, inst_i = 0, 0, 0
 		reporter = _LambdaReporter(self.report_time)
 		reporter.func = lambda r, t: _log.info(
-			"Instantiating collections: Objects=%d/%d, Instantiated=%d, Created=%d, Time=%.1f sec...",
-			obj_i, len(self.copies), inst_i, created, t
-		)
+			"Instantiating collections: Objects={0}/{1}, Instantiated={2}, Created={3}, Time={4:.1f} sec...".format(
+				obj_i, len(self.copies), inst_i, created, t))
 		
 		queue = _deque()
 		queue.extend(self.copies)
@@ -176,7 +174,7 @@ class BaseInstantiator:
 		_commons.ensure_op_finished(_bpy.ops.object.convert(target='MESH'), name='bpy.ops.object.convert')
 		self.copies.update(_bpy.context.selected_objects)
 		_commons.ensure_deselect_all_objects()
-		_log.info('Converted %d curves to meshes.', len(curves))
+		_log.info('Converted {0} curves to meshes.'.format(len(curves)))
 	
 	def _make_single_user(self):
 		_log.info('Making data blocks single-users...')
@@ -189,16 +187,15 @@ class BaseInstantiator:
 		after = len(set(obj.data for obj in self.copies if obj.data is not None))
 		self.copies.update(_bpy.context.selected_objects)
 		_commons.ensure_deselect_all_objects()
-		_log.info('make_single_user, data blocks: %d +%d -> %d', before, (after - before), after)
+		_log.info('make_single_user, data blocks: {0} +{1} -> {2}'.format(before, (after - before), after))
 	
 	def _instantiate_material_slots(self):
 		obj_i, slot_i = 0, 0
 		
 		reporter = _LambdaReporter(self.report_time)
 		reporter.func = lambda r, t: _log.info(
-			"Instantiating material slots: Objects=%d/%d, Slots=%d, Time=%.1f sec, ETA=%.1f sec...",
-			obj_i, len(self.copies), slot_i, t, r.get_eta(1.0 * obj_i / len(self.copies))
-		)
+			"Instantiating material slots: Objects={0}/{1}, Slots={2}, Time={3:.1f} sec, ETA={4:.1f} sec...".format(
+				obj_i, len(self.copies), slot_i, t, r.get_eta(1.0 * obj_i / len(self.copies))))
 		
 		_log.info('Instantiating material slots...')
 		for copy in self.copies:
@@ -221,9 +218,8 @@ class BaseInstantiator:
 		
 		reporter = _LambdaReporter(self.report_time)
 		reporter.func = lambda r, t: _log.info(
-			"Applying modifiers: Objects=%d/%d, Modifiers=%d, Time=%.1f sec, ETA=%.1f sec...",
-			obj_i, obj_n, mod_i, t, r.get_eta(1.0 * obj_i / obj_n)
-		)
+			"Applying modifiers: Objects={0}/{1}, Modifiers={2}, Time={3:.1f} sec, ETA={4:.1f} sec...".format(
+				obj_i, obj_n, mod_i, t, r.get_eta(1.0 * obj_i / obj_n)))
 		
 		_log.info('Applying modifiers...')
 		for copy in self.copies:
@@ -244,8 +240,8 @@ class BaseInstantiator:
 			raise RuntimeError("working_scene is not set")
 		
 		self._check_originals()
-		_log.info('Instantiating %d objects from scene %s to %s... ',
-			len(self.originals), repr(self.original_scene.name), repr(self.working_scene.name))
+		_log.info('Instantiating {0} objects from scene {1} to {2}... '.format(
+			len(self.originals), repr(self.original_scene.name), repr(self.working_scene.name)))
 		self._register_original_names()
 		_bpy.context.window.scene = self.working_scene
 		self._put_originals_on_working()
@@ -274,10 +270,10 @@ class BaseInstantiator:
 		
 		invalids = list(obj for obj in self.copies if obj.name not in self.working_scene.collection.objects)
 		if len(invalids) > 0:
-			_log.info("Discarding %d invalid objects...", len(invalids))
+			_log.info("Discarding {0} invalid objects...".format(len(invalids)))
 			for invalid in invalids:
 				self.copies.discard(invalid)
 
 		self._clean_original_names()
 		
-		_log.info("Instantiation done: %d original -> %d copies.", len(self.originals), len(self.copies))
+		_log.info("Instantiation done: {0} original -> {1} copies.".format(len(self.originals), len(self.copies)))
