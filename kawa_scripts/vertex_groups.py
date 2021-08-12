@@ -31,19 +31,21 @@ def _any_weight(mesh: 'Mesh', group_index: 'int', limit: 'float' = 0.0):
 	return False
 
 
-def remove_empty(objs: 'Iterable[Object]', limit: 'float' = 0.0, ignore_locked: 'bool' = False, op: 'Operator' = None):
+def remove_empty(objs: 'Iterable[Object]', limit: 'float' = 0.0, ignore_locked: 'bool' = False, op: 'Operator' = None) -> 'Tuple[int, int]':
 	"""
-	Удаляет пустые Vertex Groups с указанных объектов.
-	Если режим объекта не 'OBJECT', то он игнорируется с предупреждением.
+	**Удаляет пустые Vertex Groups с указанных объектов.**
+	Если режим объекта не `OBJECT`, то он игнорируется с предупреждением.
 	Такой оператор уже еть в CATS, но кое-кто попросил меня сделать его отдельно т.к.
-	"Срашно, очень страшно пользоваться CATSом, опять поломает мне всю модельку."
-	:param objs: С каких объектов удалять Vertex Groups
-	:param limit: Считать пустыми точки с весами ниже или равными этому лимиту. Считать любой вес не-пустым, если меньше нуля.
-	:param ignore_locked: Не удалять группы с флагом lock_weight
-	:param op: Текущий оператор, если есть.
-	:return: removed_groups, removed_objects
-	removed_groups - сколько групп было удалено
-	removed_objects - из скольки объектов было удалено
+	*"Срашно, очень страшно пользоваться CATSом, опять поломает мне всю модельку."*
+	Vertex Group считается пустым, если все его веса вершин имеют значение меньше либо равное `limit`.
+	Если `limit` меньше нуля, то тогда любой (даже нулевой) вес считается не-пустым.
+	Если `ignore_locked`, то заблокированные группы (с флагом lock_weight) не будут удаляться.
+	
+	Возвращает: `(removed_groups, removed_objects)`, где
+	`removed_groups` - сколько групп было удалено,
+	`removed_objects` - из скольки объектов было удалено.
+	
+	Доступен из UI как оператор `kawa.vertex_group_remove_empty`
 	"""
 	removed_groups, removed_objects = 0, 0
 	for obj in objs:
@@ -72,7 +74,7 @@ class KawaRemoveEmpty(_KawaOperator):
 	bl_idname = "kawa.vertex_group_remove_empty"
 	bl_label = "Remove Empty Vertex Groups"
 	bl_options = {'REGISTER', 'UNDO'}
-
+	
 	limit: _bpy.props.FloatProperty(
 		name="Limit",
 		description="Do not count vertices which weight is below or equal to this limit. Count everything if less than zero.",
@@ -111,3 +113,7 @@ class KawaRemoveEmpty(_KawaOperator):
 classes = (
 	KawaRemoveEmpty,
 )
+
+__pdoc__ = dict()
+for cls in classes:
+	__pdoc__[cls.__name__] = False
