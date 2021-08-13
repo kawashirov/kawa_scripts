@@ -1,0 +1,1369 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
+<meta name="generator" content="pdoc 0.10.0" />
+<title>kawa_scripts.commons API documentation</title>
+<meta name="description" content="" />
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/typography.min.css" integrity="sha256-7l/o7C8jubJiy74VsKTidCy1yBkRtiUGbVkYBylBqUg=" crossorigin>
+<link rel="stylesheet preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/styles/github.min.css" crossorigin>
+<style>:root{--highlight-color:#fe9}.flex{display:flex !important}body{line-height:1.5em}#content{padding:20px}#sidebar{padding:30px;overflow:hidden}#sidebar > *:last-child{margin-bottom:2cm}.http-server-breadcrumbs{font-size:130%;margin:0 0 15px 0}#footer{font-size:.75em;padding:5px 30px;border-top:1px solid #ddd;text-align:right}#footer p{margin:0 0 0 1em;display:inline-block}#footer p:last-child{margin-right:30px}h1,h2,h3,h4,h5{font-weight:300}h1{font-size:2.5em;line-height:1.1em}h2{font-size:1.75em;margin:1em 0 .50em 0}h3{font-size:1.4em;margin:25px 0 10px 0}h4{margin:0;font-size:105%}h1:target,h2:target,h3:target,h4:target,h5:target,h6:target{background:var(--highlight-color);padding:.2em 0}a{color:#058;text-decoration:none;transition:color .3s ease-in-out}a:hover{color:#e82}.title code{font-weight:bold}h2[id^="header-"]{margin-top:2em}.ident{color:#900}pre code{background:#f8f8f8;font-size:.8em;line-height:1.4em}code{background:#f2f2f1;padding:1px 4px;overflow-wrap:break-word}h1 code{background:transparent}pre{background:#f8f8f8;border:0;border-top:1px solid #ccc;border-bottom:1px solid #ccc;margin:1em 0;padding:1ex}#http-server-module-list{display:flex;flex-flow:column}#http-server-module-list div{display:flex}#http-server-module-list dt{min-width:10%}#http-server-module-list p{margin-top:0}.toc ul,#index{list-style-type:none;margin:0;padding:0}#index code{background:transparent}#index h3{border-bottom:1px solid #ddd}#index ul{padding:0}#index h4{margin-top:.6em;font-weight:bold}@media (min-width:200ex){#index .two-column{column-count:2}}@media (min-width:300ex){#index .two-column{column-count:3}}dl{margin-bottom:2em}dl dl:last-child{margin-bottom:4em}dd{margin:0 0 1em 3em}#header-classes + dl > dd{margin-bottom:3em}dd dd{margin-left:2em}dd p{margin:10px 0}.name{background:#eee;font-weight:bold;font-size:.85em;padding:5px 10px;display:inline-block;min-width:40%}.name:hover{background:#e0e0e0}dt:target .name{background:var(--highlight-color)}.name > span:first-child{white-space:nowrap}.name.class > span:nth-child(2){margin-left:.4em}.inherited{color:#999;border-left:5px solid #eee;padding-left:1em}.inheritance em{font-style:normal;font-weight:bold}.desc h2{font-weight:400;font-size:1.25em}.desc h3{font-size:1em}.desc dt code{background:inherit}.source summary,.git-link-div{color:#666;text-align:right;font-weight:400;font-size:.8em;text-transform:uppercase}.source summary > *{white-space:nowrap;cursor:pointer}.git-link{color:inherit;margin-left:1em}.source pre{max-height:500px;overflow:auto;margin:0}.source pre code{font-size:12px;overflow:visible}.hlist{list-style:none}.hlist li{display:inline}.hlist li:after{content:',\2002'}.hlist li:last-child:after{content:none}.hlist .hlist{display:inline;padding-left:1em}img{max-width:100%}td{padding:0 .5em}.admonition{padding:.1em .5em;margin-bottom:1em}.admonition-title{font-weight:bold}.admonition.note,.admonition.info,.admonition.important{background:#aef}.admonition.todo,.admonition.versionadded,.admonition.tip,.admonition.hint{background:#dfd}.admonition.warning,.admonition.versionchanged,.admonition.deprecated{background:#fd4}.admonition.error,.admonition.danger,.admonition.caution{background:lightpink}</style>
+<style media="screen and (min-width: 700px)">@media screen and (min-width:700px){#sidebar{width:30%;height:100vh;overflow:auto;position:sticky;top:0}#content{width:70%;max-width:100ch;padding:3em 4em;border-left:1px solid #ddd}pre code{font-size:1em}.item .name{font-size:1em}main{display:flex;flex-direction:row-reverse;justify-content:flex-end}.toc ul ul,#index ul{padding-left:1.5em}.toc > ul > li{margin-top:.5em}}</style>
+<style media="print">@media print{#sidebar h1{page-break-before:always}.source{display:none}}@media print{*{background:transparent !important;color:#000 !important;box-shadow:none !important;text-shadow:none !important}a[href]:after{content:" (" attr(href) ")";font-size:90%}a[href][title]:after{content:none}abbr[title]:after{content:" (" attr(title) ")"}.ir a:after,a[href^="javascript:"]:after,a[href^="#"]:after{content:""}pre,blockquote{border:1px solid #999;page-break-inside:avoid}thead{display:table-header-group}tr,img{page-break-inside:avoid}img{max-width:100% !important}@page{margin:0.5cm}p,h2,h3{orphans:3;widows:3}h1,h2,h3,h4,h5,h6{page-break-after:avoid}}</style>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/highlight.min.js" integrity="sha256-Uv3H6lx7dJmRfRvH8TH6kJD1TSK1aFcwgx+mdg3epi8=" crossorigin></script>
+<script>window.addEventListener('DOMContentLoaded', () => hljs.initHighlighting())</script>
+</head>
+<body>
+<main>
+<article id="content">
+<header>
+<h1 class="title">Module <code>kawa_scripts.commons</code></h1>
+</header>
+<section id="section-intro">
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python"># Kawashirov&#39;s Scripts (c) 2021 by Sergey V. Kawashirov
+#
+# Kawashirov&#39;s Scripts is licensed under a
+# Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License.
+#
+# You should have received a copy of the license along with this
+# work.  If not, see &lt;http://creativecommons.org/licenses/by-nc-sa/3.0/&gt;.
+#
+#
+from collections import deque as _deque
+from time import perf_counter as _perf_counter
+import contextlib as _contextlib
+
+import bpy as _bpy
+from bpy import context as _C
+from mathutils import Vector as _Vector
+from mathutils import Quaternion as _Quaternion
+from mathutils import Matrix as _Matrix
+from mathutils.geometry import area_tri as _area_tri
+
+from ._internals import log as _log
+
+import typing as _typing
+
+if _typing.TYPE_CHECKING:
+        from typing import *
+        from bpy.types import *
+
+
+class ConfigurationError(RuntimeError):
+        # Ошибка конфигурации
+        pass
+
+
+class MaterialConfigurationError(ConfigurationError):
+        def __init__(self, mat, msg: str):
+                self.material = mat
+                msg = &#39;Material={0}: {1}&#39;.format(mat, msg)
+                super().__init__(msg)
+
+
+def poly2_area2(ps: &#39;Sequence[Vector]&#39;):
+        # Площадь полигона, примерно, без учёта вогнутостей
+        length = len(ps)
+        if length &lt; 3:
+                return 0
+        elif length == 3:
+                # Частый случай, оптимизация для треугольника
+                return _area_tri(ps[0], ps[1], ps[2])
+        elif length == 4:
+                # Частый случай, оптимизация для квада
+                return _area_tri(ps[0], ps[1], ps[2]) + _area_tri(ps[0], ps[2], ps[3])
+        else:
+                # Для пентагона и выше - Формула Гаусса
+                s = ps[length - 1].x * ps[0].y - ps[0].x * ps[length - 1].y
+                for i in range(length - 1):
+                        s += ps[i].x * ps[i + 1].y
+                        s -= ps[i + 1].x * ps[i].y
+                return 0.5 * abs(s)
+
+
+def is_none_or_bool(value: &#39;Optional[bool]&#39;) -&gt; &#39;bool&#39;:
+        return value is None or isinstance(value, bool)
+
+
+def is_positive_int(pint: &#39;int&#39;) -&gt; &#39;bool&#39;:
+        return isinstance(pint, int) and pint &gt; 0
+
+
+def is_positive_float(pfloat: &#39;float&#39;) -&gt; &#39;bool&#39;:
+        return (isinstance(pfloat, int) or isinstance(pfloat, float)) and pfloat &gt; 0
+
+
+def is_none_or_positive_float(pfloat: &#39;float&#39;) -&gt; &#39;bool&#39;:
+        return pfloat is None or ((isinstance(pfloat, int) or isinstance(pfloat, float)) and pfloat &gt; 0)
+
+
+def is_positive_or_zero_float(pfloat: &#39;float&#39;) -&gt; &#39;bool&#39;:
+        return (isinstance(pfloat, int) or isinstance(pfloat, float)) and pfloat &gt;= 0
+
+
+def is_none_or_positive_or_zero_float(pfloat: &#39;float&#39;) -&gt; &#39;bool&#39;:
+        return pfloat is None or ((isinstance(pfloat, int) or isinstance(pfloat, float)) and pfloat &gt;= 0)
+
+
+def is_valid_size_int(size: &#39;Tuple[int, int]&#39;) -&gt; &#39;bool&#39;:
+        return isinstance(size, tuple) and len(size) == 2 and is_positive_int(size[0]) and is_positive_int(size[1])
+
+
+def is_valid_size_float(size: &#39;Tuple[float, float]&#39;) -&gt; &#39;bool&#39;:
+        return isinstance(size, tuple) and len(size) == 2 and is_positive_float(size[0]) and is_positive_float(size[1])
+
+
+def is_valid_string(string: &#39;str&#39;) -&gt; &#39;bool&#39;:
+        return isinstance(string, str) and len(string) &gt; 0
+
+
+def is_none_or_valid_string(string: &#39;str&#39;) -&gt; &#39;bool&#39;:
+        return string is None or (isinstance(string, str) and len(string) &gt; 0)
+
+
+def identity_transform(obj: &#39;Object&#39;):
+        obj.location = _Vector.Fill(3, 0.0)
+        obj.rotation_mode = &#39;QUATERNION&#39;
+        obj.rotation_quaternion = _Quaternion()
+        obj.scale = _Vector.Fill(3, 1.0)
+
+
+def copy_transform(from_obj: &#39;Object&#39;, to_obj: &#39;Object&#39;):
+        to_obj.location = from_obj.location
+        to_obj.rotation_mode = from_obj.rotation_mode
+        to_obj.rotation_axis_angle = from_obj.rotation_axis_angle
+        to_obj.rotation_euler = from_obj.rotation_euler
+        to_obj.rotation_quaternion = from_obj.rotation_quaternion
+        to_obj.scale = from_obj.scale
+
+
+def move_children_to_grandparent(obj: &#39;Object&#39;):
+        for child in obj.children:
+                set_parent_keep_world(child, obj.parent)
+
+
+def set_parent_keep_world(child: &#39;Object&#39;, parent: &#39;Object&#39;):
+        m = child.matrix_world.copy()
+        child.parent = parent
+        child.parent_type = &#39;OBJECT&#39;
+        child.matrix_parent_inverse = _Matrix.Identity(4)
+        child.matrix_world = m
+
+
+def apply_parent_inverse_matrix(obj: &#39;Object&#39;):
+        identity = _Matrix.Identity(4)
+        if obj.parent_type != &#39;OBJECT&#39; or obj.matrix_parent_inverse == identity:
+                return False
+        mw = obj.matrix_world.copy()
+        obj.matrix_parent_inverse = identity
+        obj.parent_type = &#39;OBJECT&#39;
+        obj.matrix_world = mw
+        return True
+
+
+class KawaApplyParentInverseMatrices(_bpy.types.Operator):
+        bl_idname = &#34;object.kawa_apply_parent_inverse_matrices&#34;
+        bl_label = &#34;Apply Parent Inverse Transform Matricies&#34;
+        bl_options = {&#39;REGISTER&#39;, &#39;UNDO&#39;}
+        
+        @classmethod
+        def poll(cls, context: &#39;Context&#39;):
+                if len(context.selected_objects) &lt; 1:
+                        return False  # Должны быть выбраны какие-то объекты
+                if context.mode != &#39;OBJECT&#39;:
+                        return False  # Требуется режим OBJECT
+                return True
+        
+        def execute(self, context: &#39;Context&#39;):
+                applied = list(obj for obj in context.selected_objects if apply_parent_inverse_matrix(obj))
+                applied_strs = &#34;&#34;.join(&#34;\n-\t{0}&#34;.format(repr(obj)) for obj in applied)
+                self.report({&#39;INFO&#39;}, &#34;Applied {0} parent inverse matrices:{1}&#34;.format(len(applied), applied_strs))
+                return {&#39;FINISHED&#39;} if len(applied) &gt; 0 else {&#39;CANCELLED&#39;}
+
+
+def ensure_op_result(result: &#39;Iterable[str]&#39;, allowed_results: &#39;Iterable[str]&#39;, **kwargs):
+        if set(result) &gt;= set(allowed_results):
+                raise RuntimeError(&#39;Operator has invalid result:&#39;, result, allowed_results, list(_C.selected_objects), kwargs)
+
+
+def ensure_op_finished(result, **kwargs):
+        if &#39;FINISHED&#39; not in result:
+                raise RuntimeError(&#39;Operator is not FINISHED: &#39;, result, list(_C.selected_objects), kwargs)
+
+
+def ensure_op_finished_or_cancelled(result, **kwargs):
+        if &#39;FINISHED&#39; not in result and &#39;CANCELLED&#39; not in result:
+                raise RuntimeError(&#39;Operator is not FINISHED: &#39;, result, list(_C.selected_objects), kwargs)
+
+
+def select_set_all(objects: &#39;Iterable[Object]&#39;, state: bool):
+        for obj in objects:
+                try:
+                        obj.hide_set(False)
+                        obj.select_set(state)
+                except Exception as exc:
+                        _log.error(str(exc))
+                        _log.error(repr(objects))
+                        raise exc
+                
+
+def activate_object(obj: &#39;Object&#39;):
+        obj.hide_set(False)
+        obj.select_set(True)
+        _C.view_layer.objects.active = obj
+
+
+def activate_objects(objs: &#39;Iterable[Object]&#39;):
+        for obj in objs:
+                activate_object(obj)
+
+
+def ensure_deselect_all_objects():
+        # ensure_op_finished(bpy.ops.object.select_all(action=&#39;DESELECT&#39;), name=&#34;bpy.ops.object.select_all(action=&#39;DESELECT&#39;)&#34;)
+        # Это быстрее, чем оператор, и позволяет отжать скрытые объекты
+        # _C.selected_objects выдаёт AttributeError: &#39;_RestrictContext&#39; object has no attribute &#39;selected_objects&#39;
+        while len(_C.view_layer.objects.selected) &gt; 0:
+                _C.view_layer.objects.selected[0].select_set(False)
+
+
+class _TemporaryViewLayer(_contextlib.ContextDecorator):
+        # Does not work
+        def __init__(self, name=None):
+                self.name = None if name is None else str(name)
+                self.scene = None  # type: Scene
+                self.temp_view_layer = None  # type: ViewLayer
+                self.original_view_layer = None  # type: ViewLayer
+        
+        def __enter__(self):
+                self.scene = _C.scene
+                self.original_view_layer = _C.view_layer
+                name = &#39;__Temporary&#39;
+                if self.name:
+                        name += &#39;-&#39; + self.name
+                self.temp_view_layer = self.scene.view_layers.new(name)
+                # _C.window.view_layer = self.temp_view_layer
+                _C.view_layer = self.temp_view_layer
+                return self
+        
+        def __exit__(self, *exc):
+                try:
+                        # _C.window.scene = self.scene
+                        # _C.window.view_layer = self.original_view_layer
+                        _C.scene = self.scene
+                        _C.view_layer = self.original_view_layer
+                        self.scene.view_layers.remove(self.temp_view_layer)
+                except ReferenceError:
+                        pass  # this is fine
+
+
+class SaveSelection(_contextlib.ContextDecorator):
+        # TODO
+        def __init__(self, name=None):
+                self.last_active_object = None  # type: Object
+                self.shown = None  # type: List[Object]
+                self.selected = None  # type: List[Object]
+        
+        def __enter__(self):
+                self.last_active_object = _C.view_layer.objects.active
+                self.selected = list(_C.view_layer.objects.selected)
+                return self
+        
+        # def hide_set(self, obj: &#39;Object&#39;, state: &#39;bool&#39;):
+        #       if self.hide_state is None:
+        #               self.hide_state = dict()
+        #       if obj not in self.hide_state.keys():
+        #               self.hide_state[obj] = obj.hide_get()
+        #       obj.hide_set(state)
+        #
+        # def select_set(self, obj: &#39;Object&#39;, state: &#39;bool&#39;):
+        #       if self.select_state is None:
+        #               self.select_state = dict()
+        #       if obj not in self.select_state.keys():
+        #               self.select_state[obj] = obj.select_get()
+        #       obj.select_set(state)
+        #
+        # def activate_object(self, obj: &#39;Object&#39;):
+        #       self.hide_set(obj, False)
+        #       self.select_set(obj, True)
+        #       _C.view_layer.objects.selected = obj
+        #
+        # def activate_objects(self, objs: &#39;Iterable[Object]&#39;):
+        #       for obj in objs:
+        #               self.activate_object(obj)
+        
+        def __exit__(self, *exc):
+                for obj in _C.view_layer.objects:
+                        obj.select_set(obj in self.selected)
+                # if self.hide_state is not None:
+                #       for obj, state in self.hide_state.items():
+                #               try:
+                #                       obj.hide_set(state)
+                #               except ReferenceError:
+                #                       pass  # object invalid, this is fine
+                # if self.select_state is not None:
+                #       for obj, state in self.select_state.items():
+                #               try:
+                #                       obj.select_set(state)
+                #               except ReferenceError:
+                #                       pass  # object invalid, this is fine
+                try:
+                        _C.view_layer.objects.active = self.last_active_object
+                except ReferenceError:
+                        pass  # object invalid, this is fine
+
+
+def any_not_none(*args):
+        # Первый не-None, или None
+        for v in args:
+                if v is not None:
+                        return v
+        return None
+
+
+def get_mesh_safe(obj: &#39;Object&#39;) -&gt; &#39;Mesh&#39;:
+        mesh = obj.data
+        if not isinstance(mesh, _bpy.types.Mesh):
+                raise ValueError(&#34;Object.data is not Mesh!&#34;, obj, mesh)
+        return mesh
+
+
+def remove_all_geometry(obj: &#39;Object&#39;):
+        import bmesh
+        # Очистка геометрии
+        bm = bmesh.new()
+        try:
+                mesh = get_mesh_safe(obj)
+                # Дегенеративные уебки, почему в Mesh нет API для удаления геометрии?
+                bm.from_mesh(mesh)
+                bm.clear()  # TODO optimize?
+                bm.to_mesh(mesh)
+        finally:
+                bm.free()
+
+
+def remove_all_vertex_colors(obj: &#39;Object&#39;):
+        mesh = get_mesh_safe(obj)
+        while len(mesh.vertex_colors) &gt; 0:
+                mesh.vertex_colors.remove(mesh.vertex_colors[0])
+
+
+def remove_all_material_slots(obj: &#39;Object&#39;, slots=0):
+        while len(obj.material_slots) &gt; slots:
+                _C.view_layer.objects.active = obj
+                ensure_op_finished(_bpy.ops.object.material_slot_remove(), name=&#39;bpy.ops.object.material_slot_remove&#39;)
+
+
+def find_objects_with_material(material: &#39;Material&#39;, where: &#39;Iterable[Object]&#39; = None) -&gt; &#39;Set[Object]&#39;:
+        objects = set()
+        if where is None:
+                where = _C.scene.objects
+        for obj in where:
+                if not isinstance(obj.data, _bpy.types.Mesh):
+                        continue
+                for slot in obj.material_slots:
+                        if slot.material == material:
+                                objects.add(obj)
+        return objects
+
+
+def is_parent(parent_object: &#39;Object&#39;, child_object: &#39;Object&#39;) -&gt; &#39;bool&#39;:
+        obj = child_object
+        while obj is not None:
+                if parent_object == obj:
+                        return True
+                obj = obj.parent
+        return False
+
+
+def find_all_child_objects(parent_object: &#39;Object&#39;, where: &#39;Optional[Container[Object]]&#39; = None) -&gt; &#39;Set[Object]&#39;:
+        child_objects = set()
+        deque = _deque()  # type: Deque[Object]
+        deque.append(parent_object)
+        while len(deque) &gt; 0:
+                child_obj = deque.pop()
+                deque.extend(child_obj.children)
+                if where is not None and child_obj not in where:
+                        continue
+                child_objects.add(child_obj)
+        return child_objects
+
+
+def merge_same_material_slots(obj: &#39;Object&#39;):
+        # Объединяет слоты с одинаковыми материалами:
+        # Сначала объединяет индексы, затем удаляет освободившиеся слоты.
+        # Игнорирует пустые слоты
+        if len(obj.material_slots) &lt; 2:
+                return
+        ensure_deselect_all_objects()
+        activate_object(obj)
+        mesh = get_mesh_safe(obj)
+        # Все материалы используемые на объекте
+        mats = set()
+        run_op = False
+        for slot in obj.material_slots:
+                if slot is None or slot.material is None:
+                        continue
+                mats.add(slot.material)
+        for proc_mat in mats:
+                indices = list()
+                for slot in range(len(obj.material_slots)):
+                        if obj.material_slots[slot].material is proc_mat:
+                                indices.append(slot)
+                if len(indices) &lt; 2:
+                        continue
+                run_op = True
+                main_idx = indices[0]
+                for idx in indices[1:]:
+                        for poly in mesh.polygons:
+                                if poly.material_index == idx:
+                                        poly.material_index = main_idx
+        if run_op:
+                ensure_op_finished_or_cancelled(
+                        _bpy.ops.object.material_slot_remove_unused(), name=&#39;bpy.ops.object.material_slot_remove_unused&#39;
+                )
+        ensure_deselect_all_objects()
+
+
+_K = _typing.TypeVar(&#39;_K&#39;)
+_V = _typing.TypeVar(&#39;_V&#39;)
+
+
+def dict_get_or_add(_dict: &#39;Dict[_K,_V]&#39;, _key: &#39;Optional[_K]&#39;, _creator: &#39;Callable[[],_V]&#39;) -&gt; &#39;_V&#39;:
+        value = _dict.get(_key)
+        if value is None:
+                value = _creator()
+                _dict[_key] = value
+        return value
+
+
+classes = (
+        KawaApplyParentInverseMatrices,
+)</code></pre>
+</details>
+</section>
+<section>
+</section>
+<section>
+</section>
+<section>
+<h2 class="section-title" id="header-functions">Functions</h2>
+<dl>
+<dt id="kawa_scripts.commons.activate_object"><code class="name flex">
+<span>def <span class="ident">activate_object</span></span>(<span>obj: Object)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def activate_object(obj: &#39;Object&#39;):
+        obj.hide_set(False)
+        obj.select_set(True)
+        _C.view_layer.objects.active = obj</code></pre>
+</details>
+</dd>
+<dt id="kawa_scripts.commons.activate_objects"><code class="name flex">
+<span>def <span class="ident">activate_objects</span></span>(<span>objs: Iterable[Object])</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def activate_objects(objs: &#39;Iterable[Object]&#39;):
+        for obj in objs:
+                activate_object(obj)</code></pre>
+</details>
+</dd>
+<dt id="kawa_scripts.commons.any_not_none"><code class="name flex">
+<span>def <span class="ident">any_not_none</span></span>(<span>*args)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def any_not_none(*args):
+        # Первый не-None, или None
+        for v in args:
+                if v is not None:
+                        return v
+        return None</code></pre>
+</details>
+</dd>
+<dt id="kawa_scripts.commons.apply_parent_inverse_matrix"><code class="name flex">
+<span>def <span class="ident">apply_parent_inverse_matrix</span></span>(<span>obj: Object)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def apply_parent_inverse_matrix(obj: &#39;Object&#39;):
+        identity = _Matrix.Identity(4)
+        if obj.parent_type != &#39;OBJECT&#39; or obj.matrix_parent_inverse == identity:
+                return False
+        mw = obj.matrix_world.copy()
+        obj.matrix_parent_inverse = identity
+        obj.parent_type = &#39;OBJECT&#39;
+        obj.matrix_world = mw
+        return True</code></pre>
+</details>
+</dd>
+<dt id="kawa_scripts.commons.copy_transform"><code class="name flex">
+<span>def <span class="ident">copy_transform</span></span>(<span>from_obj: Object, to_obj: Object)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def copy_transform(from_obj: &#39;Object&#39;, to_obj: &#39;Object&#39;):
+        to_obj.location = from_obj.location
+        to_obj.rotation_mode = from_obj.rotation_mode
+        to_obj.rotation_axis_angle = from_obj.rotation_axis_angle
+        to_obj.rotation_euler = from_obj.rotation_euler
+        to_obj.rotation_quaternion = from_obj.rotation_quaternion
+        to_obj.scale = from_obj.scale</code></pre>
+</details>
+</dd>
+<dt id="kawa_scripts.commons.dict_get_or_add"><code class="name flex">
+<span>def <span class="ident">dict_get_or_add</span></span>(<span>_dict: Dict[_K,_V], _key: Optional[_K], _creator: Callable[[],_V]) ‑> _V</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def dict_get_or_add(_dict: &#39;Dict[_K,_V]&#39;, _key: &#39;Optional[_K]&#39;, _creator: &#39;Callable[[],_V]&#39;) -&gt; &#39;_V&#39;:
+        value = _dict.get(_key)
+        if value is None:
+                value = _creator()
+                _dict[_key] = value
+        return value</code></pre>
+</details>
+</dd>
+<dt id="kawa_scripts.commons.ensure_deselect_all_objects"><code class="name flex">
+<span>def <span class="ident">ensure_deselect_all_objects</span></span>(<span>)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def ensure_deselect_all_objects():
+        # ensure_op_finished(bpy.ops.object.select_all(action=&#39;DESELECT&#39;), name=&#34;bpy.ops.object.select_all(action=&#39;DESELECT&#39;)&#34;)
+        # Это быстрее, чем оператор, и позволяет отжать скрытые объекты
+        # _C.selected_objects выдаёт AttributeError: &#39;_RestrictContext&#39; object has no attribute &#39;selected_objects&#39;
+        while len(_C.view_layer.objects.selected) &gt; 0:
+                _C.view_layer.objects.selected[0].select_set(False)</code></pre>
+</details>
+</dd>
+<dt id="kawa_scripts.commons.ensure_op_finished"><code class="name flex">
+<span>def <span class="ident">ensure_op_finished</span></span>(<span>result, **kwargs)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def ensure_op_finished(result, **kwargs):
+        if &#39;FINISHED&#39; not in result:
+                raise RuntimeError(&#39;Operator is not FINISHED: &#39;, result, list(_C.selected_objects), kwargs)</code></pre>
+</details>
+</dd>
+<dt id="kawa_scripts.commons.ensure_op_finished_or_cancelled"><code class="name flex">
+<span>def <span class="ident">ensure_op_finished_or_cancelled</span></span>(<span>result, **kwargs)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def ensure_op_finished_or_cancelled(result, **kwargs):
+        if &#39;FINISHED&#39; not in result and &#39;CANCELLED&#39; not in result:
+                raise RuntimeError(&#39;Operator is not FINISHED: &#39;, result, list(_C.selected_objects), kwargs)</code></pre>
+</details>
+</dd>
+<dt id="kawa_scripts.commons.ensure_op_result"><code class="name flex">
+<span>def <span class="ident">ensure_op_result</span></span>(<span>result: Iterable[str], allowed_results: Iterable[str], **kwargs)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def ensure_op_result(result: &#39;Iterable[str]&#39;, allowed_results: &#39;Iterable[str]&#39;, **kwargs):
+        if set(result) &gt;= set(allowed_results):
+                raise RuntimeError(&#39;Operator has invalid result:&#39;, result, allowed_results, list(_C.selected_objects), kwargs)</code></pre>
+</details>
+</dd>
+<dt id="kawa_scripts.commons.find_all_child_objects"><code class="name flex">
+<span>def <span class="ident">find_all_child_objects</span></span>(<span>parent_object: Object, where: Optional[Container[Object]] = None) ‑> Set[Object]</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def find_all_child_objects(parent_object: &#39;Object&#39;, where: &#39;Optional[Container[Object]]&#39; = None) -&gt; &#39;Set[Object]&#39;:
+        child_objects = set()
+        deque = _deque()  # type: Deque[Object]
+        deque.append(parent_object)
+        while len(deque) &gt; 0:
+                child_obj = deque.pop()
+                deque.extend(child_obj.children)
+                if where is not None and child_obj not in where:
+                        continue
+                child_objects.add(child_obj)
+        return child_objects</code></pre>
+</details>
+</dd>
+<dt id="kawa_scripts.commons.find_objects_with_material"><code class="name flex">
+<span>def <span class="ident">find_objects_with_material</span></span>(<span>material: Material, where: Iterable[Object] = None) ‑> Set[Object]</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def find_objects_with_material(material: &#39;Material&#39;, where: &#39;Iterable[Object]&#39; = None) -&gt; &#39;Set[Object]&#39;:
+        objects = set()
+        if where is None:
+                where = _C.scene.objects
+        for obj in where:
+                if not isinstance(obj.data, _bpy.types.Mesh):
+                        continue
+                for slot in obj.material_slots:
+                        if slot.material == material:
+                                objects.add(obj)
+        return objects</code></pre>
+</details>
+</dd>
+<dt id="kawa_scripts.commons.get_mesh_safe"><code class="name flex">
+<span>def <span class="ident">get_mesh_safe</span></span>(<span>obj: Object) ‑> Mesh</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_mesh_safe(obj: &#39;Object&#39;) -&gt; &#39;Mesh&#39;:
+        mesh = obj.data
+        if not isinstance(mesh, _bpy.types.Mesh):
+                raise ValueError(&#34;Object.data is not Mesh!&#34;, obj, mesh)
+        return mesh</code></pre>
+</details>
+</dd>
+<dt id="kawa_scripts.commons.identity_transform"><code class="name flex">
+<span>def <span class="ident">identity_transform</span></span>(<span>obj: Object)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def identity_transform(obj: &#39;Object&#39;):
+        obj.location = _Vector.Fill(3, 0.0)
+        obj.rotation_mode = &#39;QUATERNION&#39;
+        obj.rotation_quaternion = _Quaternion()
+        obj.scale = _Vector.Fill(3, 1.0)</code></pre>
+</details>
+</dd>
+<dt id="kawa_scripts.commons.is_none_or_bool"><code class="name flex">
+<span>def <span class="ident">is_none_or_bool</span></span>(<span>value: Optional[bool]) ‑> bool</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def is_none_or_bool(value: &#39;Optional[bool]&#39;) -&gt; &#39;bool&#39;:
+        return value is None or isinstance(value, bool)</code></pre>
+</details>
+</dd>
+<dt id="kawa_scripts.commons.is_none_or_positive_float"><code class="name flex">
+<span>def <span class="ident">is_none_or_positive_float</span></span>(<span>pfloat: float) ‑> bool</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def is_none_or_positive_float(pfloat: &#39;float&#39;) -&gt; &#39;bool&#39;:
+        return pfloat is None or ((isinstance(pfloat, int) or isinstance(pfloat, float)) and pfloat &gt; 0)</code></pre>
+</details>
+</dd>
+<dt id="kawa_scripts.commons.is_none_or_positive_or_zero_float"><code class="name flex">
+<span>def <span class="ident">is_none_or_positive_or_zero_float</span></span>(<span>pfloat: float) ‑> bool</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def is_none_or_positive_or_zero_float(pfloat: &#39;float&#39;) -&gt; &#39;bool&#39;:
+        return pfloat is None or ((isinstance(pfloat, int) or isinstance(pfloat, float)) and pfloat &gt;= 0)</code></pre>
+</details>
+</dd>
+<dt id="kawa_scripts.commons.is_none_or_valid_string"><code class="name flex">
+<span>def <span class="ident">is_none_or_valid_string</span></span>(<span>string: str) ‑> bool</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def is_none_or_valid_string(string: &#39;str&#39;) -&gt; &#39;bool&#39;:
+        return string is None or (isinstance(string, str) and len(string) &gt; 0)</code></pre>
+</details>
+</dd>
+<dt id="kawa_scripts.commons.is_parent"><code class="name flex">
+<span>def <span class="ident">is_parent</span></span>(<span>parent_object: Object, child_object: Object) ‑> bool</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def is_parent(parent_object: &#39;Object&#39;, child_object: &#39;Object&#39;) -&gt; &#39;bool&#39;:
+        obj = child_object
+        while obj is not None:
+                if parent_object == obj:
+                        return True
+                obj = obj.parent
+        return False</code></pre>
+</details>
+</dd>
+<dt id="kawa_scripts.commons.is_positive_float"><code class="name flex">
+<span>def <span class="ident">is_positive_float</span></span>(<span>pfloat: float) ‑> bool</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def is_positive_float(pfloat: &#39;float&#39;) -&gt; &#39;bool&#39;:
+        return (isinstance(pfloat, int) or isinstance(pfloat, float)) and pfloat &gt; 0</code></pre>
+</details>
+</dd>
+<dt id="kawa_scripts.commons.is_positive_int"><code class="name flex">
+<span>def <span class="ident">is_positive_int</span></span>(<span>pint: int) ‑> bool</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def is_positive_int(pint: &#39;int&#39;) -&gt; &#39;bool&#39;:
+        return isinstance(pint, int) and pint &gt; 0</code></pre>
+</details>
+</dd>
+<dt id="kawa_scripts.commons.is_positive_or_zero_float"><code class="name flex">
+<span>def <span class="ident">is_positive_or_zero_float</span></span>(<span>pfloat: float) ‑> bool</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def is_positive_or_zero_float(pfloat: &#39;float&#39;) -&gt; &#39;bool&#39;:
+        return (isinstance(pfloat, int) or isinstance(pfloat, float)) and pfloat &gt;= 0</code></pre>
+</details>
+</dd>
+<dt id="kawa_scripts.commons.is_valid_size_float"><code class="name flex">
+<span>def <span class="ident">is_valid_size_float</span></span>(<span>size: Tuple[float, float]) ‑> bool</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def is_valid_size_float(size: &#39;Tuple[float, float]&#39;) -&gt; &#39;bool&#39;:
+        return isinstance(size, tuple) and len(size) == 2 and is_positive_float(size[0]) and is_positive_float(size[1])</code></pre>
+</details>
+</dd>
+<dt id="kawa_scripts.commons.is_valid_size_int"><code class="name flex">
+<span>def <span class="ident">is_valid_size_int</span></span>(<span>size: Tuple[int, int]) ‑> bool</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def is_valid_size_int(size: &#39;Tuple[int, int]&#39;) -&gt; &#39;bool&#39;:
+        return isinstance(size, tuple) and len(size) == 2 and is_positive_int(size[0]) and is_positive_int(size[1])</code></pre>
+</details>
+</dd>
+<dt id="kawa_scripts.commons.is_valid_string"><code class="name flex">
+<span>def <span class="ident">is_valid_string</span></span>(<span>string: str) ‑> bool</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def is_valid_string(string: &#39;str&#39;) -&gt; &#39;bool&#39;:
+        return isinstance(string, str) and len(string) &gt; 0</code></pre>
+</details>
+</dd>
+<dt id="kawa_scripts.commons.merge_same_material_slots"><code class="name flex">
+<span>def <span class="ident">merge_same_material_slots</span></span>(<span>obj: Object)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def merge_same_material_slots(obj: &#39;Object&#39;):
+        # Объединяет слоты с одинаковыми материалами:
+        # Сначала объединяет индексы, затем удаляет освободившиеся слоты.
+        # Игнорирует пустые слоты
+        if len(obj.material_slots) &lt; 2:
+                return
+        ensure_deselect_all_objects()
+        activate_object(obj)
+        mesh = get_mesh_safe(obj)
+        # Все материалы используемые на объекте
+        mats = set()
+        run_op = False
+        for slot in obj.material_slots:
+                if slot is None or slot.material is None:
+                        continue
+                mats.add(slot.material)
+        for proc_mat in mats:
+                indices = list()
+                for slot in range(len(obj.material_slots)):
+                        if obj.material_slots[slot].material is proc_mat:
+                                indices.append(slot)
+                if len(indices) &lt; 2:
+                        continue
+                run_op = True
+                main_idx = indices[0]
+                for idx in indices[1:]:
+                        for poly in mesh.polygons:
+                                if poly.material_index == idx:
+                                        poly.material_index = main_idx
+        if run_op:
+                ensure_op_finished_or_cancelled(
+                        _bpy.ops.object.material_slot_remove_unused(), name=&#39;bpy.ops.object.material_slot_remove_unused&#39;
+                )
+        ensure_deselect_all_objects()</code></pre>
+</details>
+</dd>
+<dt id="kawa_scripts.commons.move_children_to_grandparent"><code class="name flex">
+<span>def <span class="ident">move_children_to_grandparent</span></span>(<span>obj: Object)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def move_children_to_grandparent(obj: &#39;Object&#39;):
+        for child in obj.children:
+                set_parent_keep_world(child, obj.parent)</code></pre>
+</details>
+</dd>
+<dt id="kawa_scripts.commons.poly2_area2"><code class="name flex">
+<span>def <span class="ident">poly2_area2</span></span>(<span>ps: Sequence[Vector])</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def poly2_area2(ps: &#39;Sequence[Vector]&#39;):
+        # Площадь полигона, примерно, без учёта вогнутостей
+        length = len(ps)
+        if length &lt; 3:
+                return 0
+        elif length == 3:
+                # Частый случай, оптимизация для треугольника
+                return _area_tri(ps[0], ps[1], ps[2])
+        elif length == 4:
+                # Частый случай, оптимизация для квада
+                return _area_tri(ps[0], ps[1], ps[2]) + _area_tri(ps[0], ps[2], ps[3])
+        else:
+                # Для пентагона и выше - Формула Гаусса
+                s = ps[length - 1].x * ps[0].y - ps[0].x * ps[length - 1].y
+                for i in range(length - 1):
+                        s += ps[i].x * ps[i + 1].y
+                        s -= ps[i + 1].x * ps[i].y
+                return 0.5 * abs(s)</code></pre>
+</details>
+</dd>
+<dt id="kawa_scripts.commons.remove_all_geometry"><code class="name flex">
+<span>def <span class="ident">remove_all_geometry</span></span>(<span>obj: Object)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def remove_all_geometry(obj: &#39;Object&#39;):
+        import bmesh
+        # Очистка геометрии
+        bm = bmesh.new()
+        try:
+                mesh = get_mesh_safe(obj)
+                # Дегенеративные уебки, почему в Mesh нет API для удаления геометрии?
+                bm.from_mesh(mesh)
+                bm.clear()  # TODO optimize?
+                bm.to_mesh(mesh)
+        finally:
+                bm.free()</code></pre>
+</details>
+</dd>
+<dt id="kawa_scripts.commons.remove_all_material_slots"><code class="name flex">
+<span>def <span class="ident">remove_all_material_slots</span></span>(<span>obj: Object, slots=0)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def remove_all_material_slots(obj: &#39;Object&#39;, slots=0):
+        while len(obj.material_slots) &gt; slots:
+                _C.view_layer.objects.active = obj
+                ensure_op_finished(_bpy.ops.object.material_slot_remove(), name=&#39;bpy.ops.object.material_slot_remove&#39;)</code></pre>
+</details>
+</dd>
+<dt id="kawa_scripts.commons.remove_all_vertex_colors"><code class="name flex">
+<span>def <span class="ident">remove_all_vertex_colors</span></span>(<span>obj: Object)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def remove_all_vertex_colors(obj: &#39;Object&#39;):
+        mesh = get_mesh_safe(obj)
+        while len(mesh.vertex_colors) &gt; 0:
+                mesh.vertex_colors.remove(mesh.vertex_colors[0])</code></pre>
+</details>
+</dd>
+<dt id="kawa_scripts.commons.select_set_all"><code class="name flex">
+<span>def <span class="ident">select_set_all</span></span>(<span>objects: Iterable[Object], state: bool)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def select_set_all(objects: &#39;Iterable[Object]&#39;, state: bool):
+        for obj in objects:
+                try:
+                        obj.hide_set(False)
+                        obj.select_set(state)
+                except Exception as exc:
+                        _log.error(str(exc))
+                        _log.error(repr(objects))
+                        raise exc</code></pre>
+</details>
+</dd>
+<dt id="kawa_scripts.commons.set_parent_keep_world"><code class="name flex">
+<span>def <span class="ident">set_parent_keep_world</span></span>(<span>child: Object, parent: Object)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def set_parent_keep_world(child: &#39;Object&#39;, parent: &#39;Object&#39;):
+        m = child.matrix_world.copy()
+        child.parent = parent
+        child.parent_type = &#39;OBJECT&#39;
+        child.matrix_parent_inverse = _Matrix.Identity(4)
+        child.matrix_world = m</code></pre>
+</details>
+</dd>
+</dl>
+</section>
+<section>
+<h2 class="section-title" id="header-classes">Classes</h2>
+<dl>
+<dt id="kawa_scripts.commons.ConfigurationError"><code class="flex name class">
+<span>class <span class="ident">ConfigurationError</span></span>
+<span>(</span><span>*args, **kwargs)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Unspecified run-time error.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class ConfigurationError(RuntimeError):
+        # Ошибка конфигурации
+        pass</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li>builtins.RuntimeError</li>
+<li>builtins.Exception</li>
+<li>builtins.BaseException</li>
+</ul>
+<h3>Subclasses</h3>
+<ul class="hlist">
+<li><a title="kawa_scripts.commons.MaterialConfigurationError" href="#kawa_scripts.commons.MaterialConfigurationError">MaterialConfigurationError</a></li>
+</ul>
+</dd>
+<dt id="kawa_scripts.commons.KawaApplyParentInverseMatrices"><code class="flex name class">
+<span>class <span class="ident">KawaApplyParentInverseMatrices</span></span>
+</code></dt>
+<dd>
+<div class="desc"><p>Storage of an operator being executed, or registered after execution</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class KawaApplyParentInverseMatrices(_bpy.types.Operator):
+        bl_idname = &#34;object.kawa_apply_parent_inverse_matrices&#34;
+        bl_label = &#34;Apply Parent Inverse Transform Matricies&#34;
+        bl_options = {&#39;REGISTER&#39;, &#39;UNDO&#39;}
+        
+        @classmethod
+        def poll(cls, context: &#39;Context&#39;):
+                if len(context.selected_objects) &lt; 1:
+                        return False  # Должны быть выбраны какие-то объекты
+                if context.mode != &#39;OBJECT&#39;:
+                        return False  # Требуется режим OBJECT
+                return True
+        
+        def execute(self, context: &#39;Context&#39;):
+                applied = list(obj for obj in context.selected_objects if apply_parent_inverse_matrix(obj))
+                applied_strs = &#34;&#34;.join(&#34;\n-\t{0}&#34;.format(repr(obj)) for obj in applied)
+                self.report({&#39;INFO&#39;}, &#34;Applied {0} parent inverse matrices:{1}&#34;.format(len(applied), applied_strs))
+                return {&#39;FINISHED&#39;} if len(applied) &gt; 0 else {&#39;CANCELLED&#39;}</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li>bpy.types.Operator</li>
+<li>bpy.types.bpy_struct</li>
+</ul>
+<h3>Class variables</h3>
+<dl>
+<dt id="kawa_scripts.commons.KawaApplyParentInverseMatrices.bl_description"><code class="name">var <span class="ident">bl_description</span> : str</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="kawa_scripts.commons.KawaApplyParentInverseMatrices.bl_idname"><code class="name">var <span class="ident">bl_idname</span> : str</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="kawa_scripts.commons.KawaApplyParentInverseMatrices.bl_label"><code class="name">var <span class="ident">bl_label</span> : str</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="kawa_scripts.commons.KawaApplyParentInverseMatrices.bl_options"><code class="name">var <span class="ident">bl_options</span> : Union[Set[str], Set[int]]</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="kawa_scripts.commons.KawaApplyParentInverseMatrices.bl_property"><code class="name">var <span class="ident">bl_property</span> : str</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="kawa_scripts.commons.KawaApplyParentInverseMatrices.bl_translation_context"><code class="name">var <span class="ident">bl_translation_context</span> : str</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="kawa_scripts.commons.KawaApplyParentInverseMatrices.bl_undo_group"><code class="name">var <span class="ident">bl_undo_group</span> : str</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="kawa_scripts.commons.KawaApplyParentInverseMatrices.has_reports"><code class="name">var <span class="ident">has_reports</span> : bool</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="kawa_scripts.commons.KawaApplyParentInverseMatrices.layout"><code class="name">var <span class="ident">layout</span> : bpy.types.UILayout</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="kawa_scripts.commons.KawaApplyParentInverseMatrices.macros"><code class="name">var <span class="ident">macros</span> : Union[Dict[str, bpy.types.Macro], List[bpy.types.Macro], bpy.types.bpy_prop_collection]</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="kawa_scripts.commons.KawaApplyParentInverseMatrices.name"><code class="name">var <span class="ident">name</span> : str</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="kawa_scripts.commons.KawaApplyParentInverseMatrices.options"><code class="name">var <span class="ident">options</span> : bpy.types.OperatorOptions</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt id="kawa_scripts.commons.KawaApplyParentInverseMatrices.properties"><code class="name">var <span class="ident">properties</span> : bpy.types.OperatorProperties</code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+</dl>
+<h3>Static methods</h3>
+<dl>
+<dt id="kawa_scripts.commons.KawaApplyParentInverseMatrices.poll"><code class="name flex">
+<span>def <span class="ident">poll</span></span>(<span>context: Context)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Test if the operator can be called or not</p>
+<p>:param context:
+:type context: 'Context'</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">@classmethod
+def poll(cls, context: &#39;Context&#39;):
+        if len(context.selected_objects) &lt; 1:
+                return False  # Должны быть выбраны какие-то объекты
+        if context.mode != &#39;OBJECT&#39;:
+                return False  # Требуется режим OBJECT
+        return True</code></pre>
+</details>
+</dd>
+</dl>
+<h3>Methods</h3>
+<dl>
+<dt id="kawa_scripts.commons.KawaApplyParentInverseMatrices.execute"><code class="name flex">
+<span>def <span class="ident">execute</span></span>(<span>self, context: Context)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Execute the operator</p>
+<p>:param context:
+:type context: 'Context'
+:rtype: typing.Union[typing.Set[str], typing.Set[int]]
+:return: result * RUNNING_MODAL Running Modal, Keep the operator running with blender. * CANCELLED Cancelled, The operator exited without doing anything, so no undo entry should be pushed. * FINISHED Finished, The operator exited after completing its action. * PASS_THROUGH Pass Through, Do nothing and pass the event on. * INTERFACE Interface, Handled but not executed (popup menus).</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def execute(self, context: &#39;Context&#39;):
+        applied = list(obj for obj in context.selected_objects if apply_parent_inverse_matrix(obj))
+        applied_strs = &#34;&#34;.join(&#34;\n-\t{0}&#34;.format(repr(obj)) for obj in applied)
+        self.report({&#39;INFO&#39;}, &#34;Applied {0} parent inverse matrices:{1}&#34;.format(len(applied), applied_strs))
+        return {&#39;FINISHED&#39;} if len(applied) &gt; 0 else {&#39;CANCELLED&#39;}</code></pre>
+</details>
+</dd>
+</dl>
+</dd>
+<dt id="kawa_scripts.commons.MaterialConfigurationError"><code class="flex name class">
+<span>class <span class="ident">MaterialConfigurationError</span></span>
+<span>(</span><span>mat, msg: str)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Unspecified run-time error.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class MaterialConfigurationError(ConfigurationError):
+        def __init__(self, mat, msg: str):
+                self.material = mat
+                msg = &#39;Material={0}: {1}&#39;.format(mat, msg)
+                super().__init__(msg)</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li><a title="kawa_scripts.commons.ConfigurationError" href="#kawa_scripts.commons.ConfigurationError">ConfigurationError</a></li>
+<li>builtins.RuntimeError</li>
+<li>builtins.Exception</li>
+<li>builtins.BaseException</li>
+</ul>
+</dd>
+<dt id="kawa_scripts.commons.SaveSelection"><code class="flex name class">
+<span>class <span class="ident">SaveSelection</span></span>
+<span>(</span><span>name=None)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>A base class or mixin that enables context managers to work as decorators.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class SaveSelection(_contextlib.ContextDecorator):
+        # TODO
+        def __init__(self, name=None):
+                self.last_active_object = None  # type: Object
+                self.shown = None  # type: List[Object]
+                self.selected = None  # type: List[Object]
+        
+        def __enter__(self):
+                self.last_active_object = _C.view_layer.objects.active
+                self.selected = list(_C.view_layer.objects.selected)
+                return self
+        
+        # def hide_set(self, obj: &#39;Object&#39;, state: &#39;bool&#39;):
+        #       if self.hide_state is None:
+        #               self.hide_state = dict()
+        #       if obj not in self.hide_state.keys():
+        #               self.hide_state[obj] = obj.hide_get()
+        #       obj.hide_set(state)
+        #
+        # def select_set(self, obj: &#39;Object&#39;, state: &#39;bool&#39;):
+        #       if self.select_state is None:
+        #               self.select_state = dict()
+        #       if obj not in self.select_state.keys():
+        #               self.select_state[obj] = obj.select_get()
+        #       obj.select_set(state)
+        #
+        # def activate_object(self, obj: &#39;Object&#39;):
+        #       self.hide_set(obj, False)
+        #       self.select_set(obj, True)
+        #       _C.view_layer.objects.selected = obj
+        #
+        # def activate_objects(self, objs: &#39;Iterable[Object]&#39;):
+        #       for obj in objs:
+        #               self.activate_object(obj)
+        
+        def __exit__(self, *exc):
+                for obj in _C.view_layer.objects:
+                        obj.select_set(obj in self.selected)
+                # if self.hide_state is not None:
+                #       for obj, state in self.hide_state.items():
+                #               try:
+                #                       obj.hide_set(state)
+                #               except ReferenceError:
+                #                       pass  # object invalid, this is fine
+                # if self.select_state is not None:
+                #       for obj, state in self.select_state.items():
+                #               try:
+                #                       obj.select_set(state)
+                #               except ReferenceError:
+                #                       pass  # object invalid, this is fine
+                try:
+                        _C.view_layer.objects.active = self.last_active_object
+                except ReferenceError:
+                        pass  # object invalid, this is fine</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li>contextlib.ContextDecorator</li>
+</ul>
+</dd>
+</dl>
+</section>
+</article>
+<nav id="sidebar">
+<h1>Index</h1>
+<div class="toc">
+<ul></ul>
+</div>
+<ul id="index">
+<li><h3>Super-module</h3>
+<ul>
+<li><code><a title="kawa_scripts" href="index.html">kawa_scripts</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-functions">Functions</a></h3>
+<ul class="">
+<li><code><a title="kawa_scripts.commons.activate_object" href="#kawa_scripts.commons.activate_object">activate_object</a></code></li>
+<li><code><a title="kawa_scripts.commons.activate_objects" href="#kawa_scripts.commons.activate_objects">activate_objects</a></code></li>
+<li><code><a title="kawa_scripts.commons.any_not_none" href="#kawa_scripts.commons.any_not_none">any_not_none</a></code></li>
+<li><code><a title="kawa_scripts.commons.apply_parent_inverse_matrix" href="#kawa_scripts.commons.apply_parent_inverse_matrix">apply_parent_inverse_matrix</a></code></li>
+<li><code><a title="kawa_scripts.commons.copy_transform" href="#kawa_scripts.commons.copy_transform">copy_transform</a></code></li>
+<li><code><a title="kawa_scripts.commons.dict_get_or_add" href="#kawa_scripts.commons.dict_get_or_add">dict_get_or_add</a></code></li>
+<li><code><a title="kawa_scripts.commons.ensure_deselect_all_objects" href="#kawa_scripts.commons.ensure_deselect_all_objects">ensure_deselect_all_objects</a></code></li>
+<li><code><a title="kawa_scripts.commons.ensure_op_finished" href="#kawa_scripts.commons.ensure_op_finished">ensure_op_finished</a></code></li>
+<li><code><a title="kawa_scripts.commons.ensure_op_finished_or_cancelled" href="#kawa_scripts.commons.ensure_op_finished_or_cancelled">ensure_op_finished_or_cancelled</a></code></li>
+<li><code><a title="kawa_scripts.commons.ensure_op_result" href="#kawa_scripts.commons.ensure_op_result">ensure_op_result</a></code></li>
+<li><code><a title="kawa_scripts.commons.find_all_child_objects" href="#kawa_scripts.commons.find_all_child_objects">find_all_child_objects</a></code></li>
+<li><code><a title="kawa_scripts.commons.find_objects_with_material" href="#kawa_scripts.commons.find_objects_with_material">find_objects_with_material</a></code></li>
+<li><code><a title="kawa_scripts.commons.get_mesh_safe" href="#kawa_scripts.commons.get_mesh_safe">get_mesh_safe</a></code></li>
+<li><code><a title="kawa_scripts.commons.identity_transform" href="#kawa_scripts.commons.identity_transform">identity_transform</a></code></li>
+<li><code><a title="kawa_scripts.commons.is_none_or_bool" href="#kawa_scripts.commons.is_none_or_bool">is_none_or_bool</a></code></li>
+<li><code><a title="kawa_scripts.commons.is_none_or_positive_float" href="#kawa_scripts.commons.is_none_or_positive_float">is_none_or_positive_float</a></code></li>
+<li><code><a title="kawa_scripts.commons.is_none_or_positive_or_zero_float" href="#kawa_scripts.commons.is_none_or_positive_or_zero_float">is_none_or_positive_or_zero_float</a></code></li>
+<li><code><a title="kawa_scripts.commons.is_none_or_valid_string" href="#kawa_scripts.commons.is_none_or_valid_string">is_none_or_valid_string</a></code></li>
+<li><code><a title="kawa_scripts.commons.is_parent" href="#kawa_scripts.commons.is_parent">is_parent</a></code></li>
+<li><code><a title="kawa_scripts.commons.is_positive_float" href="#kawa_scripts.commons.is_positive_float">is_positive_float</a></code></li>
+<li><code><a title="kawa_scripts.commons.is_positive_int" href="#kawa_scripts.commons.is_positive_int">is_positive_int</a></code></li>
+<li><code><a title="kawa_scripts.commons.is_positive_or_zero_float" href="#kawa_scripts.commons.is_positive_or_zero_float">is_positive_or_zero_float</a></code></li>
+<li><code><a title="kawa_scripts.commons.is_valid_size_float" href="#kawa_scripts.commons.is_valid_size_float">is_valid_size_float</a></code></li>
+<li><code><a title="kawa_scripts.commons.is_valid_size_int" href="#kawa_scripts.commons.is_valid_size_int">is_valid_size_int</a></code></li>
+<li><code><a title="kawa_scripts.commons.is_valid_string" href="#kawa_scripts.commons.is_valid_string">is_valid_string</a></code></li>
+<li><code><a title="kawa_scripts.commons.merge_same_material_slots" href="#kawa_scripts.commons.merge_same_material_slots">merge_same_material_slots</a></code></li>
+<li><code><a title="kawa_scripts.commons.move_children_to_grandparent" href="#kawa_scripts.commons.move_children_to_grandparent">move_children_to_grandparent</a></code></li>
+<li><code><a title="kawa_scripts.commons.poly2_area2" href="#kawa_scripts.commons.poly2_area2">poly2_area2</a></code></li>
+<li><code><a title="kawa_scripts.commons.remove_all_geometry" href="#kawa_scripts.commons.remove_all_geometry">remove_all_geometry</a></code></li>
+<li><code><a title="kawa_scripts.commons.remove_all_material_slots" href="#kawa_scripts.commons.remove_all_material_slots">remove_all_material_slots</a></code></li>
+<li><code><a title="kawa_scripts.commons.remove_all_vertex_colors" href="#kawa_scripts.commons.remove_all_vertex_colors">remove_all_vertex_colors</a></code></li>
+<li><code><a title="kawa_scripts.commons.select_set_all" href="#kawa_scripts.commons.select_set_all">select_set_all</a></code></li>
+<li><code><a title="kawa_scripts.commons.set_parent_keep_world" href="#kawa_scripts.commons.set_parent_keep_world">set_parent_keep_world</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-classes">Classes</a></h3>
+<ul>
+<li>
+<h4><code><a title="kawa_scripts.commons.ConfigurationError" href="#kawa_scripts.commons.ConfigurationError">ConfigurationError</a></code></h4>
+</li>
+<li>
+<h4><code><a title="kawa_scripts.commons.KawaApplyParentInverseMatrices" href="#kawa_scripts.commons.KawaApplyParentInverseMatrices">KawaApplyParentInverseMatrices</a></code></h4>
+<ul class="">
+<li><code><a title="kawa_scripts.commons.KawaApplyParentInverseMatrices.bl_description" href="#kawa_scripts.commons.KawaApplyParentInverseMatrices.bl_description">bl_description</a></code></li>
+<li><code><a title="kawa_scripts.commons.KawaApplyParentInverseMatrices.bl_idname" href="#kawa_scripts.commons.KawaApplyParentInverseMatrices.bl_idname">bl_idname</a></code></li>
+<li><code><a title="kawa_scripts.commons.KawaApplyParentInverseMatrices.bl_label" href="#kawa_scripts.commons.KawaApplyParentInverseMatrices.bl_label">bl_label</a></code></li>
+<li><code><a title="kawa_scripts.commons.KawaApplyParentInverseMatrices.bl_options" href="#kawa_scripts.commons.KawaApplyParentInverseMatrices.bl_options">bl_options</a></code></li>
+<li><code><a title="kawa_scripts.commons.KawaApplyParentInverseMatrices.bl_property" href="#kawa_scripts.commons.KawaApplyParentInverseMatrices.bl_property">bl_property</a></code></li>
+<li><code><a title="kawa_scripts.commons.KawaApplyParentInverseMatrices.bl_translation_context" href="#kawa_scripts.commons.KawaApplyParentInverseMatrices.bl_translation_context">bl_translation_context</a></code></li>
+<li><code><a title="kawa_scripts.commons.KawaApplyParentInverseMatrices.bl_undo_group" href="#kawa_scripts.commons.KawaApplyParentInverseMatrices.bl_undo_group">bl_undo_group</a></code></li>
+<li><code><a title="kawa_scripts.commons.KawaApplyParentInverseMatrices.execute" href="#kawa_scripts.commons.KawaApplyParentInverseMatrices.execute">execute</a></code></li>
+<li><code><a title="kawa_scripts.commons.KawaApplyParentInverseMatrices.has_reports" href="#kawa_scripts.commons.KawaApplyParentInverseMatrices.has_reports">has_reports</a></code></li>
+<li><code><a title="kawa_scripts.commons.KawaApplyParentInverseMatrices.layout" href="#kawa_scripts.commons.KawaApplyParentInverseMatrices.layout">layout</a></code></li>
+<li><code><a title="kawa_scripts.commons.KawaApplyParentInverseMatrices.macros" href="#kawa_scripts.commons.KawaApplyParentInverseMatrices.macros">macros</a></code></li>
+<li><code><a title="kawa_scripts.commons.KawaApplyParentInverseMatrices.name" href="#kawa_scripts.commons.KawaApplyParentInverseMatrices.name">name</a></code></li>
+<li><code><a title="kawa_scripts.commons.KawaApplyParentInverseMatrices.options" href="#kawa_scripts.commons.KawaApplyParentInverseMatrices.options">options</a></code></li>
+<li><code><a title="kawa_scripts.commons.KawaApplyParentInverseMatrices.poll" href="#kawa_scripts.commons.KawaApplyParentInverseMatrices.poll">poll</a></code></li>
+<li><code><a title="kawa_scripts.commons.KawaApplyParentInverseMatrices.properties" href="#kawa_scripts.commons.KawaApplyParentInverseMatrices.properties">properties</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="kawa_scripts.commons.MaterialConfigurationError" href="#kawa_scripts.commons.MaterialConfigurationError">MaterialConfigurationError</a></code></h4>
+</li>
+<li>
+<h4><code><a title="kawa_scripts.commons.SaveSelection" href="#kawa_scripts.commons.SaveSelection">SaveSelection</a></code></h4>
+</li>
+</ul>
+</li>
+</ul>
+</nav>
+</main>
+<footer id="footer">
+<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.10.0</a>.</p>
+</footer>
+</body>
+</html>

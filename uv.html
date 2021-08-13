@@ -1,0 +1,924 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
+<meta name="generator" content="pdoc 0.10.0" />
+<title>kawa_scripts.uv API documentation</title>
+<meta name="description" content="Useful tools for UV Layers" />
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/typography.min.css" integrity="sha256-7l/o7C8jubJiy74VsKTidCy1yBkRtiUGbVkYBylBqUg=" crossorigin>
+<link rel="stylesheet preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/styles/github.min.css" crossorigin>
+<style>:root{--highlight-color:#fe9}.flex{display:flex !important}body{line-height:1.5em}#content{padding:20px}#sidebar{padding:30px;overflow:hidden}#sidebar > *:last-child{margin-bottom:2cm}.http-server-breadcrumbs{font-size:130%;margin:0 0 15px 0}#footer{font-size:.75em;padding:5px 30px;border-top:1px solid #ddd;text-align:right}#footer p{margin:0 0 0 1em;display:inline-block}#footer p:last-child{margin-right:30px}h1,h2,h3,h4,h5{font-weight:300}h1{font-size:2.5em;line-height:1.1em}h2{font-size:1.75em;margin:1em 0 .50em 0}h3{font-size:1.4em;margin:25px 0 10px 0}h4{margin:0;font-size:105%}h1:target,h2:target,h3:target,h4:target,h5:target,h6:target{background:var(--highlight-color);padding:.2em 0}a{color:#058;text-decoration:none;transition:color .3s ease-in-out}a:hover{color:#e82}.title code{font-weight:bold}h2[id^="header-"]{margin-top:2em}.ident{color:#900}pre code{background:#f8f8f8;font-size:.8em;line-height:1.4em}code{background:#f2f2f1;padding:1px 4px;overflow-wrap:break-word}h1 code{background:transparent}pre{background:#f8f8f8;border:0;border-top:1px solid #ccc;border-bottom:1px solid #ccc;margin:1em 0;padding:1ex}#http-server-module-list{display:flex;flex-flow:column}#http-server-module-list div{display:flex}#http-server-module-list dt{min-width:10%}#http-server-module-list p{margin-top:0}.toc ul,#index{list-style-type:none;margin:0;padding:0}#index code{background:transparent}#index h3{border-bottom:1px solid #ddd}#index ul{padding:0}#index h4{margin-top:.6em;font-weight:bold}@media (min-width:200ex){#index .two-column{column-count:2}}@media (min-width:300ex){#index .two-column{column-count:3}}dl{margin-bottom:2em}dl dl:last-child{margin-bottom:4em}dd{margin:0 0 1em 3em}#header-classes + dl > dd{margin-bottom:3em}dd dd{margin-left:2em}dd p{margin:10px 0}.name{background:#eee;font-weight:bold;font-size:.85em;padding:5px 10px;display:inline-block;min-width:40%}.name:hover{background:#e0e0e0}dt:target .name{background:var(--highlight-color)}.name > span:first-child{white-space:nowrap}.name.class > span:nth-child(2){margin-left:.4em}.inherited{color:#999;border-left:5px solid #eee;padding-left:1em}.inheritance em{font-style:normal;font-weight:bold}.desc h2{font-weight:400;font-size:1.25em}.desc h3{font-size:1em}.desc dt code{background:inherit}.source summary,.git-link-div{color:#666;text-align:right;font-weight:400;font-size:.8em;text-transform:uppercase}.source summary > *{white-space:nowrap;cursor:pointer}.git-link{color:inherit;margin-left:1em}.source pre{max-height:500px;overflow:auto;margin:0}.source pre code{font-size:12px;overflow:visible}.hlist{list-style:none}.hlist li{display:inline}.hlist li:after{content:',\2002'}.hlist li:last-child:after{content:none}.hlist .hlist{display:inline;padding-left:1em}img{max-width:100%}td{padding:0 .5em}.admonition{padding:.1em .5em;margin-bottom:1em}.admonition-title{font-weight:bold}.admonition.note,.admonition.info,.admonition.important{background:#aef}.admonition.todo,.admonition.versionadded,.admonition.tip,.admonition.hint{background:#dfd}.admonition.warning,.admonition.versionchanged,.admonition.deprecated{background:#fd4}.admonition.error,.admonition.danger,.admonition.caution{background:lightpink}</style>
+<style media="screen and (min-width: 700px)">@media screen and (min-width:700px){#sidebar{width:30%;height:100vh;overflow:auto;position:sticky;top:0}#content{width:70%;max-width:100ch;padding:3em 4em;border-left:1px solid #ddd}pre code{font-size:1em}.item .name{font-size:1em}main{display:flex;flex-direction:row-reverse;justify-content:flex-end}.toc ul ul,#index ul{padding-left:1.5em}.toc > ul > li{margin-top:.5em}}</style>
+<style media="print">@media print{#sidebar h1{page-break-before:always}.source{display:none}}@media print{*{background:transparent !important;color:#000 !important;box-shadow:none !important;text-shadow:none !important}a[href]:after{content:" (" attr(href) ")";font-size:90%}a[href][title]:after{content:none}abbr[title]:after{content:" (" attr(title) ")"}.ir a:after,a[href^="javascript:"]:after,a[href^="#"]:after{content:""}pre,blockquote{border:1px solid #999;page-break-inside:avoid}thead{display:table-header-group}tr,img{page-break-inside:avoid}img{max-width:100% !important}@page{margin:0.5cm}p,h2,h3{orphans:3;widows:3}h1,h2,h3,h4,h5,h6{page-break-after:avoid}}</style>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/highlight.min.js" integrity="sha256-Uv3H6lx7dJmRfRvH8TH6kJD1TSK1aFcwgx+mdg3epi8=" crossorigin></script>
+<script>window.addEventListener('DOMContentLoaded', () => hljs.initHighlighting())</script>
+</head>
+<body>
+<main>
+<article id="content">
+<header>
+<h1 class="title">Module <code>kawa_scripts.uv</code></h1>
+</header>
+<section id="section-intro">
+<p>Useful tools for UV Layers</p>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python"># Kawashirov&#39;s Scripts (c) 2021 by Sergey V. Kawashirov
+#
+# Kawashirov&#39;s Scripts is licensed under a
+# Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License.
+#
+# You should have received a copy of the license along with this
+# work.  If not, see &lt;http://creativecommons.org/licenses/by-nc-sa/3.0/&gt;.
+#
+#
+&#34;&#34;&#34;
+Useful tools for UV Layers
+&#34;&#34;&#34;
+
+import bpy as _bpy
+from bpy import context as _C
+from mathutils import Vector as _Vector
+
+from . import commons as _commons
+from ._internals import common_str_slots
+from ._internals import log as _log
+
+import typing as _typing
+if _typing.TYPE_CHECKING:
+        from typing import *
+        from bpy.types import *
+        from mathutils import Vector
+
+
+def uv_area(poly: &#39;MeshPolygon&#39;, uv_layer_data: &#39;Union[bpy_prop_collection, List[MeshUVLoop]]&#39;):
+        &#34;&#34;&#34; Returns area of given polygon on given UV Layer in normalized (0..1) space. &#34;&#34;&#34;
+        # tuple чуть-чуть быстрее на малых длинах, тестил через timeit
+        return _commons.poly2_area2(tuple(uv_layer_data[loop].uv for loop in poly.loop_indices))
+
+
+def repack_active_uv(
+                obj: &#39;Object&#39;, get_scale: &#39;Optional[Callable[[Material], float]]&#39; = None,
+                rotate: &#39;bool&#39; = None, margin: &#39;float&#39; = 0.0
+):
+        &#34;&#34;&#34;
+        Repack active UV Layer of a given Object with some adjustments:
+        - Runs `bpy.ops.uv.average_islands_scale`
+        - Rescales islands according to `get_scale` per material
+        - Runs `bpy.ops.uv.pack_islands` with given `rotate` and `margin`
+        &#34;&#34;&#34;
+        e = _commons.ensure_op_finished
+        try:
+                _commons.ensure_deselect_all_objects()
+                _commons.activate_object(obj)
+                # Перепаковка...
+                e(_bpy.ops.object.mode_set_with_submode(mode=&#39;EDIT&#39;, mesh_select_mode={&#39;FACE&#39;}), name=&#39;object.mode_set_with_submode&#39;)
+                e(_bpy.ops.mesh.reveal(select=True), name=&#39;mesh.reveal&#39;)
+                e(_bpy.ops.mesh.select_all(action=&#39;SELECT&#39;), name=&#39;mesh.select_all&#39;)
+                _C.scene.tool_settings.use_uv_select_sync = True
+                area_type = _C.area.type
+                try:
+                        _C.area.type = &#39;IMAGE_EDITOR&#39;
+                        _C.area.ui_type = &#39;UV&#39;
+                        e(_bpy.ops.uv.reveal(select=True), name=&#39;uv.reveal&#39;)
+                        e(_bpy.ops.mesh.select_all(action=&#39;SELECT&#39;), name=&#39;mesh.select_all&#39;)
+                        e(_bpy.ops.uv.select_all(action=&#39;SELECT&#39;), name=&#39;uv.select_all&#39;)
+                        e(_bpy.ops.uv.average_islands_scale(), name=&#39;uv.average_islands_scale&#39;)
+                        for index in range(len(obj.material_slots)):
+                                scale = 1.0
+                                if get_scale is not None:
+                                        scale = get_scale(obj.material_slots[index].material)
+                                if scale &lt;= 0 or scale == 1.0:
+                                        continue
+                                _C.scene.tool_settings.use_uv_select_sync = True
+                                e(_bpy.ops.mesh.select_all(action=&#39;DESELECT&#39;), name=&#39;mesh.select_all&#39;, index=index)
+                                e(_bpy.ops.uv.select_all(action=&#39;DESELECT&#39;), name=&#39;uv.select_all&#39;, index=index)
+                                obj.active_material_index = index
+                                if &#39;FINISHED&#39; in _bpy.ops.object.material_slot_select():
+                                        # Может быть не FINISHED если есть не использованые материалы
+                                        e(_bpy.ops.uv.select_linked(), name=&#39;uv.select_linked&#39;, index=index)
+                                        e(_bpy.ops.transform.resize(value=(scale, scale, scale)), name=&#39;transform.resize&#39;, value=scale, index=index)
+                        e(_bpy.ops.mesh.select_all(action=&#39;SELECT&#39;), name=&#39;mesh.select_all&#39;)
+                        e(_bpy.ops.uv.select_all(action=&#39;SELECT&#39;), name=&#39;uv.select_all&#39;)
+                        e(_bpy.ops.uv.pack_islands(rotate=rotate, margin=margin), name=&#39;uv.pack_islands&#39;)
+                        e(_bpy.ops.uv.select_all(action=&#39;DESELECT&#39;), name=&#39;uv.select_all&#39;)
+                        e(_bpy.ops.mesh.select_all(action=&#39;DESELECT&#39;), name=&#39;mesh.select_all&#39;)
+                finally:
+                        _C.area.type = area_type
+        finally:
+                e(_bpy.ops.object.mode_set(mode=&#39;OBJECT&#39;), name=&#39;object.mode_set&#39;)
+
+
+def remove_all_uv_layers(obj: &#39;Object&#39;):
+        &#34;&#34;&#34;
+        Remove all UV Layers from Mesh-Object.
+        &#34;&#34;&#34;
+        mesh = _commons.get_mesh_safe(obj)
+        while len(mesh.uv_layers) &gt; 0:
+                mesh.uv_layers.remove(mesh.uv_layers[0])
+
+
+def _remove_uv_layer_by_condition(
+                mesh: &#39;Mesh&#39;,
+                func_should_delete: &#39;Callable[str, MeshTexturePolyLayer, bool]&#39;,
+                func_on_delete: &#39;Callable[str, MeshTexturePolyLayer, None]&#39;
+):
+        # TODO лагаси говно переписать
+        while True:
+                # Удаление таким нелепым образом, потому что после вызова remove()
+                # все MeshTexturePolyLayer взятые из uv_textures становтся сломанными и крешат скрипт
+                # По этому, после удаления обход начинается заново, до тех пор, пока не кончатся объекты к удалению
+                # TODO Проверить баг в 2.83
+                to_delete_name = None
+                to_delete = None
+                for uv_layer_name, uv_layer in mesh.uv_layers.items():
+                        if func_should_delete(uv_layer_name, uv_layer):
+                                to_delete_name, to_delete = uv_layer_name, uv_layer
+                                break
+                if to_delete is None: return
+                if func_on_delete is not None: func_on_delete(to_delete_name, to_delete)
+                mesh.uv_layers.remove(to_delete)
+
+
+class Island:
+        &#34;&#34;&#34;
+        Internal class of `IslandsBuilder`.
+        Describes rectangle region of UV Layer.
+        &#34;&#34;&#34;
+        __slots__ = (&#39;mn&#39;, &#39;mx&#39;, &#39;extends&#39;)
+        
+        def __init__(self, mn: &#39;Optional[Vector]&#39;, mx: &#39;Optional[Vector]&#39;):
+                self.mn = mn  # type: Optional[Vector]
+                self.mx = mx  # type: Optional[Vector]
+                self.extends = 0  # Для диагностических целей
+        
+        def __str__(self) -&gt; str: return common_str_slots(self, self.__slots__)
+        
+        def __repr__(self) -&gt; str: return common_str_slots(self, self.__slots__)
+        
+        def is_valid(self):
+                return self.mn is not None and self.mx is not None
+        
+        def is_inside_vec2(self, item: &#39;Vector&#39;, epsilon: &#39;float&#39; = 0):
+                if type(item) != _Vector:
+                        raise ValueError(&#34;type(item) != Vector&#34;)
+                if len(item) != 2:
+                        raise ValueError(&#34;len(item) != 2&#34;)
+                if self.mn is None or self.mx is None:
+                        return False
+                mnx, mny = self.mn.x - epsilon, self.mn.y - epsilon
+                mxx, mxy = self.mx.x + epsilon, self.mx.y + epsilon
+                return mnx &lt;= item.x &lt;= mxx and mny &lt;= item.y &lt;= mxy
+        
+        def is_inside_bbox(self, inner: &#39;Island&#39;, epsilon: &#39;float&#39; = 0) -&gt; bool:
+                # Проверяет лежит ли inner внутри self
+                if self.mn is None or self.mx is None or inner.mn is None or inner.mx is None:
+                        return False
+                if inner.mx.x + epsilon &gt;= self.mx.x or inner.mx.y + epsilon &gt;= self.mx.y:
+                        return False
+                if inner.mn.x - epsilon &lt;= self.mn.x or inner.mn.y - epsilon &lt;= self.mn.y:
+                        return False
+                return True
+        
+        def get_points(self) -&gt; &#39;Sequence[Vector]&#39;:
+                return self.mn, self.mx, _Vector((self.mn.x, self.mx.y)), _Vector((self.mx.x, self.mn.y))
+        
+        def any_inside_vec2(self, items: &#39;Iterable[Vector]&#39;, epsilon: &#39;float&#39; = 0):
+                return any(self.is_inside_vec2(x, epsilon=epsilon) for x in items)
+        
+        def is_intersect(self, other: &#39;Island&#39;, epsilon: &#39;float&#39; = 0):
+                return any(self.is_inside_vec2(x, epsilon=epsilon) for x in other.get_points())
+        
+        def extend_by_vec2(self, vec2: &#39;Vector&#39;):
+                if self.mn is None:
+                        self.mn = vec2.xy
+                else:
+                        self.mn.x = min(self.mn.x, vec2.x)
+                        self.mn.y = min(self.mn.y, vec2.y)
+                if self.mx is None:
+                        self.mx = vec2.xy
+                else:
+                        self.mx.x = max(self.mx.x, vec2.x)
+                        self.mx.y = max(self.mx.y, vec2.y)
+                self.extends += 1
+        
+        def extend_by_vec2s(self, vec2s: &#39;Iterable[Vector]&#39;):
+                for vec2 in vec2s:
+                        self.extend_by_vec2(vec2)
+        
+        def extend_by_bbox(self, other: &#39;Island&#39;):
+                if self is other:
+                        raise ValueError(&#34;self is other&#34;, self, other)
+                if not other.is_valid():
+                        raise ValueError(&#34;other bbox is not valid&#34;, self, other)
+                self.extend_by_vec2s(other.get_points())
+                if not self.is_valid():
+                        raise ValueError(&#34;Invalid after extend_by_bbox&#34;, self, other)
+        
+        def get_area(self) -&gt; &#39;float&#39;:
+                if not self.is_valid():
+                        raise ValueError(&#34;bbox is not valid&#34;, self)
+                return (self.mx.x - self.mn.x) * (self.mx.y - self.mn.y)
+
+
+class IslandsBuilder:
+        &#34;&#34;&#34;
+        Internal class of `kawa_scripts.atlas_baker.BaseAtlasBaker`, but can be used standalone.
+        Finds non-overlapping bounding boxes on UV Layer of UV polygons.
+        Just provide UV coords of all your polygons into `add_seq` or `add_bbox`,
+        `bboxes` will contain all found non-overlapping rectangle regions.
+        
+        `epsilon` is a search precision in normalized (0..1) space.
+        If distance between two Islands is less than epsilon these two Islands will be merged into single one.
+        Be careful with `epsilon = 0`, It can result a lots of small islands touching each others but don&#39;t intersect.
+        Also very small `epsilon` can result poor performance without good output.
+        `epsilon` about 1..3 of pixel-space recommended (normalize it by you self).
+        &#34;&#34;&#34;
+        # Занимается разбиением множества точек на прямоугольные непересекающиеся подмноджества
+        __slots__ = (&#39;bboxes&#39;, &#39;merges&#39;)
+        
+        def __init__(self):
+                self.bboxes = list()  # type: List[Island]
+                &#34;&#34;&#34; All found non-overlapping `Islands`. &#34;&#34;&#34;
+                self.merges = 0  # Для диагностических целей
+                &#34;&#34;&#34; For diagnostic and debug purposes. Number of Island merges happened. &#34;&#34;&#34;
+        
+        def __str__(self) -&gt; str: return common_str_slots(self, self.__slots__)
+        
+        def __repr__(self) -&gt; str: return common_str_slots(self, self.__slots__)
+        
+        def add_bbox(self, bbox: &#39;Island&#39;, epsilon: &#39;float&#39; = 0):
+                # Добавляет набор точек
+                if not bbox.is_valid():
+                        raise ValueError(&#34;Invalid bbox!&#34;)
+                
+                bbox_to_add = bbox
+                while bbox_to_add is not None:
+                        target_idx = -1
+                        # Поиск первго бокса с которым пересекается текущий
+                        for i in range(len(self.bboxes)):
+                                if self.bboxes[i] is bbox_to_add:
+                                        raise ValueError(&#34;bbox already in bboxes:&#34;, (bbox_to_add, self.bboxes[i], self.bboxes))
+                                # TODO
+                                if self.bboxes[i].is_inside_bbox(bbox_to_add, epsilon=epsilon):
+                                        return  # Если вставляемый bbox внутри существующего, то ничего не надо делать
+                                if self.bboxes[i].is_intersect(bbox_to_add, epsilon=epsilon):
+                                        target_idx = i
+                                        break
+                        if target_idx == -1:
+                                # Пересечение не найдено, добавляем
+                                self.bboxes.append(bbox_to_add)
+                                bbox_to_add = None
+                        else:
+                                # Пересечение найдено - вытаскиваем, соединяем, пытаемся добавить еще раз
+                                ejected = self.bboxes[target_idx]
+                                del self.bboxes[target_idx]
+                                # print(&#34;add_bbox: extending: &#34;, (ejected, bbox_to_add))
+                                # print(&#34;add_bbox: merges: &#34;, self.merges)
+                                # print(&#34;add_bbox: len(bboxes): &#34;, len(self.bboxes))
+                                ejected.extend_by_bbox(bbox_to_add)
+                                bbox_to_add = ejected
+                                self.merges += 1
+        
+        def add_seq(self, vec2s: &#39;Iterable[Vector]&#39;, epsilon: &#39;float&#39; = 0):
+                vec2s = list(vec2s)
+                if len(vec2s) != 0:
+                        newbbox = Island(None, None)
+                        newbbox.extend_by_vec2s(vec2s)
+                        # print(&#34;add_seq: add_bbox: &#34;, newbbox)
+                        self.add_bbox(newbbox, epsilon=epsilon)
+                else:
+                        print(&#34;Warn: add_seq: empty vec2s!&#34;)
+        
+        def get_extends(self):
+                return sum(bbox.extends for bbox in self.bboxes)</code></pre>
+</details>
+</section>
+<section>
+</section>
+<section>
+</section>
+<section>
+<h2 class="section-title" id="header-functions">Functions</h2>
+<dl>
+<dt id="kawa_scripts.uv.remove_all_uv_layers"><code class="name flex">
+<span>def <span class="ident">remove_all_uv_layers</span></span>(<span>obj: Object)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Remove all UV Layers from Mesh-Object.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def remove_all_uv_layers(obj: &#39;Object&#39;):
+        &#34;&#34;&#34;
+        Remove all UV Layers from Mesh-Object.
+        &#34;&#34;&#34;
+        mesh = _commons.get_mesh_safe(obj)
+        while len(mesh.uv_layers) &gt; 0:
+                mesh.uv_layers.remove(mesh.uv_layers[0])</code></pre>
+</details>
+</dd>
+<dt id="kawa_scripts.uv.repack_active_uv"><code class="name flex">
+<span>def <span class="ident">repack_active_uv</span></span>(<span>obj: Object, get_scale: Optional[Callable[[Material], float]] = None, rotate: bool = None, margin: float = 0.0)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Repack active UV Layer of a given Object with some adjustments:
+- Runs <code>bpy.ops.uv.average_islands_scale</code>
+- Rescales islands according to <code>get_scale</code> per material
+- Runs <code>bpy.ops.uv.pack_islands</code> with given <code>rotate</code> and <code>margin</code></p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def repack_active_uv(
+                obj: &#39;Object&#39;, get_scale: &#39;Optional[Callable[[Material], float]]&#39; = None,
+                rotate: &#39;bool&#39; = None, margin: &#39;float&#39; = 0.0
+):
+        &#34;&#34;&#34;
+        Repack active UV Layer of a given Object with some adjustments:
+        - Runs `bpy.ops.uv.average_islands_scale`
+        - Rescales islands according to `get_scale` per material
+        - Runs `bpy.ops.uv.pack_islands` with given `rotate` and `margin`
+        &#34;&#34;&#34;
+        e = _commons.ensure_op_finished
+        try:
+                _commons.ensure_deselect_all_objects()
+                _commons.activate_object(obj)
+                # Перепаковка...
+                e(_bpy.ops.object.mode_set_with_submode(mode=&#39;EDIT&#39;, mesh_select_mode={&#39;FACE&#39;}), name=&#39;object.mode_set_with_submode&#39;)
+                e(_bpy.ops.mesh.reveal(select=True), name=&#39;mesh.reveal&#39;)
+                e(_bpy.ops.mesh.select_all(action=&#39;SELECT&#39;), name=&#39;mesh.select_all&#39;)
+                _C.scene.tool_settings.use_uv_select_sync = True
+                area_type = _C.area.type
+                try:
+                        _C.area.type = &#39;IMAGE_EDITOR&#39;
+                        _C.area.ui_type = &#39;UV&#39;
+                        e(_bpy.ops.uv.reveal(select=True), name=&#39;uv.reveal&#39;)
+                        e(_bpy.ops.mesh.select_all(action=&#39;SELECT&#39;), name=&#39;mesh.select_all&#39;)
+                        e(_bpy.ops.uv.select_all(action=&#39;SELECT&#39;), name=&#39;uv.select_all&#39;)
+                        e(_bpy.ops.uv.average_islands_scale(), name=&#39;uv.average_islands_scale&#39;)
+                        for index in range(len(obj.material_slots)):
+                                scale = 1.0
+                                if get_scale is not None:
+                                        scale = get_scale(obj.material_slots[index].material)
+                                if scale &lt;= 0 or scale == 1.0:
+                                        continue
+                                _C.scene.tool_settings.use_uv_select_sync = True
+                                e(_bpy.ops.mesh.select_all(action=&#39;DESELECT&#39;), name=&#39;mesh.select_all&#39;, index=index)
+                                e(_bpy.ops.uv.select_all(action=&#39;DESELECT&#39;), name=&#39;uv.select_all&#39;, index=index)
+                                obj.active_material_index = index
+                                if &#39;FINISHED&#39; in _bpy.ops.object.material_slot_select():
+                                        # Может быть не FINISHED если есть не использованые материалы
+                                        e(_bpy.ops.uv.select_linked(), name=&#39;uv.select_linked&#39;, index=index)
+                                        e(_bpy.ops.transform.resize(value=(scale, scale, scale)), name=&#39;transform.resize&#39;, value=scale, index=index)
+                        e(_bpy.ops.mesh.select_all(action=&#39;SELECT&#39;), name=&#39;mesh.select_all&#39;)
+                        e(_bpy.ops.uv.select_all(action=&#39;SELECT&#39;), name=&#39;uv.select_all&#39;)
+                        e(_bpy.ops.uv.pack_islands(rotate=rotate, margin=margin), name=&#39;uv.pack_islands&#39;)
+                        e(_bpy.ops.uv.select_all(action=&#39;DESELECT&#39;), name=&#39;uv.select_all&#39;)
+                        e(_bpy.ops.mesh.select_all(action=&#39;DESELECT&#39;), name=&#39;mesh.select_all&#39;)
+                finally:
+                        _C.area.type = area_type
+        finally:
+                e(_bpy.ops.object.mode_set(mode=&#39;OBJECT&#39;), name=&#39;object.mode_set&#39;)</code></pre>
+</details>
+</dd>
+<dt id="kawa_scripts.uv.uv_area"><code class="name flex">
+<span>def <span class="ident">uv_area</span></span>(<span>poly: MeshPolygon, uv_layer_data: Union[bpy_prop_collection, List[MeshUVLoop]])</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Returns area of given polygon on given UV Layer in normalized (0..1) space.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def uv_area(poly: &#39;MeshPolygon&#39;, uv_layer_data: &#39;Union[bpy_prop_collection, List[MeshUVLoop]]&#39;):
+        &#34;&#34;&#34; Returns area of given polygon on given UV Layer in normalized (0..1) space. &#34;&#34;&#34;
+        # tuple чуть-чуть быстрее на малых длинах, тестил через timeit
+        return _commons.poly2_area2(tuple(uv_layer_data[loop].uv for loop in poly.loop_indices))</code></pre>
+</details>
+</dd>
+</dl>
+</section>
+<section>
+<h2 class="section-title" id="header-classes">Classes</h2>
+<dl>
+<dt id="kawa_scripts.uv.Island"><code class="flex name class">
+<span>class <span class="ident">Island</span></span>
+<span>(</span><span>mn: Optional[Vector], mx: Optional[Vector])</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Internal class of <code><a title="kawa_scripts.uv.IslandsBuilder" href="#kawa_scripts.uv.IslandsBuilder">IslandsBuilder</a></code>.
+Describes rectangle region of UV Layer.</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class Island:
+        &#34;&#34;&#34;
+        Internal class of `IslandsBuilder`.
+        Describes rectangle region of UV Layer.
+        &#34;&#34;&#34;
+        __slots__ = (&#39;mn&#39;, &#39;mx&#39;, &#39;extends&#39;)
+        
+        def __init__(self, mn: &#39;Optional[Vector]&#39;, mx: &#39;Optional[Vector]&#39;):
+                self.mn = mn  # type: Optional[Vector]
+                self.mx = mx  # type: Optional[Vector]
+                self.extends = 0  # Для диагностических целей
+        
+        def __str__(self) -&gt; str: return common_str_slots(self, self.__slots__)
+        
+        def __repr__(self) -&gt; str: return common_str_slots(self, self.__slots__)
+        
+        def is_valid(self):
+                return self.mn is not None and self.mx is not None
+        
+        def is_inside_vec2(self, item: &#39;Vector&#39;, epsilon: &#39;float&#39; = 0):
+                if type(item) != _Vector:
+                        raise ValueError(&#34;type(item) != Vector&#34;)
+                if len(item) != 2:
+                        raise ValueError(&#34;len(item) != 2&#34;)
+                if self.mn is None or self.mx is None:
+                        return False
+                mnx, mny = self.mn.x - epsilon, self.mn.y - epsilon
+                mxx, mxy = self.mx.x + epsilon, self.mx.y + epsilon
+                return mnx &lt;= item.x &lt;= mxx and mny &lt;= item.y &lt;= mxy
+        
+        def is_inside_bbox(self, inner: &#39;Island&#39;, epsilon: &#39;float&#39; = 0) -&gt; bool:
+                # Проверяет лежит ли inner внутри self
+                if self.mn is None or self.mx is None or inner.mn is None or inner.mx is None:
+                        return False
+                if inner.mx.x + epsilon &gt;= self.mx.x or inner.mx.y + epsilon &gt;= self.mx.y:
+                        return False
+                if inner.mn.x - epsilon &lt;= self.mn.x or inner.mn.y - epsilon &lt;= self.mn.y:
+                        return False
+                return True
+        
+        def get_points(self) -&gt; &#39;Sequence[Vector]&#39;:
+                return self.mn, self.mx, _Vector((self.mn.x, self.mx.y)), _Vector((self.mx.x, self.mn.y))
+        
+        def any_inside_vec2(self, items: &#39;Iterable[Vector]&#39;, epsilon: &#39;float&#39; = 0):
+                return any(self.is_inside_vec2(x, epsilon=epsilon) for x in items)
+        
+        def is_intersect(self, other: &#39;Island&#39;, epsilon: &#39;float&#39; = 0):
+                return any(self.is_inside_vec2(x, epsilon=epsilon) for x in other.get_points())
+        
+        def extend_by_vec2(self, vec2: &#39;Vector&#39;):
+                if self.mn is None:
+                        self.mn = vec2.xy
+                else:
+                        self.mn.x = min(self.mn.x, vec2.x)
+                        self.mn.y = min(self.mn.y, vec2.y)
+                if self.mx is None:
+                        self.mx = vec2.xy
+                else:
+                        self.mx.x = max(self.mx.x, vec2.x)
+                        self.mx.y = max(self.mx.y, vec2.y)
+                self.extends += 1
+        
+        def extend_by_vec2s(self, vec2s: &#39;Iterable[Vector]&#39;):
+                for vec2 in vec2s:
+                        self.extend_by_vec2(vec2)
+        
+        def extend_by_bbox(self, other: &#39;Island&#39;):
+                if self is other:
+                        raise ValueError(&#34;self is other&#34;, self, other)
+                if not other.is_valid():
+                        raise ValueError(&#34;other bbox is not valid&#34;, self, other)
+                self.extend_by_vec2s(other.get_points())
+                if not self.is_valid():
+                        raise ValueError(&#34;Invalid after extend_by_bbox&#34;, self, other)
+        
+        def get_area(self) -&gt; &#39;float&#39;:
+                if not self.is_valid():
+                        raise ValueError(&#34;bbox is not valid&#34;, self)
+                return (self.mx.x - self.mn.x) * (self.mx.y - self.mn.y)</code></pre>
+</details>
+<h3>Instance variables</h3>
+<dl>
+<dt id="kawa_scripts.uv.Island.extends"><code class="name">var <span class="ident">extends</span></code></dt>
+<dd>
+<div class="desc"><p>Return an attribute of instance, which is of type owner.</p></div>
+</dd>
+<dt id="kawa_scripts.uv.Island.mn"><code class="name">var <span class="ident">mn</span></code></dt>
+<dd>
+<div class="desc"><p>Return an attribute of instance, which is of type owner.</p></div>
+</dd>
+<dt id="kawa_scripts.uv.Island.mx"><code class="name">var <span class="ident">mx</span></code></dt>
+<dd>
+<div class="desc"><p>Return an attribute of instance, which is of type owner.</p></div>
+</dd>
+</dl>
+<h3>Methods</h3>
+<dl>
+<dt id="kawa_scripts.uv.Island.any_inside_vec2"><code class="name flex">
+<span>def <span class="ident">any_inside_vec2</span></span>(<span>self, items: Iterable[Vector], epsilon: float = 0)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def any_inside_vec2(self, items: &#39;Iterable[Vector]&#39;, epsilon: &#39;float&#39; = 0):
+        return any(self.is_inside_vec2(x, epsilon=epsilon) for x in items)</code></pre>
+</details>
+</dd>
+<dt id="kawa_scripts.uv.Island.extend_by_bbox"><code class="name flex">
+<span>def <span class="ident">extend_by_bbox</span></span>(<span>self, other: <a title="kawa_scripts.uv.Island" href="#kawa_scripts.uv.Island">Island</a>)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def extend_by_bbox(self, other: &#39;Island&#39;):
+        if self is other:
+                raise ValueError(&#34;self is other&#34;, self, other)
+        if not other.is_valid():
+                raise ValueError(&#34;other bbox is not valid&#34;, self, other)
+        self.extend_by_vec2s(other.get_points())
+        if not self.is_valid():
+                raise ValueError(&#34;Invalid after extend_by_bbox&#34;, self, other)</code></pre>
+</details>
+</dd>
+<dt id="kawa_scripts.uv.Island.extend_by_vec2"><code class="name flex">
+<span>def <span class="ident">extend_by_vec2</span></span>(<span>self, vec2: Vector)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def extend_by_vec2(self, vec2: &#39;Vector&#39;):
+        if self.mn is None:
+                self.mn = vec2.xy
+        else:
+                self.mn.x = min(self.mn.x, vec2.x)
+                self.mn.y = min(self.mn.y, vec2.y)
+        if self.mx is None:
+                self.mx = vec2.xy
+        else:
+                self.mx.x = max(self.mx.x, vec2.x)
+                self.mx.y = max(self.mx.y, vec2.y)
+        self.extends += 1</code></pre>
+</details>
+</dd>
+<dt id="kawa_scripts.uv.Island.extend_by_vec2s"><code class="name flex">
+<span>def <span class="ident">extend_by_vec2s</span></span>(<span>self, vec2s: Iterable[Vector])</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def extend_by_vec2s(self, vec2s: &#39;Iterable[Vector]&#39;):
+        for vec2 in vec2s:
+                self.extend_by_vec2(vec2)</code></pre>
+</details>
+</dd>
+<dt id="kawa_scripts.uv.Island.get_area"><code class="name flex">
+<span>def <span class="ident">get_area</span></span>(<span>self) ‑> float</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_area(self) -&gt; &#39;float&#39;:
+        if not self.is_valid():
+                raise ValueError(&#34;bbox is not valid&#34;, self)
+        return (self.mx.x - self.mn.x) * (self.mx.y - self.mn.y)</code></pre>
+</details>
+</dd>
+<dt id="kawa_scripts.uv.Island.get_points"><code class="name flex">
+<span>def <span class="ident">get_points</span></span>(<span>self) ‑> Sequence[Vector]</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_points(self) -&gt; &#39;Sequence[Vector]&#39;:
+        return self.mn, self.mx, _Vector((self.mn.x, self.mx.y)), _Vector((self.mx.x, self.mn.y))</code></pre>
+</details>
+</dd>
+<dt id="kawa_scripts.uv.Island.is_inside_bbox"><code class="name flex">
+<span>def <span class="ident">is_inside_bbox</span></span>(<span>self, inner: <a title="kawa_scripts.uv.Island" href="#kawa_scripts.uv.Island">Island</a>, epsilon: float = 0) ‑> bool</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def is_inside_bbox(self, inner: &#39;Island&#39;, epsilon: &#39;float&#39; = 0) -&gt; bool:
+        # Проверяет лежит ли inner внутри self
+        if self.mn is None or self.mx is None or inner.mn is None or inner.mx is None:
+                return False
+        if inner.mx.x + epsilon &gt;= self.mx.x or inner.mx.y + epsilon &gt;= self.mx.y:
+                return False
+        if inner.mn.x - epsilon &lt;= self.mn.x or inner.mn.y - epsilon &lt;= self.mn.y:
+                return False
+        return True</code></pre>
+</details>
+</dd>
+<dt id="kawa_scripts.uv.Island.is_inside_vec2"><code class="name flex">
+<span>def <span class="ident">is_inside_vec2</span></span>(<span>self, item: Vector, epsilon: float = 0)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def is_inside_vec2(self, item: &#39;Vector&#39;, epsilon: &#39;float&#39; = 0):
+        if type(item) != _Vector:
+                raise ValueError(&#34;type(item) != Vector&#34;)
+        if len(item) != 2:
+                raise ValueError(&#34;len(item) != 2&#34;)
+        if self.mn is None or self.mx is None:
+                return False
+        mnx, mny = self.mn.x - epsilon, self.mn.y - epsilon
+        mxx, mxy = self.mx.x + epsilon, self.mx.y + epsilon
+        return mnx &lt;= item.x &lt;= mxx and mny &lt;= item.y &lt;= mxy</code></pre>
+</details>
+</dd>
+<dt id="kawa_scripts.uv.Island.is_intersect"><code class="name flex">
+<span>def <span class="ident">is_intersect</span></span>(<span>self, other: <a title="kawa_scripts.uv.Island" href="#kawa_scripts.uv.Island">Island</a>, epsilon: float = 0)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def is_intersect(self, other: &#39;Island&#39;, epsilon: &#39;float&#39; = 0):
+        return any(self.is_inside_vec2(x, epsilon=epsilon) for x in other.get_points())</code></pre>
+</details>
+</dd>
+<dt id="kawa_scripts.uv.Island.is_valid"><code class="name flex">
+<span>def <span class="ident">is_valid</span></span>(<span>self)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def is_valid(self):
+        return self.mn is not None and self.mx is not None</code></pre>
+</details>
+</dd>
+</dl>
+</dd>
+<dt id="kawa_scripts.uv.IslandsBuilder"><code class="flex name class">
+<span>class <span class="ident">IslandsBuilder</span></span>
+</code></dt>
+<dd>
+<div class="desc"><p>Internal class of <code><a title="kawa_scripts.atlas_baker.BaseAtlasBaker" href="atlas_baker.html#kawa_scripts.atlas_baker.BaseAtlasBaker">BaseAtlasBaker</a></code>, but can be used standalone.
+Finds non-overlapping bounding boxes on UV Layer of UV polygons.
+Just provide UV coords of all your polygons into <code>add_seq</code> or <code>add_bbox</code>,
+<code>bboxes</code> will contain all found non-overlapping rectangle regions.</p>
+<p><code>epsilon</code> is a search precision in normalized (0..1) space.
+If distance between two Islands is less than epsilon these two Islands will be merged into single one.
+Be careful with <code>epsilon = 0</code>, It can result a lots of small islands touching each others but don't intersect.
+Also very small <code>epsilon</code> can result poor performance without good output.
+<code>epsilon</code> about 1..3 of pixel-space recommended (normalize it by you self).</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class IslandsBuilder:
+        &#34;&#34;&#34;
+        Internal class of `kawa_scripts.atlas_baker.BaseAtlasBaker`, but can be used standalone.
+        Finds non-overlapping bounding boxes on UV Layer of UV polygons.
+        Just provide UV coords of all your polygons into `add_seq` or `add_bbox`,
+        `bboxes` will contain all found non-overlapping rectangle regions.
+        
+        `epsilon` is a search precision in normalized (0..1) space.
+        If distance between two Islands is less than epsilon these two Islands will be merged into single one.
+        Be careful with `epsilon = 0`, It can result a lots of small islands touching each others but don&#39;t intersect.
+        Also very small `epsilon` can result poor performance without good output.
+        `epsilon` about 1..3 of pixel-space recommended (normalize it by you self).
+        &#34;&#34;&#34;
+        # Занимается разбиением множества точек на прямоугольные непересекающиеся подмноджества
+        __slots__ = (&#39;bboxes&#39;, &#39;merges&#39;)
+        
+        def __init__(self):
+                self.bboxes = list()  # type: List[Island]
+                &#34;&#34;&#34; All found non-overlapping `Islands`. &#34;&#34;&#34;
+                self.merges = 0  # Для диагностических целей
+                &#34;&#34;&#34; For diagnostic and debug purposes. Number of Island merges happened. &#34;&#34;&#34;
+        
+        def __str__(self) -&gt; str: return common_str_slots(self, self.__slots__)
+        
+        def __repr__(self) -&gt; str: return common_str_slots(self, self.__slots__)
+        
+        def add_bbox(self, bbox: &#39;Island&#39;, epsilon: &#39;float&#39; = 0):
+                # Добавляет набор точек
+                if not bbox.is_valid():
+                        raise ValueError(&#34;Invalid bbox!&#34;)
+                
+                bbox_to_add = bbox
+                while bbox_to_add is not None:
+                        target_idx = -1
+                        # Поиск первго бокса с которым пересекается текущий
+                        for i in range(len(self.bboxes)):
+                                if self.bboxes[i] is bbox_to_add:
+                                        raise ValueError(&#34;bbox already in bboxes:&#34;, (bbox_to_add, self.bboxes[i], self.bboxes))
+                                # TODO
+                                if self.bboxes[i].is_inside_bbox(bbox_to_add, epsilon=epsilon):
+                                        return  # Если вставляемый bbox внутри существующего, то ничего не надо делать
+                                if self.bboxes[i].is_intersect(bbox_to_add, epsilon=epsilon):
+                                        target_idx = i
+                                        break
+                        if target_idx == -1:
+                                # Пересечение не найдено, добавляем
+                                self.bboxes.append(bbox_to_add)
+                                bbox_to_add = None
+                        else:
+                                # Пересечение найдено - вытаскиваем, соединяем, пытаемся добавить еще раз
+                                ejected = self.bboxes[target_idx]
+                                del self.bboxes[target_idx]
+                                # print(&#34;add_bbox: extending: &#34;, (ejected, bbox_to_add))
+                                # print(&#34;add_bbox: merges: &#34;, self.merges)
+                                # print(&#34;add_bbox: len(bboxes): &#34;, len(self.bboxes))
+                                ejected.extend_by_bbox(bbox_to_add)
+                                bbox_to_add = ejected
+                                self.merges += 1
+        
+        def add_seq(self, vec2s: &#39;Iterable[Vector]&#39;, epsilon: &#39;float&#39; = 0):
+                vec2s = list(vec2s)
+                if len(vec2s) != 0:
+                        newbbox = Island(None, None)
+                        newbbox.extend_by_vec2s(vec2s)
+                        # print(&#34;add_seq: add_bbox: &#34;, newbbox)
+                        self.add_bbox(newbbox, epsilon=epsilon)
+                else:
+                        print(&#34;Warn: add_seq: empty vec2s!&#34;)
+        
+        def get_extends(self):
+                return sum(bbox.extends for bbox in self.bboxes)</code></pre>
+</details>
+<h3>Instance variables</h3>
+<dl>
+<dt id="kawa_scripts.uv.IslandsBuilder.bboxes"><code class="name">var <span class="ident">bboxes</span></code></dt>
+<dd>
+<div class="desc"><p>All found non-overlapping <code>Islands</code>.</p></div>
+</dd>
+<dt id="kawa_scripts.uv.IslandsBuilder.merges"><code class="name">var <span class="ident">merges</span></code></dt>
+<dd>
+<div class="desc"><p>For diagnostic and debug purposes. Number of Island merges happened.</p></div>
+</dd>
+</dl>
+<h3>Methods</h3>
+<dl>
+<dt id="kawa_scripts.uv.IslandsBuilder.add_bbox"><code class="name flex">
+<span>def <span class="ident">add_bbox</span></span>(<span>self, bbox: <a title="kawa_scripts.uv.Island" href="#kawa_scripts.uv.Island">Island</a>, epsilon: float = 0)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def add_bbox(self, bbox: &#39;Island&#39;, epsilon: &#39;float&#39; = 0):
+        # Добавляет набор точек
+        if not bbox.is_valid():
+                raise ValueError(&#34;Invalid bbox!&#34;)
+        
+        bbox_to_add = bbox
+        while bbox_to_add is not None:
+                target_idx = -1
+                # Поиск первго бокса с которым пересекается текущий
+                for i in range(len(self.bboxes)):
+                        if self.bboxes[i] is bbox_to_add:
+                                raise ValueError(&#34;bbox already in bboxes:&#34;, (bbox_to_add, self.bboxes[i], self.bboxes))
+                        # TODO
+                        if self.bboxes[i].is_inside_bbox(bbox_to_add, epsilon=epsilon):
+                                return  # Если вставляемый bbox внутри существующего, то ничего не надо делать
+                        if self.bboxes[i].is_intersect(bbox_to_add, epsilon=epsilon):
+                                target_idx = i
+                                break
+                if target_idx == -1:
+                        # Пересечение не найдено, добавляем
+                        self.bboxes.append(bbox_to_add)
+                        bbox_to_add = None
+                else:
+                        # Пересечение найдено - вытаскиваем, соединяем, пытаемся добавить еще раз
+                        ejected = self.bboxes[target_idx]
+                        del self.bboxes[target_idx]
+                        # print(&#34;add_bbox: extending: &#34;, (ejected, bbox_to_add))
+                        # print(&#34;add_bbox: merges: &#34;, self.merges)
+                        # print(&#34;add_bbox: len(bboxes): &#34;, len(self.bboxes))
+                        ejected.extend_by_bbox(bbox_to_add)
+                        bbox_to_add = ejected
+                        self.merges += 1</code></pre>
+</details>
+</dd>
+<dt id="kawa_scripts.uv.IslandsBuilder.add_seq"><code class="name flex">
+<span>def <span class="ident">add_seq</span></span>(<span>self, vec2s: Iterable[Vector], epsilon: float = 0)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def add_seq(self, vec2s: &#39;Iterable[Vector]&#39;, epsilon: &#39;float&#39; = 0):
+        vec2s = list(vec2s)
+        if len(vec2s) != 0:
+                newbbox = Island(None, None)
+                newbbox.extend_by_vec2s(vec2s)
+                # print(&#34;add_seq: add_bbox: &#34;, newbbox)
+                self.add_bbox(newbbox, epsilon=epsilon)
+        else:
+                print(&#34;Warn: add_seq: empty vec2s!&#34;)</code></pre>
+</details>
+</dd>
+<dt id="kawa_scripts.uv.IslandsBuilder.get_extends"><code class="name flex">
+<span>def <span class="ident">get_extends</span></span>(<span>self)</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def get_extends(self):
+        return sum(bbox.extends for bbox in self.bboxes)</code></pre>
+</details>
+</dd>
+</dl>
+</dd>
+</dl>
+</section>
+</article>
+<nav id="sidebar">
+<h1>Index</h1>
+<div class="toc">
+<ul></ul>
+</div>
+<ul id="index">
+<li><h3>Super-module</h3>
+<ul>
+<li><code><a title="kawa_scripts" href="index.html">kawa_scripts</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-functions">Functions</a></h3>
+<ul class="">
+<li><code><a title="kawa_scripts.uv.remove_all_uv_layers" href="#kawa_scripts.uv.remove_all_uv_layers">remove_all_uv_layers</a></code></li>
+<li><code><a title="kawa_scripts.uv.repack_active_uv" href="#kawa_scripts.uv.repack_active_uv">repack_active_uv</a></code></li>
+<li><code><a title="kawa_scripts.uv.uv_area" href="#kawa_scripts.uv.uv_area">uv_area</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-classes">Classes</a></h3>
+<ul>
+<li>
+<h4><code><a title="kawa_scripts.uv.Island" href="#kawa_scripts.uv.Island">Island</a></code></h4>
+<ul class="two-column">
+<li><code><a title="kawa_scripts.uv.Island.any_inside_vec2" href="#kawa_scripts.uv.Island.any_inside_vec2">any_inside_vec2</a></code></li>
+<li><code><a title="kawa_scripts.uv.Island.extend_by_bbox" href="#kawa_scripts.uv.Island.extend_by_bbox">extend_by_bbox</a></code></li>
+<li><code><a title="kawa_scripts.uv.Island.extend_by_vec2" href="#kawa_scripts.uv.Island.extend_by_vec2">extend_by_vec2</a></code></li>
+<li><code><a title="kawa_scripts.uv.Island.extend_by_vec2s" href="#kawa_scripts.uv.Island.extend_by_vec2s">extend_by_vec2s</a></code></li>
+<li><code><a title="kawa_scripts.uv.Island.extends" href="#kawa_scripts.uv.Island.extends">extends</a></code></li>
+<li><code><a title="kawa_scripts.uv.Island.get_area" href="#kawa_scripts.uv.Island.get_area">get_area</a></code></li>
+<li><code><a title="kawa_scripts.uv.Island.get_points" href="#kawa_scripts.uv.Island.get_points">get_points</a></code></li>
+<li><code><a title="kawa_scripts.uv.Island.is_inside_bbox" href="#kawa_scripts.uv.Island.is_inside_bbox">is_inside_bbox</a></code></li>
+<li><code><a title="kawa_scripts.uv.Island.is_inside_vec2" href="#kawa_scripts.uv.Island.is_inside_vec2">is_inside_vec2</a></code></li>
+<li><code><a title="kawa_scripts.uv.Island.is_intersect" href="#kawa_scripts.uv.Island.is_intersect">is_intersect</a></code></li>
+<li><code><a title="kawa_scripts.uv.Island.is_valid" href="#kawa_scripts.uv.Island.is_valid">is_valid</a></code></li>
+<li><code><a title="kawa_scripts.uv.Island.mn" href="#kawa_scripts.uv.Island.mn">mn</a></code></li>
+<li><code><a title="kawa_scripts.uv.Island.mx" href="#kawa_scripts.uv.Island.mx">mx</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="kawa_scripts.uv.IslandsBuilder" href="#kawa_scripts.uv.IslandsBuilder">IslandsBuilder</a></code></h4>
+<ul class="">
+<li><code><a title="kawa_scripts.uv.IslandsBuilder.add_bbox" href="#kawa_scripts.uv.IslandsBuilder.add_bbox">add_bbox</a></code></li>
+<li><code><a title="kawa_scripts.uv.IslandsBuilder.add_seq" href="#kawa_scripts.uv.IslandsBuilder.add_seq">add_seq</a></code></li>
+<li><code><a title="kawa_scripts.uv.IslandsBuilder.bboxes" href="#kawa_scripts.uv.IslandsBuilder.bboxes">bboxes</a></code></li>
+<li><code><a title="kawa_scripts.uv.IslandsBuilder.get_extends" href="#kawa_scripts.uv.IslandsBuilder.get_extends">get_extends</a></code></li>
+<li><code><a title="kawa_scripts.uv.IslandsBuilder.merges" href="#kawa_scripts.uv.IslandsBuilder.merges">merges</a></code></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</nav>
+</main>
+<footer id="footer">
+<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.10.0</a>.</p>
+</footer>
+</body>
+</html>
