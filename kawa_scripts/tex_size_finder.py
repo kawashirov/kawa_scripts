@@ -7,6 +7,11 @@
 # work.  If not, see <http://creativecommons.org/licenses/by-nc-sa/3.0/>.
 #
 #
+"""
+Tool for figuring out a texture size of material.
+See `kawa_scripts.tex_size_finder.TexSizeFinder`.
+"""
+
 from collections import deque as _deque
 
 import bpy as _bpy
@@ -21,14 +26,33 @@ if _typing.TYPE_CHECKING:
 
 
 class TexSizeFinder:
+	"""
+	Base class for figuring out a texture size of material.
+	You must extend this class with required and necessary methods for your case.
+	
+	Finds all Images used by `ShaderNodeTree` of a given `Material`.
+	User can override what is counted for size (`should_count_image` and `should_count_node`)
+	or how it's counted (`mat_size`).
+	
+	This is intended to be used in conjunction with `kawa_scripts.atlas_baker.BaseAtlasBaker`
+	(in overridden `kawa_scripts.atlas_baker.BaseAtlasBaker.get_material_size`),
+	but not necessary, you can provide material sizes by you self.
+	"""
 
 	def __init__(self):
 		pass
 	
 	def should_count_image(self, image: 'Image') -> bool:
+		"""
+		User can override this to tell what used Images should be counted for size. By default all Nodes are counted.
+		For example, you can ignore `Non-Color` images.
+		"""
 		return True
 	
 	def should_count_node(self, node: 'ShaderNodeTexImage') -> bool:
+		"""
+		User can override this to tell what Image Nodes should be counted for size. By default all Nodes are counted.
+		"""
 		return True
 	
 	def nodeteximage_size(self, node: 'ShaderNodeTexImage') -> 'Optional[Tuple[float, float]]':
@@ -67,6 +91,7 @@ class TexSizeFinder:
 				yield size
 	
 	def avg_mat_size(self, mat: 'Material') -> 'Optional[Tuple[float, float]]':
+		""" Returns average found size of all counted images in Shader Note Tree of Material or None. """
 		# Расчёт среднего размера текстур используемых материалом
 		# Поиск нодов ShaderNodeTexImage, в которые используются выходы и картинка подключена
 		sw, sh, count = 0, 0, 0
@@ -77,7 +102,9 @@ class TexSizeFinder:
 		return (float(sw) / count, float(sh) / count) if count > 0 and sw > 0 and sh > 0 else None
 	
 	def max_mat_size(self, mat: 'Material') -> 'Optional[Tuple[float, float]]':
+		""" Returns maximum found size of all counted images in Shader Note Tree of Material or None. """
 		return max((s for s in self.iterate_sizes(mat.node_tree)), key=lambda x: x[0]*x[1], default=None)
 
 	def mat_size(self, mat: 'Material') -> 'Optional[Tuple[float, float]]':
+		""" Returns found size of Material or None. By default is `max_mat_size`. User can override this. """
 		return self.max_mat_size(mat)  # default

@@ -199,8 +199,9 @@ def activate_objects(objs: 'Iterable[Object]'):
 def ensure_deselect_all_objects():
 	# ensure_op_finished(bpy.ops.object.select_all(action='DESELECT'), name="bpy.ops.object.select_all(action='DESELECT')")
 	# Это быстрее, чем оператор, и позволяет отжать скрытые объекты
-	while len(_C.selected_objects) > 0:
-		_C.selected_objects[0].select_set(False)
+	# _C.selected_objects выдаёт AttributeError: '_RestrictContext' object has no attribute 'selected_objects'
+	while len(_C.view_layer.objects.selected) > 0:
+		_C.view_layer.objects.selected[0].select_set(False)
 
 
 class _TemporaryViewLayer(_contextlib.ContextDecorator):

@@ -7,6 +7,11 @@
 # work.  If not, see <http://creativecommons.org/licenses/by-nc-sa/3.0/>.
 #
 #
+"""
+Tool for baking a lots of PBR materials on a lots of Objects into single texture atlas.
+See `kawa_scripts.atlas_baker.BaseAtlasBaker`.
+"""
+
 from sys import maxsize as _int_maxsize
 from gc import collect as _gc_collect
 from time import perf_counter as _perf_counter
@@ -35,6 +40,9 @@ if _typing.TYPE_CHECKING:
 
 
 class UVTransform:
+	"""
+	Internal class used by `BaseAtlasBaker` as mapping between UV areas on original Materials and UV areas on atlas.
+	"""
 	__slots__ = ('material', 'origin_norm', 'padded_norm', 'packed_norm')
 	
 	def __init__(self):
@@ -90,35 +98,57 @@ class UVTransform:
 
 
 class BaseAtlasBaker:
-	# Тип поиска островов, из чего делаются bboxы:
-	# - POLYGON - из каждого полигона
-	# - OBJECT - из кусков объектов
-	# Возможны доп. режимы в будущем
+	"""
+	Base class for Atlas Baking.
+	You must extend this class with required and necessary methods for your case,
+	configure variables and then run `bake_atlas`.
+	"""
+	
 	ISLAND_TYPES = ('POLYGON', 'OBJECT')
+	"""
+	Available types of UV-Islands Searching for reference.
+	Set per-Object and per-Material, see `get_island_mode`.
+	
+	- `'POLYGON'` will try to use every polygon provided to find rectangular UV areas of Material.
+	Allows to detect separated UV parts from same material and put it separately and more efficient on atlas.
+	Slower, but can result dense and efficient packing.
+	
+	- `'OBJECT'` will count each Material on each Object as single united island.
+	Fast, but can pick large unused areas of Materials for atlasing and final atlas may be packed inefficient.
+	"""
 	
 	BAKE_TYPES = ('DIFFUSE', 'ALPHA', 'EMIT', 'NORMAL', 'ROUGHNESS', 'METALLIC')
+	"""
+	Available types of baking layers for reference.
+	Note, there is no DIFFUSE+ALPHA RGBA (use separate textures) and SMOOTHNESS (use ROUGHNESS instead) yet.
+	"""
 	
 	# Имена UV на ._bake_obj
-	UV_ORIGINAL = "UV-Original"
-	UV_ATLAS = "UV-Atlas"
+	_UV_ORIGINAL = "UV-Original"
+	_UV_ATLAS = "UV-Atlas"
 	
-	PROC_ORIGINAL_UV_NAME = "__AtlasBaker_UV_Main_Original"
-	PROC_TARGET_ATLAS_UV_NAME = "__AtlasBaker_UV_Main_Target"
-	PROP_ORIGIN_OBJECT = "__AtlasBaker_OriginObject"
-	PROP_ORIGIN_MESH = "__AtlasBaker_OriginMesh"
+	_PROC_ORIGINAL_UV_NAME = "__AtlasBaker_UV_Main_Original"
+	_PROC_TARGET_ATLAS_UV_NAME = "__AtlasBaker_UV_Main_Target"
+	_PROP_ORIGIN_OBJECT = "__AtlasBaker_OriginObject"
+	_PROP_ORIGIN_MESH = "__AtlasBaker_OriginMesh"
 	
-	PROC_NAME = "__AtlasBaker_Processing_"
+	_PROC_NAME = "__AtlasBaker_Processing_"
 	
 	def __init__(self):
-		# Меш-объекты, над которыми будет работа по атлассированию
 		self.objects = set()  # type: Set[Object]
-		# Размер атласа.
-		# На самом деле, используется только как aspect_ratio
-		self.target_size = (1, 1)  # type: Tuple[int, int]
-		self.padding = 4  # type: float
+		""" Mesh-Objects that will be atlassed. """
 		
-		# Минимальное время между строками логов когда выполняются долгие операции
+		self.target_size = (1, 1)  # type: Tuple[int, int]
+		"""
+		Size of atlas. Actually used only as aspect ratio.
+		Your target images (See `get_target_image`) must match this ratio.
+		"""
+		
+		self.padding = 4  # type: float
+		""" Padding added to each UV Island around to avoid leaks. """
+		
 		self.report_time = 5
+		""" Minimum time between progress reports into logfile when running long and heavy operations.  """
 		
 		# # # Внутренее # # #
 		
@@ -140,45 +170,72 @@ class BaseAtlasBaker:
 	# # # Переопределяемые методы # # #
 	
 	def get_material_size(self, src_mat: 'Material') -> 'Optional[Tuple[float, float]]':
-		# Функция, которая будет возвращать средний размер тестур материала.
-		# Используется для определения размера текстуры на атласе
+		"""
+		Must return size of material.
+		This is relative compared with other Materials to figure out final area of Material on atlas.
+		The real size of material will be different anyways.
+		
+		You can use `kawa_scripts.tex_size_finder.TexSizeFinder` here.
+		"""
 		raise NotImplementedError('get_material_size')
 	
 	def get_target_material(self, origin: 'Object', src_mat: 'Material') -> 'Material':
-		# Функция, которая будет говоорить, на какой материал следует заменить исходный материал,
-		# при применении атлассированных материалов
-		# Атлассированный материал должен существовать заранее.
+		"""
+		Must return target Material for source Material.
+		Ths source Material on this Object will be replaced with target Material after baking.
+		Atlas Baker does not create final Materials by it's own.
+		You should prepare target materials (with target images) and provide it here, so Atlas Baker can use and assign it.
+		"""
 		raise NotImplementedError('get_target_material')
 	
 	def get_target_image(self, bake_type: str) -> 'Optional[Image]':
-		# Функция, которая будет возвращать текстуру, на которую будет осуществляться запекание.
-		# Для каждого типа из SUPPORTED_TYPES должна вернуть (изображение, путь сохранения).
-		# Если текстуры нет, то запекания для данного типа не будет.
-		# Путь для сохранения не обязательно указывать.
+		"""
+		Must return target Image for given bake type.
+		Atlas Baker will bake atlas onto this Image.
+		If Image is not provided (None or False) this bake type will not be baked.
+		See `BAKE_TYPES` for available bake types.
+		"""
 		raise NotImplementedError('get_target_image')
 	
 	def get_uv_name(self, obj: 'Object', mat: 'Material') -> 'Opional[str]':
-		# Функция, которая будет говоорить, какой UV слой использовать
-		# Должна вернуть имя UV слоя
+		"""
+		Should return the name of UV Layer of given Object and Material that will be used for baking.
+		If not implemented (or returns None or False) first UV layer will be used.
+		This layer will be edited to match Atlas and target Material.
+		"""
 		return  # TODO
 	
 	def get_island_mode(self, origin: 'Object', mat: 'Material') -> 'str':
-		# Функция, которая будет говоорить, в каком режиме ISLAND_SEARCH_TYPES искать острова
-		# Режим может меняться в зависимости от исходного объекта и исходного материала
+		"""
+		Must return one of island search types. See `ISLAND_TYPES` for details.
+		"""
 		return 'POLYGON'
 	
 	def get_epsilon(self, obj: 'Object', mat: 'Material') -> 'Optional[float]':
-		# допустимый зазор TODO
+		"""
+		Should return precision value in pixel-space for given Object and Material.
+		Note, size obtained from `get_material_size` is used for pixel-space.
+		"""
 		return None
 	
 	def before_bake(self, bake_type: str, target_image: 'Image'):
+		"""
+		This method is called before baking given type and Image.
+		Note, Image obtained from 'get_target_image' is used for `target_image`.
+		You can prepare something here, for example, adjust Blender's baking settings.
+		"""
 		pass
 	
 	def after_bake(self, bake_type: str, target_image: 'Image'):
+		"""
+		This method is called after baking given type and Image.
+		Note, Image obtained from 'get_target_image' is used for `target_image`.
+		You can post-process something here, for example, save baked Image.
+		"""
 		pass
 	
 	def _get_source_object(self, copy_obj: 'Object'):
-		name = copy_obj.get(self.PROP_ORIGIN_OBJECT)
+		name = copy_obj.get(self._PROP_ORIGIN_OBJECT)
 		origin_obj = _D.objects.get(name)
 		return origin_obj
 	
@@ -287,16 +344,16 @@ class BaseAtlasBaker:
 		for obj in self.objects:
 			if isinstance(obj.data, _bpy.types.Mesh):
 				_commons.activate_object(obj)
-			obj[self.PROP_ORIGIN_OBJECT] = obj.name
-			obj.data[self.PROP_ORIGIN_MESH] = obj.data.name
+			obj[self._PROP_ORIGIN_OBJECT] = obj.name
+			obj.data[self._PROP_ORIGIN_MESH] = obj.data.name
 		_commons.ensure_op_finished(_bpy.ops.object.duplicate(linked=False), name='bpy.ops.object.duplicate')
 		self._copies.update(_C.selected_objects)
 		# Меченые имена, что бы если скрипт крашнется сразу было их видно
 		for obj in self._copies:
-			obj_name = obj.get(self.PROP_ORIGIN_OBJECT) or 'None'
-			mesh_name = obj.data.get(self.PROP_ORIGIN_MESH) or 'None'
-			obj.name = self.PROC_NAME + obj_name
-			obj.data.name = self.PROC_NAME + mesh_name
+			obj_name = obj.get(self._PROP_ORIGIN_OBJECT) or 'None'
+			mesh_name = obj.data.get(self._PROP_ORIGIN_MESH) or 'None'
+			obj.name = self._PROC_NAME + obj_name
+			obj.data.name = self._PROC_NAME + mesh_name
 		_log.info("Duplicated {0} temp objects for atlasing.".format(len(self._copies)))
 		_commons.ensure_deselect_all_objects()
 	
@@ -505,15 +562,15 @@ class BaseAtlasBaker:
 		finally:
 			bm.free()
 		# Создаем слои для преобразований
-		mesh.uv_layers.new(name=self.UV_ORIGINAL)
-		mesh.uv_layers.new(name=self.UV_ATLAS)
+		mesh.uv_layers.new(name=self._UV_ORIGINAL)
+		mesh.uv_layers.new(name=self._UV_ATLAS)
 		mesh.materials.clear()
 		for mat in self._transforms.keys():
 			mesh.materials.append(mat)
 		mat2idx = {m: i for i, m in enumerate(mesh.materials)}
 		# Прописываем в полигоны координаты и материалы
-		uvl_original = mesh.uv_layers[self.UV_ORIGINAL]  # type: MeshUVLoopLayer
-		uvl_atlas = mesh.uv_layers[self.UV_ATLAS]  # type: MeshUVLoopLayer
+		uvl_original = mesh.uv_layers[self._UV_ORIGINAL]  # type: MeshUVLoopLayer
+		uvl_atlas = mesh.uv_layers[self._UV_ATLAS]  # type: MeshUVLoopLayer
 		uvd_original, uvd_atlas = uvl_original.data, uvl_atlas.data
 		poly_idx = 0
 		for mat, transforms in self._transforms.items():
@@ -587,8 +644,6 @@ class BaseAtlasBaker:
 			msg = "Material {0} is invalid!".format(mat.name)
 			_log.info(msg)
 			raise RuntimeError(msg, mat, node_tree, out, surface, src_shader_s, src_shader) from exc
-	
-	node_editor_override = False
 	
 	def _get_node_editor_override(self):
 		if self._node_editor_override is not False:
@@ -796,8 +851,8 @@ class BaseAtlasBaker:
 		_commons.activate_object(self._bake_obj)
 		# Настраиваем UV слои под рендер
 		for layer in _commons.get_mesh_safe(self._bake_obj).uv_layers:  # type: MeshUVLoopLayer
-			layer.active = layer.name == self.UV_ATLAS
-			layer.active_render = layer.name == self.UV_ORIGINAL
+			layer.active = layer.name == self._UV_ATLAS
+			layer.active_render = layer.name == self._UV_ORIGINAL
 			layer.active_clone = False
 		for bake_type, target_image in self._bake_types:
 			self._bake_image(bake_type, target_image)
@@ -833,9 +888,8 @@ class BaseAtlasBaker:
 		mat_i, obj_i = 0, 0
 		reporter = _LambdaReporter(self.report_time)
 		reporter.func = lambda r, t: _log.info(
-			"Transforming UVs: Object=%d/%d, Slots=%d, Time=%.1f sec, ETA=%.1f sec...",
-			obj_i, len(self.objects), mat_i, t, r.get_eta(1.0 * obj_i / len(self.objects))
-		)
+			"Transforming UVs: Object={}/{}, Slots={}, Time={:.1f} sec, ETA={:.1f} sec...".format(
+				obj_i, len(self.objects), mat_i, t, r.get_eta(1.0 * obj_i / len(self.objects))))
 		
 		self._perf_find_transform = 0
 		self._perf_apply_transform = 0
@@ -879,10 +933,10 @@ class BaseAtlasBaker:
 				transform = None
 				# Поиск трансформа для данного полигона
 				_t1 = _perf_counter()
-				for transform in transforms:
+				for t in transforms:
 					# Должно работать без эпсилонов
-					if transform.is_match(mean_uv, epsilon_x=epsilon_x, epsilon_y=epsilon_y):
-						transform = transform
+					if t.is_match(mean_uv, epsilon_x=epsilon_x, epsilon_y=epsilon_y):
+						transform = t
 						break
 				self._perf_find_transform += _perf_counter() - _t1
 				if transform is None:
@@ -900,6 +954,8 @@ class BaseAtlasBaker:
 			# Применение трансформов.
 			_t2 = _perf_counter()
 			for loop, transform in maps.items():
+				# TODO по результатам замеров тут самая тормозная точка,
+				# надо подумать о том как это распараллелить или типа того.
 				vec2 = uv_data[loop].uv  # type: Vector
 				vec2 = transform.apply(vec2)
 				uv_data[loop].uv = vec2
@@ -908,6 +964,9 @@ class BaseAtlasBaker:
 			obj.material_slots[material_index].material = target_mat
 	
 	def bake_atlas(self):
+		"""
+		Run the baking process!
+		"""
 		_log.info("Baking atlas!")
 		self._prepare_objects()
 		self._prepare_target_images()
@@ -938,3 +997,9 @@ class BaseAtlasBaker:
 		# После запекания к исходникам применяются новые материалы и преобразования
 		self._apply_baked_materials()
 		_log.info("Woohoo!")
+
+
+__pdoc__ = dict()
+for _n in dir(UVTransform):
+	if hasattr(UVTransform, _n):
+		__pdoc__[UVTransform.__name__ + '.' + _n] = False

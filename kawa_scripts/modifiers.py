@@ -83,6 +83,7 @@ def modifier_apply_compat(obj: 'Object', apply_as: 'str', modifier: 'str', keep_
 def apply_all_modifiers(obj: 'Object', op: 'Operator' = None) -> 'int':
 	# No context control
 	_commons.ensure_deselect_all_objects()
+	_commons.activate_object(obj)
 	modifc = 0
 	for mod_i, mod_name in list(enumerate(m.name for m in obj.modifiers)):
 		if 'FINISHED' in _bpy.ops.object.modifier_apply(modifier=mod_name):

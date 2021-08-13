@@ -7,12 +7,16 @@
 # work.  If not, see <http://creativecommons.org/licenses/by-nc-sa/3.0/>.
 #
 #
+"""
+Useful tools for Vertex Groups
+"""
 
 import bpy as _bpy
 from bpy import context as _C
 
 from ._internals import log as _log
 from ._internals import KawaOperator as _KawaOperator
+from . import _doc
 
 import typing as _typing
 
@@ -70,7 +74,11 @@ def remove_empty(objs: 'Iterable[Object]', limit: 'float' = 0.0, ignore_locked: 
 	return removed_groups, removed_objects
 
 
-class KawaRemoveEmpty(_KawaOperator):
+class OperatorRemoveEmpty(_KawaOperator):
+	"""
+	Operator of `remove_empty`.
+	"""
+	
 	bl_idname = "kawa.vertex_group_remove_empty"
 	bl_label = "Remove Empty Vertex Groups"
 	bl_options = {'REGISTER', 'UNDO'}
@@ -86,7 +94,7 @@ class KawaRemoveEmpty(_KawaOperator):
 	)
 
 	ignore_locked: _bpy.props.BoolProperty(
-		name="Limit",
+		name="Ignore Locked",
 		description="Do not remove locked (with flag lock_weight) groups.",
 		default=False,
 	)
@@ -111,9 +119,8 @@ class KawaRemoveEmpty(_KawaOperator):
 
 
 classes = (
-	KawaRemoveEmpty,
+	OperatorRemoveEmpty,
 )
 
 __pdoc__ = dict()
-for cls in classes:
-	__pdoc__[cls.__name__] = False
+_doc.process_blender_classes(__pdoc__, classes)

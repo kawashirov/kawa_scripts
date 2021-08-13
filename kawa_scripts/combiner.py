@@ -7,6 +7,10 @@
 # work.  If not, see <http://creativecommons.org/licenses/by-nc-sa/3.0/>.
 #
 #
+"""
+Tool for combining few objects into single one.
+See `kawa_scripts.combiner.BaseMeshCombiner`.
+"""
 
 from collections import deque as _deque
 
@@ -26,6 +30,50 @@ if _typing.TYPE_CHECKING:
 
 
 class BaseMeshCombiner:
+	"""
+	Base class for Combining Meshes.
+	You must extend this class with required and necessary methods for your case,
+	configure variables and then run `combine_meshes`.
+	
+	This tool creates/destroys bpy-Objects intensive,	so unique `str` ID names is used for Object-references.
+	You must not rename objects while combiner is running.
+	You also should be careful with references to related Objects, as it most likely will become invalid.
+	
+	How does this work:
+	
+	- You should put an "root" Object ID name into `roots_names`.
+		There may be several root objects, it will be combined independently in single run.
+		
+	- Combiner will try to join all children Objects of given root Object into given root Object itself.
+		You can not combine non-children Objects.
+		It is assumed that parts of the complex hierarchy will be flattened to a pair of combined objects.
+		
+	- You can provide a group for given object (See `group_child`). Objects in same group will be joined together.
+		Group is a string, but can be `None` for default group or `False` if object must not be combined and should kept as is.
+		..
+		This can be used to join all Opaque objects into one Object, and all Transparent objects into different Object.
+		For example, I also use this to keep Meshes for rendering and Meshes for collisions separately for Unity.
+		
+	- Root Object is not required to be a Mesh-Object. This can be any type of object.
+		If `force_mesh_root`, then given non-Mesh root Object will be replaced with Mesh Object.
+		This can be used to avoid unnecessary empty Objects.
+		
+	- If root object is a Mesh-Object, children Objects of default group will be joined to the root Object.
+	
+	- After combining names of newly created objects put into `created_objects`.
+		For example, you can use this to switch back to Object-references after running this tool.
+	
+	Here example hierarchy of raw object before combining:
+	
+	![combiner_example_before.png](https://i.imgur.com/hA9Od1G.png)
+	
+	Here same hierarchy of final objects after combining:
+	
+	![combiner_example_after.png](https://i.imgur.com/7QcrBDT.png)
+	
+	As you can see addition groups `ClldrDynamic`, `ClldrProp` and `NoCast` where used.
+	
+	"""
 	def __init__(self):
 		self.roots_names = set()  # type: Set[str]
 		

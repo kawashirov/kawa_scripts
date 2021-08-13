@@ -41,7 +41,7 @@ bl_info = {
 	"description": "Kawashirov's Scripts for Unity and VRChat content creation",
 	"location": "There is no UI. Use it from scripts or console by `import kawa_scripts` (or whatever)",
 	"wiki_url": "",
-	"version": (0, 2),
+	"version": (2021, 8, 14),
 	"blender": (2, 83, 0),
 	"category": "Object",
 }
@@ -87,23 +87,23 @@ from ._internals import log
 
 def _shape_key_edit_mode_context_menu(self, context):
 	self.layout.separator()  # EDIT-mode select
-	self.layout.operator(shapekeys.KawaSelectVerticesAffectedByShapeKey.bl_idname, icon='VERTEXSEL')
+	self.layout.operator(shapekeys.OperatorSelectVerticesAffectedByShapeKey.bl_idname, icon='VERTEXSEL')
 	self.layout.separator()  # EDIT-mode revert
-	self.layout.operator(shapekeys.KawaRevertSelectedInActiveToBasis.bl_idname, icon='KEY_DEHLT')
-	self.layout.operator(shapekeys.KawaRevertSelectedInAllToBasis.bl_idname, icon='KEY_DEHLT')
+	self.layout.operator(shapekeys.OperatorRevertSelectedInActiveToBasis.bl_idname, icon='KEY_DEHLT')
+	self.layout.operator(shapekeys.OperatorRevertSelectedInAllToBasis.bl_idname, icon='KEY_DEHLT')
 	self.layout.separator()  # EDIT-mode apply
-	self.layout.operator(shapekeys.KawaApplySelectedInActiveToBasis.bl_idname, icon='KEYINGSET')
-	self.layout.operator(shapekeys.KawaApplySelectedInActiveToAll.bl_idname, icon='KEYINGSET')
+	self.layout.operator(shapekeys.OperatorApplySelectedInActiveToBasis.bl_idname, icon='KEYINGSET')
+	self.layout.operator(shapekeys.OperatorApplySelectedInActiveToAll.bl_idname, icon='KEYINGSET')
 
 
 def _shape_key_object_mode_context_menu(self, context):
 	self.layout.separator()  # OBJECT-mode apply
-	self.layout.operator(shapekeys.KawaApplyActiveToBasis.bl_idname, icon='KEYINGSET')
-	self.layout.operator(shapekeys.KawaApplyActiveToAll.bl_idname, icon='KEYINGSET')
+	self.layout.operator(shapekeys.OperatorApplyActiveToBasis.bl_idname, icon='KEYINGSET')
+	self.layout.operator(shapekeys.OperatorApplyActiveToAll.bl_idname, icon='KEYINGSET')
 	self.layout.separator()  # OBJECT-mode clean
-	self.layout.operator(shapekeys.KawaCleanupActive.bl_idname, icon='KEY_DEHLT')
-	self.layout.operator(shapekeys.KawaCleanupAll.bl_idname, icon='KEY_DEHLT')
-	self.layout.operator(shapekeys.KawaRemoveEmpty.bl_idname, icon='KEY_DEHLT')
+	self.layout.operator(shapekeys.OperatorCleanupActive.bl_idname, icon='KEY_DEHLT')
+	self.layout.operator(shapekeys.OperatorCleanupAll.bl_idname, icon='KEY_DEHLT')
+	self.layout.operator(shapekeys.OperatorRemoveEmpty.bl_idname, icon='KEY_DEHLT')
 
 
 # # #
@@ -127,7 +127,7 @@ def _MESH_MT_shape_key_context_menu(self, context):
 
 def _MESH_MT_vertex_group_context_menu(self, context):
 	self.layout.separator()
-	self.layout.operator(vertex_groups.KawaRemoveEmpty.bl_idname, icon='X')
+	self.layout.operator(vertex_groups.OperatorRemoveEmpty.bl_idname, icon='X')
 
 
 # # #
@@ -146,7 +146,7 @@ class _VIEW3D_MT_object_kawa_sub_menu(bpy.types.Menu):
 		self.layout.operator(modifiers.KawaApplyArmatureToMeshesHighPrecision.bl_idname, icon='ARMATURE_DATA')
 		_shape_key_object_mode_context_menu(self, context)
 		self.layout.separator()  # vertex groups
-		self.layout.operator(vertex_groups.KawaRemoveEmpty.bl_idname, icon='X')
+		self.layout.operator(vertex_groups.OperatorRemoveEmpty.bl_idname, icon='X')
 
 
 def _VIEW3D_MT_object(self, context):

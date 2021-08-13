@@ -7,6 +7,9 @@
 # work.  If not, see <http://creativecommons.org/licenses/by-nc-sa/3.0/>.
 #
 #
+"""
+Useful tools for UV Layers
+"""
 
 import bpy as _bpy
 from bpy import context as _C
@@ -24,6 +27,7 @@ if _typing.TYPE_CHECKING:
 
 
 def uv_area(poly: 'MeshPolygon', uv_layer_data: 'Union[bpy_prop_collection, List[MeshUVLoop]]'):
+	""" Returns area of given polygon on given UV Layer in normalized (0..1) space. """
 	# tuple чуть-чуть быстрее на малых длинах, тестил через timeit
 	return _commons.poly2_area2(tuple(uv_layer_data[loop].uv for loop in poly.loop_indices))
 
@@ -32,6 +36,12 @@ def repack_active_uv(
 		obj: 'Object', get_scale: 'Optional[Callable[[Material], float]]' = None,
 		rotate: 'bool' = None, margin: 'float' = 0.0
 ):
+	"""
+	Repack active UV Layer of a given Object with some adjustments:
+	- Runs `bpy.ops.uv.average_islands_scale`
+	- Rescales islands according to `get_scale` per material
+	- Runs `bpy.ops.uv.pack_islands` with given `rotate` and `margin`
+	"""
 	e = _commons.ensure_op_finished
 	try:
 		_commons.ensure_deselect_all_objects()
@@ -75,6 +85,9 @@ def repack_active_uv(
 
 
 def remove_all_uv_layers(obj: 'Object'):
+	"""
+	Remove all UV Layers from Mesh-Object.
+	"""
 	mesh = _commons.get_mesh_safe(obj)
 	while len(mesh.uv_layers) > 0:
 		mesh.uv_layers.remove(mesh.uv_layers[0])
@@ -103,8 +116,10 @@ def _remove_uv_layer_by_condition(
 
 
 class Island:
-	# Описывает остров текстуры материала, ограничивающий подмножество UV
-	# Координаты - в размерах текстур
+	"""
+	Internal class of `IslandsBuilder`.
+	Describes rectangle region of UV Layer.
+	"""
 	__slots__ = ('mn', 'mx', 'extends')
 	
 	def __init__(self, mn: 'Optional[Vector]', mx: 'Optional[Vector]'):
@@ -182,12 +197,26 @@ class Island:
 
 
 class IslandsBuilder:
+	"""
+	Internal class of `kawa_scripts.atlas_baker.BaseAtlasBaker`, but can be used standalone.
+	Finds non-overlapping bounding boxes on UV Layer of UV polygons.
+	Just provide UV coords of all your polygons into `add_seq` or `add_bbox`,
+	`bboxes` will contain all found non-overlapping rectangle regions.
+	
+	`epsilon` is a search precision in normalized (0..1) space.
+	If distance between two Islands is less than epsilon these two Islands will be merged into single one.
+	Be careful with `epsilon = 0`, It can result a lots of small islands touching each others but don't intersect.
+	Also very small `epsilon` can result poor performance without good output.
+	`epsilon` about 1..3 of pixel-space recommended (normalize it by you self).
+	"""
 	# Занимается разбиением множества точек на прямоугольные непересекающиеся подмноджества
 	__slots__ = ('bboxes', 'merges')
 	
 	def __init__(self):
 		self.bboxes = list()  # type: List[Island]
+		""" All found non-overlapping `Islands`. """
 		self.merges = 0  # Для диагностических целей
+		""" For diagnostic and debug purposes. Number of Island merges happened. """
 	
 	def __str__(self) -> str: return common_str_slots(self, self.__slots__)
 	

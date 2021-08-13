@@ -7,12 +7,16 @@
 # work.  If not, see <http://creativecommons.org/licenses/by-nc-sa/3.0/>.
 #
 #
+"""
+Useful tools for Shape Keys
+"""
 
 import bpy as _bpy
 from bpy import context as _C
 
 from ._internals import log as _log
 from ._internals import KawaOperator as _KawaOperator
+from . import _doc
 
 import typing as _typing
 
@@ -39,7 +43,7 @@ def _mesh_have_shapekeys(mesh: 'Mesh', n: int = 1):
 
 
 def _obj_have_shapekeys(obj: 'Object', n: int = 1):
-	return obj is not None and obj.type != 'MESH' and _mesh_have_shapekeys(obj.data, n=n)
+	return obj is not None and obj.type == 'MESH' and _mesh_have_shapekeys(obj.data, n=n)
 
 
 def _mesh_selection_to_vertices(mesh: 'Mesh'):
@@ -53,12 +57,13 @@ def _mesh_selection_to_vertices(mesh: 'Mesh'):
 				mesh.vertices[i].select = True
 
 
-class KawaSelectVerticesAffectedByShapeKey(_KawaOperator):
+class OperatorSelectVerticesAffectedByShapeKey(_KawaOperator):
 	"""
 	**Select Vertices Affected by Active Shape Key.**
 	"""
 	bl_idname = "kawa.select_vertices_affected_by_shape_key"
 	bl_label = "Select Vertices Affected by Active Shape Key"
+	bl_description = "Select Vertices Affected by Active Shape Key."
 	bl_options = {'REGISTER', 'UNDO'}
 
 	epsilon: _bpy.props.FloatProperty(
@@ -118,12 +123,13 @@ class KawaSelectVerticesAffectedByShapeKey(_KawaOperator):
 		return {'FINISHED'}
 
 
-class KawaRevertSelectedInActiveToBasis(_KawaOperator):
+class OperatorRevertSelectedInActiveToBasis(_KawaOperator):
 	"""
 	**Revert selected vertices in edit-mode to Reference Shape Key (Basis) in active Shape Key.**
 	"""
 	bl_idname = "kawa.revert_selected_shape_keys_in_active_to_basis"
 	bl_label = "REVERT SELECTED Vertices in ACTIVE Shape Key to BASIS"
+	bl_description = "Revert selected vertices in edit-mode to Reference Shape Key (Basis) in active Shape Key."
 	bl_options = {'REGISTER', 'UNDO'}
 	
 	@classmethod
@@ -154,19 +160,20 @@ class KawaRevertSelectedInActiveToBasis(_KawaOperator):
 		
 		for i in range(len(mesh.vertices)):
 			if mesh.vertices[i].select:
-				shape_key.data[i].co = reference.data[i].co
+				shape_key.data[i].co = reference.data[i].co.copy()
 		
 		_bpy.ops.object.mode_set_with_submode(mode='EDIT', toggle=False, mesh_select_mode={'VERT'})
 		
 		return {'FINISHED'}
 
 
-class KawaRevertSelectedInAllToBasis(_KawaOperator):
+class OperatorRevertSelectedInAllToBasis(_KawaOperator):
 	"""
 	**Revert selected vertices in edit-mode to Reference Shape Key (Basis) in every Shape Key.**
 	"""
 	bl_idname = "kawa.revert_selected_shape_keys_in_all_to_basis"
 	bl_label = "REVERT SELECTED Vertices in ALL Shape Keys to BASIS"
+	bl_description = "Revert selected vertices in edit-mode to Reference Shape Key (Basis) in every Shape Key."
 	bl_options = {'REGISTER', 'UNDO'}
 	
 	@classmethod
@@ -200,20 +207,21 @@ class KawaRevertSelectedInAllToBasis(_KawaOperator):
 				continue
 			for i in range(len(mesh.vertices)):
 				if mesh.vertices[i].select:
-					shape_key.data[i].co = reference.data[i].co
+					shape_key.data[i].co = reference.data[i].co.copy()
 		
 		_bpy.ops.object.mode_set_with_submode(mode='EDIT', toggle=False, mesh_select_mode={'VERT'})
 		
 		return {'FINISHED'}
 
 
-class KawaApplySelectedInActiveToBasis(_KawaOperator):
+class OperatorApplySelectedInActiveToBasis(_KawaOperator):
 	"""
-	Same as `KawaApplyActiveToBasis`, but only for selected vertices in edit-mode.
+	Same as `OperatorApplyActiveToBasis`, but only for selected vertices in edit-mode.
 	See also: `apply_active_to_basis`.
 	"""
 	bl_idname = "kawa.apply_selected_shape_keys_in_active_to_basis"
 	bl_label = "APPLY SELECTED Vertices in ACTIVE Shape Key to Basis"
+	# bl_description at the end of file.
 	bl_options = {'REGISTER', 'UNDO'}
 	
 	@classmethod
@@ -244,20 +252,21 @@ class KawaApplySelectedInActiveToBasis(_KawaOperator):
 		
 		for i in range(len(mesh.vertices)):
 			if mesh.vertices[i].select:
-				ref_key.data[i].co = active_key.data[i].co
+				ref_key.data[i].co = active_key.data[i].co.copy()
 		
 		_bpy.ops.object.mode_set_with_submode(mode='EDIT', toggle=False, mesh_select_mode={'VERT'})
 		
 		return {'FINISHED'}
 
 
-class KawaApplySelectedInActiveToAll(_KawaOperator):
+class OperatorApplySelectedInActiveToAll(_KawaOperator):
 	"""
-	Same as `KawaApplyActiveToAll`, but only for selected vertices in edit-mode.
+	Same as `OperatorApplyActiveToAll`, but only for selected vertices in edit-mode.
 	See also: `apply_active_to_all`.
 	"""
 	bl_idname = "kawa.apply_selected_shape_keys_in_active_to_all"
 	bl_label = "APPLY SELECTED Vertices in ACTIVE Shape Key to ALL Others"
+	# bl_description at the end of file.
 	bl_options = {'REGISTER', 'UNDO'}
 	
 	@classmethod
@@ -299,7 +308,7 @@ class KawaApplySelectedInActiveToAll(_KawaOperator):
 		
 		for i in range(len(mesh.vertices)):
 			if mesh.vertices[i].select:
-				ref_key.data[i].co = active_key.data[i].co
+				ref_key.data[i].co = active_key.data[i].co.copy()
 		
 		_bpy.ops.object.mode_set_with_submode(mode='EDIT', toggle=False, mesh_select_mode={'VERT'})
 		
@@ -313,16 +322,16 @@ class KawaApplySelectedInActiveToAll(_KawaOperator):
 def apply_active_to_basis(obj: 'Object', keep_reverted=True, op: 'Operator' = None):
 	"""
 	**Applies positions of active Shape Key to Reference ShapeKey (Basis).**
-	Positions (shapes) will be moved from active Shape Key to Reference ShapeKey (Basis).
+	Positions (shapes) will be transferred from active Shape Key to Reference ShapeKey (Basis).
 	Other Shape Keys keep their positions (shapes).
-	If `keep_reverted` then old positions from Reference ShapeKey (Basis) will be moved to active Shape Key,
+	If `keep_reverted` then old positions from Reference ShapeKey (Basis) will be transferred to active Shape Key,
 	so active Shape Key act as reverted. ` (Reverted)` will be added to it's name.
 	If not `keep_reverted` then active Shape Key will be deleted.
 	
 	Returns: True if succeeded, False otherwise.
 	
-	Available as operator `KawaApplyActiveToBasis`.
-	See also: `KawaApplySelectedInActiveToBasis`.
+	Available as operator `OperatorApplyActiveToBasis`.
+	See also: `apply_active_to_all`, `OperatorApplySelectedInActiveToBasis`.
 	"""
 	# No context control
 	mesh = obj.data  # type: Mesh
@@ -335,8 +344,8 @@ def apply_active_to_basis(obj: 'Object', keep_reverted=True, op: 'Operator' = No
 		return False
 	
 	for i in range(len(mesh.vertices)):
-		v = ref_key.data[i].co
-		ref_key.data[i].co = active_key.data[i].co
+		v = ref_key.data[i].co.copy()
+		ref_key.data[i].co = active_key.data[i].co.copy()
 		active_key.data[i].co = v
 	
 	if keep_reverted:
@@ -347,13 +356,17 @@ def apply_active_to_basis(obj: 'Object', keep_reverted=True, op: 'Operator' = No
 	return True
 
 
-class KawaApplyActiveToBasis(_KawaOperator):
+class OperatorApplyActiveToBasis(_KawaOperator):
 	"""
 	Operator of `apply_active_to_basis`.
-	See also: `KawaApplySelectedInActiveToBasis`.
+	See also: `OperatorApplySelectedInActiveToBasis`.
 	"""
 	bl_idname = "kawa.apply_active_shape_keys_to_basis"
 	bl_label = "APPLY ACTIVE Shape Key to Basis"
+	bl_description = "\n".join((
+		"Positions (shapes) will be transferred from active Shape Key to Reference ShapeKey (Basis).",
+		"Other Shape Keys keep their positions (shapes).",
+	))
 	bl_options = {'REGISTER', 'UNDO'}
 	
 	keep_reverted: _bpy.props.BoolProperty(
@@ -382,7 +395,7 @@ class KawaApplyActiveToBasis(_KawaOperator):
 def apply_active_to_all(obj: 'Object', keep_reverted=False, op: 'Operator' = None):
 	"""
 	**Applies offsets of active Shape Key to every other shape key.**
-	Same as `apply_active_to_basis`, but other Shape Key will be also edited.
+	Same as `apply_active_to_basis`, but other Shape Keys will be also edited.
 	It's like changing whole base mesh with all it's shape keys.
 	If `keep_reverted` then old positions from Reference ShapeKey (Basis) will be moved to active Shape Key,
 	so active Shape Key act as reverted. ` (Reverted)` will be added to it's name.
@@ -390,8 +403,8 @@ def apply_active_to_all(obj: 'Object', keep_reverted=False, op: 'Operator' = Non
 	
 	Returns: True if succeeded, False otherwise.
 	
-	Available as operator `KawaApplyActiveToAll`.
-	See also: `KawaApplySelectedInActiveToAll`.
+	Available as operator `OperatorApplyActiveToAll`.
+	See also: `OperatorApplySelectedInActiveToAll`.
 	"""
 	# No context control
 	mesh = obj.data  # type: Mesh
@@ -414,8 +427,8 @@ def apply_active_to_all(obj: 'Object', keep_reverted=False, op: 'Operator' = Non
 			other_key.data[i].co = ref_key.data[i].co + other_offset + active_offset
 	
 	for i in range(len(mesh.vertices)):
-		v = ref_key.data[i].co
-		ref_key.data[i].co = active_key.data[i].co
+		v = ref_key.data[i].co.copy()
+		ref_key.data[i].co = active_key.data[i].co.copy()
 		active_key.data[i].co = v
 	
 	if keep_reverted:
@@ -426,13 +439,15 @@ def apply_active_to_all(obj: 'Object', keep_reverted=False, op: 'Operator' = Non
 	return True
 
 
-class KawaApplyActiveToAll(_KawaOperator):
+class OperatorApplyActiveToAll(_KawaOperator):
 	"""
 	Operator of `apply_active_to_all`.
-	See also: `KawaApplySelectedInActiveToAll`.
+	See also: `OperatorApplySelectedInActiveToAll`.
 	"""
 	bl_idname = "kawa.apply_active_shape_keys_to_all"
 	bl_label = "APPLY ACTIVE Shape Key to ALL Others"
+	bl_description = "Same as {}, but other Shape Keys will be also edited.".format(
+		repr(OperatorApplyActiveToBasis.bl_label))
 	bl_options = {'REGISTER', 'UNDO'}
 	
 	keep_reverted: _bpy.props.BoolProperty(
@@ -466,7 +481,7 @@ def cleanup_active(obj: 'Object', epsilon: 'float', op: 'Operator' = None) -> 'i
 	
 	Returns: number of changed vertices.
 	
-	Available as operator `KawaCleanupActive`
+	Available as operator `OperatorCleanupActive`
 	"""
 	if not _obj_have_shapekeys(obj, n=2):
 		return 0
@@ -484,18 +499,22 @@ def cleanup_active(obj: 'Object', epsilon: 'float', op: 'Operator' = None) -> 'i
 	changed = 0
 	for i in range(len(mesh.vertices)):
 		if (ref_key.data[i].co - active_key.data[i].co).magnitude <= epsilon:
-			active_key.data[i].co = ref_key.data[i].co
+			active_key.data[i].co = ref_key.data[i].co.copy()
 			changed += 1
 	
 	return changed
 
 
-class KawaCleanupActive(_KawaOperator):
+class OperatorCleanupActive(_KawaOperator):
 	"""
 	Operator of `cleanup_active`
 	"""
 	bl_idname = "kawa.cleanup_active_shape_key"
 	bl_label = "Remove Mirco-offsets in ACTIVE Shape Key"
+	bl_description = "\n".join((
+		"If position of a vertex differs from position in Reference Shape Key (Basis) for `epsilon` or less,",
+		"then it's position will be reverted (to be the same as in Reference Shape Key)",
+	))
 	bl_options = {'REGISTER', 'UNDO'}
 	
 	epsilon: _bpy.props.FloatProperty(
@@ -535,7 +554,7 @@ def cleanup_all(objs: 'Iterable[Object]', epsilon: float, op: 'Operator' = None)
 	
 	Returns: (number of changed vertices, number of changed shape keys, number of changed meshes).
 	
-	Available as operator `KawaCleanupAll`
+	Available as operator `OperatorCleanupAll`
 	"""
 	objs = list(obj for obj in objs if _obj_have_shapekeys(obj, n=2))  # type: List[Object]
 	meshes = set()
@@ -548,7 +567,7 @@ def cleanup_all(objs: 'Iterable[Object]', epsilon: float, op: 'Operator' = None)
 		last_shape_key_index = obj.active_shape_key_index
 		try:
 			mesh_changed = False
-			for shape_key_index in range(1, len(obj.data.key_blocks)):
+			for shape_key_index in range(1, len(mesh.shape_keys.key_blocks)):
 				obj.active_shape_key_index = shape_key_index
 				vc = cleanup_active(obj, epsilon, op=op)
 				if vc > 0:
@@ -562,12 +581,14 @@ def cleanup_all(objs: 'Iterable[Object]', epsilon: float, op: 'Operator' = None)
 	return vertices_changed, shapekeys_changed, meshes_changed
 
 
-class KawaCleanupAll(_KawaOperator):
+class OperatorCleanupAll(_KawaOperator):
 	"""
 	Operator of `cleanup_all`
 	"""
 	bl_idname = "kawa.cleanup_all_shape_keys"
 	bl_label = "Remove Mirco-offsets in ALL Shape Keys"
+	bl_description = "Same as {}, but for every shape key (except reference one) for every object".format(
+		repr(OperatorCleanupActive.bl_label))
 	bl_options = {'REGISTER', 'UNDO'}
 	
 	epsilon: _bpy.props.FloatProperty(
@@ -584,7 +605,7 @@ class KawaCleanupAll(_KawaOperator):
 	def poll(cls, context: 'Context'):
 		if context.mode != 'OBJECT':
 			return False  # Требуется режим OBJECT
-		if any(True for obj in cls.get_selected_objs(context) if _obj_have_shapekeys(obj, n=2)):
+		if not any(True for obj in cls.get_selected_objs(context) if _obj_have_shapekeys(obj, n=2)):
 			return False  # Должны быть выбраны Меш-объекты c 2 или более шейпами
 		return True
 	
@@ -609,7 +630,7 @@ def remove_empty(objs: 'Iterable[Object]', epsilon: float, op: 'Operator' = None
 	
 	Returns: (number of removed Shape Keys, number of meshes changed)
 	
-	Available as operator `KawaRemoveEmpty`
+	Available as operator `OperatorRemoveEmpty`
 	"""
 	objs = list(obj for obj in objs if _obj_have_shapekeys(obj, n=2))  # type: List[Object]
 	removed_shapekeys, changed_meshes = 0, 0
@@ -625,16 +646,14 @@ def remove_empty(objs: 'Iterable[Object]', epsilon: float, op: 'Operator' = None
 		for shape_key in key.key_blocks:
 			if shape_key == reference:
 				continue  # Базис не удаялется
-			len_ref = len(reference.data)
-			len_shk = len(shape_key.data)
-			if len_ref != len_shk:
-				_log.error("Data size ({0}) of key {1} and data size ({2}) of key {3} in mesh {4} does not match! Is shape key corrupted?"
-					.format(len_ref, repr(reference), len_shk, repr(shape_key), repr(mesh)), op=op)
+			match1 = ensure_len_match(mesh, reference, op=op)
+			match2 = ensure_len_match(mesh, shape_key, op=op)
+			if not match1 or not match2:
 				continue
 			# Имеются ли различия между шейпами?
-			if not any((shape_key.data[i].co - reference.data[i].co).magnitude > epsilon for i in range(len_shk)):
+			if not any((shape_key.data[i].co - reference.data[i].co).magnitude > epsilon for i in range(len(mesh.vertices))):
 				empty_keys.add(shape_key.name)
-		_log.info("Found {0} empty shape keys in mesh {1}: {2}, removing...".format(len(empty_keys), repr(mesh), repr(empty_keys)), op=op)
+		# _log.info("Found {0} empty shape keys in mesh {1}: {2}, removing...".format(len(empty_keys), repr(mesh), repr(empty_keys)), op=op)
 		if len(empty_keys) < 1:
 			continue
 		for empty_key in empty_keys:
@@ -646,12 +665,16 @@ def remove_empty(objs: 'Iterable[Object]', epsilon: float, op: 'Operator' = None
 	return removed_shapekeys, changed_meshes
 
 
-class KawaRemoveEmpty(_KawaOperator):
+class OperatorRemoveEmpty(_KawaOperator):
 	"""
 	Operator of `remove_empty`.
 	"""
 	bl_idname = "kawa.remove_empty_shape_keys"
 	bl_label = "Remove Empty Shape Keys"
+	bl_description = "\n".join((
+		"Shape Key is empty, if positions of EVERY vertex differ ",
+		"from Reference Shape Key (Basis) for Epsilon or less.",
+	))
 	bl_options = {'REGISTER', 'UNDO'}
 	
 	epsilon: _bpy.props.FloatProperty(
@@ -668,7 +691,7 @@ class KawaRemoveEmpty(_KawaOperator):
 	def poll(cls, context: 'Context'):
 		if context.mode != 'OBJECT':
 			return False  # Требуется режим OBJECT
-		if any(True for obj in cls.get_selected_objs(context) if obj.type == 'MESH'):
+		if not any(True for obj in cls.get_selected_objs(context) if _obj_have_shapekeys(obj, n=2)):
 			return False  # Должны быть выбраны какие-то Меш-объекты
 		return True
 	
@@ -677,47 +700,34 @@ class KawaRemoveEmpty(_KawaOperator):
 	
 	def execute(self, context: 'Context'):
 		objs = self.get_selected_objs(context)
-		if len(objs) < 1:
-			_log.warning("No mesh-objects with multiple shape keys selected.", op=self)
-			return {'CANCELLED'}
 		removed_shapekeys, changed_meshes = remove_empty(objs, self.epsilon, op=self)
 		_log.info("Total {0} shape keys removed from {1} Meshes.".format(removed_shapekeys, changed_meshes), op=self)
 		return {'FINISHED'} if removed_shapekeys > 0 else {'CANCELLED'}
 
 
+OperatorApplySelectedInActiveToBasis.bl_description = \
+	"Same as {}, but only for selected vertices in edit-mode.".format(repr(OperatorApplyActiveToBasis.bl_label))
+OperatorApplySelectedInActiveToAll.bl_description = \
+	"Same as {}, but only for selected vertices in edit-mode.".format(repr(OperatorApplyActiveToAll.bl_label))
+
 classes = (
 	# Edit-mode
-	KawaSelectVerticesAffectedByShapeKey,
+	OperatorSelectVerticesAffectedByShapeKey,
 		#
-	KawaRevertSelectedInActiveToBasis,
-	KawaRevertSelectedInAllToBasis,
+	OperatorRevertSelectedInActiveToBasis,
+	OperatorRevertSelectedInAllToBasis,
 		#
-	KawaApplySelectedInActiveToBasis,
-	KawaApplySelectedInActiveToAll,
+	OperatorApplySelectedInActiveToBasis,
+	OperatorApplySelectedInActiveToAll,
 		#
 		# Object-mode
-	KawaApplyActiveToBasis,
-	KawaApplyActiveToAll,
+	OperatorApplyActiveToBasis,
+	OperatorApplyActiveToAll,
 		#
-	KawaCleanupActive,
-	KawaCleanupAll,
-	KawaRemoveEmpty,
+	OperatorCleanupActive,
+	OperatorCleanupAll,
+	OperatorRemoveEmpty,
 )
 
 __pdoc__ = dict()
-for _x in classes:
-	# Содержимое операторов не докумнтируется.
-	_doc = getattr(_x, '__doc__', '')
-	if _doc is None or len(_doc) < 1:
-		_x.__doc__ = ''
-	for _n in dir(_x):
-		if hasattr(_x, _n):
-			__pdoc__[_x.__name__ + '.' + _n] = False
-	if 'bl_idname' in _x.__dict__:
-		_x.__doc__ += '\n\nID name: `{0}`.'.format(_x.bl_idname)
-	if 'bl_label' in _x.__dict__:
-		_x.__doc__ += '\n\nLabel: `{0}`.'.format(_x.bl_label)
-	if 'bl_description' in _x.__dict__:
-		_x.__doc__ += '\n\nDescription: `{0}`.'.format(_x.bl_description)
-		
-		
+_doc.process_blender_classes(__pdoc__, classes)
