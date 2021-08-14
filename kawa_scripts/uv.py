@@ -23,12 +23,18 @@ if _typing.TYPE_CHECKING:
 	from typing import *
 	from bpy.types import *
 	from mathutils import Vector
+	from bmesh.types import *
 
 
 def uv_area(poly: 'MeshPolygon', uv_layer_data: 'Union[bpy_prop_collection, List[MeshUVLoop]]'):
-	""" Returns area of given polygon on given UV Layer in normalized (0..1) space. """
+	""" Returns area of given polygon on given UV Layer in normalized (0..1) space (for bpy.types.Mesh). """
 	# tuple чуть-чуть быстрее на малых длинах, тестил через timeit
 	return _commons.poly2_area2(tuple(uv_layer_data[loop].uv for loop in poly.loop_indices))
+
+
+def uv_area_bmesh(bm_face: 'BMFace', bm_uv_layer: 'BMLayerItem'):
+	""" Returns area of given polygon on given UV Layer in normalized (0..1) space (for besh.types.BMesh). """
+	return _commons.poly2_area2(tuple(bm_loop[bm_uv_layer].uv for bm_loop in bm_face.loops))
 
 
 def repack_active_uv(
