@@ -9,6 +9,21 @@
 #
 """
 Useful tools for Shape Keys
+
+**Most of the functions available as operators from UI:**
+
+In "*Shape Keys*" area in "*Properties*" editor window:
+
+![menu_shapekeys.png](https://i.imgur.com/hqzhUqy.png)
+
+In Object context menu in "*3D Viewport*" window at Object-mode:
+
+![menu_object.png](https://i.imgur.com/I8DAm2u.png)
+
+In Vertex context menu in "*3D Viewport*" window at Mesh-Edit-mode:
+
+![menu_vertex.png](https://i.imgur.com/CZtWPHN.png)
+
 """
 
 import bpy as _bpy

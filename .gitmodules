@@ -1,0 +1,6 @@
+[submodule "blender_autocomplete"]
+	path = blender_autocomplete
+	url = git@github.com:Korchy/blender_autocomplete.git
+[submodule "pdoc"]
+	path = pdoc
+	url = git@github.com:pdoc3/pdoc.git
