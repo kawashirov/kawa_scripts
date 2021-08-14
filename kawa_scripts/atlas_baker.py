@@ -36,6 +36,7 @@ import typing as _typing
 if _typing.TYPE_CHECKING:
 	from typing import *
 	from bpy.types import *
+	from bmesh.types import *
 	from mathutils import Vector
 
 
@@ -166,6 +167,10 @@ class BaseAtlasBaker:
 		# Вспомогательный объект, необходимый для запекания атласа
 		self._bake_obj = None  # type: Optional[Object]
 		self._node_editor_override = False
+		# Для _apply_baked_materials_bmesh
+		# Используем общий, что бы не пересоздовать его каждый раз
+		self._bmesh_loops_mem = set()  # type: Set[int]
+		self._bmesh_loops_mem_hits = 0
 	
 	# # # Переопределяемые методы # # #
 	
@@ -877,13 +882,6 @@ class BaseAtlasBaker:
 		return tmat
 	
 	def _apply_baked_materials(self):
-		# TODO нужно как-то оптимизировать это говно
-		# Для каждого материала смотрим каждый материала слот
-		# Смотрим каждый полигон, если у него верный слот,
-		# То берем средню UV и перебераем все transformы,
-		# Нашли transform? запоминаем.
-		# После обхода всех полигонов материала применяем transform на найденые индексы.
-		
 		_log.info("Applying UV...")
 		mat_i, obj_i = 0, 0
 		reporter = _LambdaReporter(self.report_time)
@@ -896,7 +894,16 @@ class BaseAtlasBaker:
 		self._perf_iter_polys = 0
 		
 		for obj in self.objects:
-			self._apply_baked_materials_on_obj(obj)
+			bm = None
+			try:
+				mesh = _commons.get_mesh_safe(obj)
+				bm = _bmesh_new()
+				bm.from_mesh(mesh)
+				self._apply_baked_materials_bmesh(obj, mesh, bm)
+				bm.to_mesh(mesh)
+			finally:
+				if bm is not None:
+					bm.free()
 			obj_i += 1
 			mat_i += len(obj.material_slots)
 			reporter.ask_report(False)
@@ -905,8 +912,11 @@ class BaseAtlasBaker:
 		_log.info("Perf: find_transform: {0}, apply_transform: {1}, iter_polys: {2}".format(
 			self._perf_find_transform, self._perf_apply_transform, self._perf_iter_polys))
 	
-	def _apply_baked_materials_on_obj(self, obj: 'Object'):
-		mesh = _commons.get_mesh_safe(obj)
+	def _apply_baked_materials_bmesh(self, obj: 'Object', mesh: 'Mesh', bm: 'BMesh'):
+		# Через BMesh редактировать UV намного быстрее.
+		# Прямой доступ к UV слоям через bpy.types.Mesh раза в 4 медленее.
+		self._bmesh_loops_mem.clear()
+		self._bmesh_loops_mem_hits = 0
 		for material_index in range(len(mesh.materials)):
 			source_mat = mesh.materials[material_index]
 			transforms = self._transforms.get(source_mat)
@@ -917,19 +927,23 @@ class BaseAtlasBaker:
 			epsilon = self._get_epsilon_safe(obj, source_mat)
 			src_size_x, src_size_y = self._matsizes[source_mat]
 			epsilon_x, epsilon_y = epsilon / src_size_x / 2, epsilon / src_size_y / 2
-			
-			maps = dict()  # type: Dict[int, UVTransform]
 			target_mat = self._materials.get((obj, source_mat))
-			uv_data = self._get_uv_data_safe(obj, source_mat, mesh)
-			
+			uv_name = self.get_uv_name(obj, source_mat) or 0
+			bm_uv_layer = bm.loops.layers.uv[uv_name]
+			# Здесь мы, получается, обходм все фейсы по несколько раз (на каждый материал)
+			# Но это лучше, чем проходить один раз, но каждый раз дёргать
+			# dict.get(bm_face.material_index) и распаковывать метаданные
 			_t3 = _perf_counter()
-			for poly in mesh.polygons:
-				if poly.material_index != material_index:
+			for bm_face in bm.faces:
+				if bm_face.material_index != material_index:
 					continue
+				# Среднее UV фейса. По идее можно брать любую точку для теста принадлежности,
+				# но я не хочу проблем с пограничными случаями.
+				# Нужно тестировать, скорее всего тут можно ускорить.
 				mean_uv = _Vector((0, 0))
-				for loop in poly.loop_indices:
-					mean_uv = mean_uv + uv_data[loop].uv
-				mean_uv /= len(poly.loop_indices)
+				for bm_loop in bm_face.loops:
+					mean_uv += bm_loop[bm_uv_layer].uv
+				mean_uv /= len(bm_face.loops)
 				transform = None
 				# Поиск трансформа для данного полигона
 				_t1 = _perf_counter()
@@ -943,25 +957,32 @@ class BaseAtlasBaker:
 					# Такая ситуация не должна случаться:
 					# Если материал подлежал запеканию, то все участки должны были ранее покрыты трансформами.
 					msg = 'No UV transform for Obj={0}, Mesh={1}, SMat={2}, Poly={3}, UV={4}, Transforms:' \
-						.format(repr(obj.name), repr(mesh.name), repr(source_mat.name), repr(mean_uv), poly)
+						.format(repr(obj.name), repr(mesh.name), repr(source_mat.name), repr(bm_face), repr(mean_uv))
 					_log.error(msg)
 					for transform in transforms:
 						_log.error('\t- {}'.format(repr(transform)))
-					raise AssertionError(msg, obj, source_mat, poly, mean_uv, transforms)
-				for loop in poly.loop_indices:
-					maps[loop] = transform
+					raise AssertionError(msg, obj, source_mat, repr(bm_face), mean_uv, transforms)
+				_t2 = _perf_counter()
+				for bm_loop in bm_face.loops:
+					if bm_loop.index in self._bmesh_loops_mem:
+						# Что бы не применить трансформ дважды к одному loop
+						# Хотя как я понял в bmesh они не переиспользуются
+						# Нужно изучать, возможно можно убрать self._already_processed_loops вовсе
+						self._bmesh_loops_mem_hits += 1
+						continue
+					self._bmesh_loops_mem.add(bm_loop.index)
+					vec2 = bm_loop[bm_uv_layer].uv
+					vec2 = transform.apply(vec2)
+					bm_loop[bm_uv_layer].uv = vec2
+				self._perf_apply_transform += _perf_counter() - _t2
 			self._perf_iter_polys += _perf_counter() - _t3
-			# Применение трансформов.
-			_t2 = _perf_counter()
-			for loop, transform in maps.items():
-				# TODO по результатам замеров тут самая тормозная точка,
-				# надо подумать о том как это распараллелить или типа того.
-				vec2 = uv_data[loop].uv  # type: Vector
-				vec2 = transform.apply(vec2)
-				uv_data[loop].uv = vec2
-			self._perf_apply_transform += _perf_counter() - _t2
+			# Внимание! Меняем меш, хотя потом она будет перезаписана из bmesh.
+			# Но это ОК, т.к. bmesh похуй на материалы, там хранятся только индексы.
 			mesh.materials[material_index] = target_mat
 			obj.material_slots[material_index].material = target_mat
+		if _log.is_debug():
+			_log.info("BMesh loops hits for {} = {}".format(repr(obj.name), repr(self._bmesh_loops_mem_hits)))
+		self._bmesh_loops_mem.clear()
 	
 	def bake_atlas(self):
 		"""
