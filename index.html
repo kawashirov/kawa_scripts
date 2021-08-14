@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
 <meta name="generator" content="pdoc 0.10.0" />
 <title>kawa_scripts API documentation</title>
-<meta name="description" content="`kawa_scripts` is an addon and package of useful methods for Blender 2.8x+
+<meta name="description" content="`kawa_scripts` is an addon and package of useful methods for **Blender 2.8x+**
 made by Kawashirov.
 It&#39;s designed to use mostly form Python interactive …" />
 <link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
@@ -24,18 +24,75 @@ It&#39;s designed to use mostly form Python interactive …" />
 <h1 class="title">Package <code>kawa_scripts</code></h1>
 </header>
 <section id="section-intro">
-<p><code><a title="kawa_scripts" href="#kawa_scripts">kawa_scripts</a></code> is an addon and package of useful methods for Blender 2.8x+
+<p><code><a title="kawa_scripts" href="#kawa_scripts">kawa_scripts</a></code> is an addon and package of useful methods for <strong>Blender 2.8x+</strong>
 made by Kawashirov.
 It's designed to use mostly form Python interactive console or from Python scripts.</p>
 <p>Basically this addon provides powerful tool for making fully-automated script
 for preparing, finalizing and baking lots of raw parts (Objects, Meshes, Modifiers, Materials)
 into few export-ready assets.</p>
-<p>For example, my world "Russian Apartament: Хрущевка" for VRChat and ChilloutVR uses this pack
-for baking 400+ materials into single 4K x 4K PBR atlas!
-And every time I edit something in my project I don't need to setup anything: just running building script,
-waiting a few minutes, and my .fbx + .png atlases are ready to be put in Unity project.</p>
 <p>Besides internal API for building, there is a few useful operators,
 especially for editing Shape Keys (see <code><a title="kawa_scripts.shapekeys" href="shapekeys.html">kawa_scripts.shapekeys</a></code>) and applying Modifiers (see <code><a title="kawa_scripts.modifiers" href="modifiers.html">kawa_scripts.modifiers</a></code>).</p>
+<p><strong>Documentation is not yet finished, sorry.</strong>
+<strong>My English is not very good, also sorry.</strong></p>
+<h1 id="downloads-installation-and-contacts">Downloads, Installation and Contacts</h1>
+<p>You can find everything related to this on a <strong><a href="https://github.com/kawashirov/kawa_scripts">Github page</a></strong>.</p>
+<p><code><a title="kawa_scripts" href="#kawa_scripts">kawa_scripts</a></code> distributed as <a href="https://docs.blender.org/manual/en/latest/advanced/scripting/addon_tutorial.html">Blender addon</a>.
+Addon should work on all verisons of Blender <strong>from 2.80</strong>, but <strong>2.9x</strong> is recommended.</p>
+<p>You can find ready-to-install zipped addon on <strong><a href="https://github.com/kawashirov/kawa_scripts/releases">Releases page</a></strong>.</p>
+<p>To install you should go <em>Edit</em> &gt; <em>Preferences</em> &gt; <em>Add-ons</em>, click "<em>Install</em>" and select downloaded <code>.zip</code> archive.</p>
+<p><img alt="addons_page.png" src="https://i.imgur.com/uwdhl2v.png"></p>
+<p>There is no any auto-updaters, if you want to upgrade <code><a title="kawa_scripts" href="#kawa_scripts">kawa_scripts</a></code>,
+you should remove old version and install fresh one.</p>
+<p>After installation, you can use all features programmatically without UI
+by <code>import kawa_sripts</code> in Python Console or in <code>.py</code> text assets. </p>
+<h3 id="you-can-contact-me-here">You can contact me here:</h3>
+<ul>
+<li>Discord: <code>kawashirov#8363</code></li>
+<li>VRChatRU Discord: <a href="https://discord.gg/mxHxk3B"><code>mxHxk3B</code></a></li>
+<li>Twitter: <a href="https://twitter.com/kawashirov">@kawashirov</a></li>
+<li>Github: <a href="https://github.com/kawashirov">kawashirov</a></li>
+<li>VRChat: <a href="https://vrchat.com/home/user/usr_62eb0df9-7b6d-480f-be82-fd1b945e98aa">kawashirov</a></li>
+</ul>
+<p>Please follow and support me on ko-fi too ❤</p>
+<p><a href="https://ko-fi.com/kawashirov"><img alt="SupportMe_blue@60.png" src="https://i.imgur.com/b8bSntD.png"></a></p>
+<h1 id="features">Features</h1>
+<p>TODO ¯_(ツ)_/¯</p>
+<h1 id="how-to-use-example-of-vrchat-world-russian-apartament">How to use. Example of VRChat world: Russian Apartament: Хрущевка</h1>
+<p>My world <a href="https://vrchat.com/home/world/wrld_a5aa8c95-1903-4ce1-a2df-0027964e4b3e">"Russian Apartament: Хрущевка" for VRChat</a>
+uses this addon for baking large hierarchy of objects and 400+ materials
+into few combined objects and single 4K x 4K PBR atlas!</p>
+<p>And every time I change something in my project I don't need to set up anything: just
+<a href="https://gist.github.com/kawashirov/76041f63f2be37c398df9c89fec30e5c">running building script <code>bake2.py</code></a>,
+waiting a few minutes, and my <code>.fbx</code> + <code>.png</code> atlases are ready to be put into Unity project.</p>
+<p>You can use this building script as reference. Most of the features in <code><a title="kawa_scripts" href="#kawa_scripts">kawa_scripts</a></code>
+I implemented for my projects, especially this one.</p>
+<p>There is some utility functions in <code>bake2.py</code>, but main are <code>make_working_hierarchy</code> and <code>make_atlas</code>.</p>
+<h3 id="first-one-make_working_hierarchy">First one, <code>make_working_hierarchy</code></h3>
+<p>Does the following:</p>
+<ul>
+<li>Duplicates entire hierarchy of raw Objects into separate scene.</li>
+<li>Applies proper objects naming to duplicated hierarchy.</li>
+<li>Instantiates all collections (with proper objects naming).</li>
+<li>Makes single-user objects</li>
+<li>Converts non-mesh (Curves) objects into mesh-objects</li>
+<li>Instantiates all material slots (Object-overrides)</li>
+<li>Applies all modifiers of Objects.</li>
+<li>Applies all transform scales</li>
+<li>Combines some parts of hierarchy with a lots of small objects into few large objects.</li>
+</ul>
+<p>All these complex operations made using <code><a title="kawa_scripts.instantiator.BaseInstantiator" href="instantiator.html#kawa_scripts.instantiator.BaseInstantiator">BaseInstantiator</a></code> and <code><a title="kawa_scripts.combiner.BaseMeshCombiner" href="combiner.html#kawa_scripts.combiner.BaseMeshCombiner">BaseMeshCombiner</a></code>.</p>
+<p>For example this complex hierarchy:</p>
+<p><img alt="combiner_example_before.png" src="https://i.imgur.com/hA9Od1G.png"></p>
+<p>flattens to this:</p>
+<p><img alt="combiner_example_after.png" src="https://i.imgur.com/7QcrBDT.png"></p>
+<h3 id="second-one-make_atlas">Second one, <code>make_atlas</code></h3>
+<p>Packs most of the materials into large texture atlas:
+<a href="https://i.imgur.com/7T1sE37.jpg"><img alt="KhrushchyovkaAtlas-D+A.png" width="480" height="480" src="https://i.imgur.com/7T1sE37.jpg"/></a></p>
+<p>(Image scaled down to 2k because of hosting limits.)</p>
+<p>There is almost full support of PBR layers such as Normals, Metallic, Smoothness, Emission.
+Atlas is baked using Blender's bake features,
+so you can build own complex PBR materials using Cycles shader nodes
+and bake them together with other materials into same texture atlas.</p>
 <details class="source">
 <summary>
 <span>Expand source code</span>
@@ -51,7 +108,7 @@ especially for editing Shape Keys (see <code><a title="kawa_scripts.shapekeys" h
 #
 
 &#34;&#34;&#34;
-`kawa_scripts` is an addon and package of useful methods for Blender 2.8x+
+`kawa_scripts` is an addon and package of useful methods for **Blender 2.8x+**
 made by Kawashirov.
 It&#39;s designed to use mostly form Python interactive console or from Python scripts.
 
@@ -59,13 +116,13 @@ Basically this addon provides powerful tool for making fully-automated script
 for preparing, finalizing and baking lots of raw parts (Objects, Meshes, Modifiers, Materials)
 into few export-ready assets.
 
-For example, my world &#34;Russian Apartament: Хрущевка&#34; for VRChat and ChilloutVR uses this pack
-for baking 400+ materials into single 4K x 4K PBR atlas!
-And every time I edit something in my project I don&#39;t need to setup anything: just running building script,
-waiting a few minutes, and my .fbx + .png atlases are ready to be put in Unity project.
-
 Besides internal API for building, there is a few useful operators,
 especially for editing Shape Keys (see `shapekeys`) and applying Modifiers (see `modifiers`).
+
+**Documentation is not yet finished, sorry.**
+**My English is not very good, also sorry.**
+
+.. include:: ./documentation.md
 &#34;&#34;&#34;
 
 from collections import OrderedDict as _OrderedDict
@@ -342,7 +399,18 @@ See <code><a title="kawa_scripts.tex_size_finder.TexSizeFinder" href="tex_size_f
 <nav id="sidebar">
 <h1>Index</h1>
 <div class="toc">
-<ul></ul>
+<ul>
+<li><a href="#downloads-installation-and-contacts">Downloads, Installation and Contacts</a><ul>
+<li><a href="#you-can-contact-me-here">You can contact me here:</a></li>
+</ul>
+</li>
+<li><a href="#features">Features</a></li>
+<li><a href="#how-to-use-example-of-vrchat-world-russian-apartament">How to use. Example of VRChat world: Russian Apartament: Хрущевка</a><ul>
+<li><a href="#first-one-make_working_hierarchy">First one, make_working_hierarchy</a></li>
+<li><a href="#second-one-make_atlas">Second one, make_atlas</a></li>
+</ul>
+</li>
+</ul>
 </div>
 <ul id="index">
 <li><h3><a href="#header-submodules">Sub-modules</a></h3>
