@@ -66,19 +66,27 @@ def _any_weight(mesh: &#39;Mesh&#39;, group_index: &#39;int&#39;, limit: &#39;fl
 
 def remove_empty(objs: &#39;Iterable[Object]&#39;, limit: &#39;float&#39; = 0.0, ignore_locked: &#39;bool&#39; = False, op: &#39;Operator&#39; = None) -&gt; &#39;Tuple[int, int]&#39;:
         &#34;&#34;&#34;
-        **Удаляет пустые Vertex Groups с указанных объектов.**
-        Если режим объекта не `OBJECT`, то он игнорируется с предупреждением.
-        Такой оператор уже еть в CATS, но кое-кто попросил меня сделать его отдельно т.к.
-        *&#34;Срашно, очень страшно пользоваться CATSом, опять поломает мне всю модельку.&#34;*
-        Vertex Group считается пустым, если все его веса вершин имеют значение меньше либо равное `limit`.
-        Если `limit` меньше нуля, то тогда любой (даже нулевой) вес считается не-пустым.
-        Если `ignore_locked`, то заблокированные группы (с флагом lock_weight) не будут удаляться.
+        **Removes empty Vertex Groups from given objects.**
         
-        Возвращает: `(removed_groups, removed_objects)`, где
-        `removed_groups` - сколько групп было удалено,
-        `removed_objects` - из скольки объектов было удалено.
+        Vertex Group is empty, if every it&#39;s weight is less or equals `limit`.
+        If `limit` is less than zero, then any weight (even zero) counted as non-empty
+        (in this case Vertex Group will be removed only if it&#39;s not assigned at all).
         
-        Доступен из UI как оператор `kawa.vertex_group_remove_empty`
+        If `ignore_locked` is set, then locked Vertex Groups (with `lock_weight` flag)
+        will not be removed.
+        
+        If object mode is not `OBJECT` it is ignored with warning.
+        (You must ensure there is no objets in edit-mode.)
+        
+        Returns: `(removed_groups, removed_objects)`, where
+        `removed_groups` - how many Vertex Group were removed (`int`),
+        `removed_objects` - how many objects were removed from (`int`).
+        
+        This feature already exist in *CATS Blender Plugin*,
+        but my friend asked me to implement it separately by myself because
+        &#34;*It&#39;s very scary to use CATS, it will break my whole model again.*&#34;
+        
+        Available as operator `OperatorRemoveEmpty`.
         &#34;&#34;&#34;
         removed_groups, removed_objects = 0, 0
         for obj in objs:
@@ -110,6 +118,12 @@ class OperatorRemoveEmpty(_KawaOperator):
         
         bl_idname = &#34;kawa.vertex_group_remove_empty&#34;
         bl_label = &#34;Remove Empty Vertex Groups&#34;
+        bl_description = &#34;\n&#34;.join((
+                &#34;Vertex Group is empty, if every it&#39;s weight is less or equals `limit`.&#34;,
+                &#34;If `limit` is less than zero, then any weight (even zero) counted as non-empty&#34;,
+                &#34;(in this case Vertex Group will be removed only if it&#39;s not assigned at all).&#34;,
+                &#34;If `ignore_locked` is set, then locked Vertex Groups (with `lock_weight` flag) will not be removed.&#34;
+        ))
         bl_options = {&#39;REGISTER&#39;, &#39;UNDO&#39;}
         
         limit: _bpy.props.FloatProperty(
@@ -166,36 +180,48 @@ _doc.process_blender_classes(__pdoc__, classes)</code></pre>
 <span>def <span class="ident">remove_empty</span></span>(<span>objs: Iterable[Object], limit: float = 0.0, ignore_locked: bool = False, op: Operator = None) ‑> Tuple[int, int]</span>
 </code></dt>
 <dd>
-<div class="desc"><p><strong>Удаляет пустые Vertex Groups с указанных объектов.</strong>
-Если режим объекта не <code>OBJECT</code>, то он игнорируется с предупреждением.
-Такой оператор уже еть в CATS, но кое-кто попросил меня сделать его отдельно т.к.
-<em>"Срашно, очень страшно пользоваться CATSом, опять поломает мне всю модельку."</em>
-Vertex Group считается пустым, если все его веса вершин имеют значение меньше либо равное <code>limit</code>.
-Если <code>limit</code> меньше нуля, то тогда любой (даже нулевой) вес считается не-пустым.
-Если <code>ignore_locked</code>, то заблокированные группы (с флагом lock_weight) не будут удаляться.</p>
-<p>Возвращает: <code>(removed_groups, removed_objects)</code>, где
-<code>removed_groups</code> - сколько групп было удалено,
-<code>removed_objects</code> - из скольки объектов было удалено.</p>
-<p>Доступен из UI как оператор <code>kawa.vertex_group_remove_empty</code></p></div>
+<div class="desc"><p><strong>Removes empty Vertex Groups from given objects.</strong></p>
+<p>Vertex Group is empty, if every it's weight is less or equals <code>limit</code>.
+If <code>limit</code> is less than zero, then any weight (even zero) counted as non-empty
+(in this case Vertex Group will be removed only if it's not assigned at all).</p>
+<p>If <code>ignore_locked</code> is set, then locked Vertex Groups (with <code>lock_weight</code> flag)
+will not be removed.</p>
+<p>If object mode is not <code>OBJECT</code> it is ignored with warning.
+(You must ensure there is no objets in edit-mode.)</p>
+<p>Returns: <code>(removed_groups, removed_objects)</code>, where
+<code>removed_groups</code> - how many Vertex Group were removed (<code>int</code>),
+<code>removed_objects</code> - how many objects were removed from (<code>int</code>).</p>
+<p>This feature already exist in <em>CATS Blender Plugin</em>,
+but my friend asked me to implement it separately by myself because
+"<em>It's very scary to use CATS, it will break my whole model again.</em>"</p>
+<p>Available as operator <code><a title="kawa_scripts.vertex_groups.OperatorRemoveEmpty" href="#kawa_scripts.vertex_groups.OperatorRemoveEmpty">OperatorRemoveEmpty</a></code>.</p></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">def remove_empty(objs: &#39;Iterable[Object]&#39;, limit: &#39;float&#39; = 0.0, ignore_locked: &#39;bool&#39; = False, op: &#39;Operator&#39; = None) -&gt; &#39;Tuple[int, int]&#39;:
         &#34;&#34;&#34;
-        **Удаляет пустые Vertex Groups с указанных объектов.**
-        Если режим объекта не `OBJECT`, то он игнорируется с предупреждением.
-        Такой оператор уже еть в CATS, но кое-кто попросил меня сделать его отдельно т.к.
-        *&#34;Срашно, очень страшно пользоваться CATSом, опять поломает мне всю модельку.&#34;*
-        Vertex Group считается пустым, если все его веса вершин имеют значение меньше либо равное `limit`.
-        Если `limit` меньше нуля, то тогда любой (даже нулевой) вес считается не-пустым.
-        Если `ignore_locked`, то заблокированные группы (с флагом lock_weight) не будут удаляться.
+        **Removes empty Vertex Groups from given objects.**
         
-        Возвращает: `(removed_groups, removed_objects)`, где
-        `removed_groups` - сколько групп было удалено,
-        `removed_objects` - из скольки объектов было удалено.
+        Vertex Group is empty, if every it&#39;s weight is less or equals `limit`.
+        If `limit` is less than zero, then any weight (even zero) counted as non-empty
+        (in this case Vertex Group will be removed only if it&#39;s not assigned at all).
         
-        Доступен из UI как оператор `kawa.vertex_group_remove_empty`
+        If `ignore_locked` is set, then locked Vertex Groups (with `lock_weight` flag)
+        will not be removed.
+        
+        If object mode is not `OBJECT` it is ignored with warning.
+        (You must ensure there is no objets in edit-mode.)
+        
+        Returns: `(removed_groups, removed_objects)`, where
+        `removed_groups` - how many Vertex Group were removed (`int`),
+        `removed_objects` - how many objects were removed from (`int`).
+        
+        This feature already exist in *CATS Blender Plugin*,
+        but my friend asked me to implement it separately by myself because
+        &#34;*It&#39;s very scary to use CATS, it will break my whole model again.*&#34;
+        
+        Available as operator `OperatorRemoveEmpty`.
         &#34;&#34;&#34;
         removed_groups, removed_objects = 0, 0
         for obj in objs:
@@ -231,7 +257,11 @@ Vertex Group считается пустым, если все его веса в
 <dd>
 <div class="desc"><p>Operator of <code><a title="kawa_scripts.vertex_groups.remove_empty" href="#kawa_scripts.vertex_groups.remove_empty">remove_empty()</a></code>.</p>
 <p>ID name: <code>kawa.vertex_group_remove_empty</code>.</p>
-<p>Label: <code>Remove Empty Vertex Groups</code>.</p></div>
+<p>Label: <code>Remove Empty Vertex Groups</code>.</p>
+<p>Description: <code>Vertex Group is empty, if every it's weight is less or equals</code>limit<code>.
+If &lt;code&gt;limit&lt;/code&gt; is less than zero, then any weight (even zero) counted as non-empty
+(in this case Vertex Group will be removed only if it's not assigned at all).
+If &lt;code&gt;ignore\_locked&lt;/code&gt; is set, then locked Vertex Groups (with &lt;code&gt;lock\_weight&lt;/code&gt; flag) will not be removed.</code>.</p></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
@@ -243,6 +273,12 @@ Vertex Group считается пустым, если все его веса в
         
         bl_idname = &#34;kawa.vertex_group_remove_empty&#34;
         bl_label = &#34;Remove Empty Vertex Groups&#34;
+        bl_description = &#34;\n&#34;.join((
+                &#34;Vertex Group is empty, if every it&#39;s weight is less or equals `limit`.&#34;,
+                &#34;If `limit` is less than zero, then any weight (even zero) counted as non-empty&#34;,
+                &#34;(in this case Vertex Group will be removed only if it&#39;s not assigned at all).&#34;,
+                &#34;If `ignore_locked` is set, then locked Vertex Groups (with `lock_weight` flag) will not be removed.&#34;
+        ))
         bl_options = {&#39;REGISTER&#39;, &#39;UNDO&#39;}
         
         limit: _bpy.props.FloatProperty(
