@@ -12,7 +12,6 @@ Useful tools for Vertex Groups
 """
 
 import bpy as _bpy
-from bpy import context as _C
 
 from ._internals import log as _log
 from ._internals import KawaOperator as _KawaOperator

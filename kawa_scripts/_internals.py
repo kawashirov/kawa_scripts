@@ -1,7 +1,6 @@
 import logging as _logging
 
 import bpy as _bpy
-from bpy import context as _C
 
 import typing as _typing
 if _typing.TYPE_CHECKING:
@@ -12,7 +11,7 @@ if _typing.TYPE_CHECKING:
 
 def _op_report(op: 'Operator', t: 'Set[str]', message: str):
 	if op is None:
-		op = getattr(_C, 'active_operator', None)
+		op = getattr(_bpy.context, 'active_operator', None)
 	if op is not None:
 		op.report(t, message)
 

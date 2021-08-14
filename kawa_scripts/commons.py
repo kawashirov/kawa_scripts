@@ -12,7 +12,6 @@ from time import perf_counter as _perf_counter
 import contextlib as _contextlib
 
 import bpy as _bpy
-from bpy import context as _C
 from mathutils import Vector as _Vector
 from mathutils import Quaternion as _Quaternion
 from mathutils import Matrix as _Matrix
@@ -161,17 +160,17 @@ class KawaApplyParentInverseMatrices(_bpy.types.Operator):
 
 def ensure_op_result(result: 'Iterable[str]', allowed_results: 'Iterable[str]', **kwargs):
 	if set(result) >= set(allowed_results):
-		raise RuntimeError('Operator has invalid result:', result, allowed_results, list(_C.selected_objects), kwargs)
+		raise RuntimeError('Operator has invalid result:', result, allowed_results, list(_bpy.context.selected_objects), kwargs)
 
 
 def ensure_op_finished(result, **kwargs):
 	if 'FINISHED' not in result:
-		raise RuntimeError('Operator is not FINISHED: ', result, list(_C.selected_objects), kwargs)
+		raise RuntimeError('Operator is not FINISHED: ', result, list(_bpy.context.selected_objects), kwargs)
 
 
 def ensure_op_finished_or_cancelled(result, **kwargs):
 	if 'FINISHED' not in result and 'CANCELLED' not in result:
-		raise RuntimeError('Operator is not FINISHED: ', result, list(_C.selected_objects), kwargs)
+		raise RuntimeError('Operator is not FINISHED: ', result, list(_bpy.context.selected_objects), kwargs)
 
 
 def select_set_all(objects: 'Iterable[Object]', state: bool):
@@ -188,7 +187,7 @@ def select_set_all(objects: 'Iterable[Object]', state: bool):
 def activate_object(obj: 'Object'):
 	obj.hide_set(False)
 	obj.select_set(True)
-	_C.view_layer.objects.active = obj
+	_bpy.context.view_layer.objects.active = obj
 
 
 def activate_objects(objs: 'Iterable[Object]'):
@@ -199,9 +198,9 @@ def activate_objects(objs: 'Iterable[Object]'):
 def ensure_deselect_all_objects():
 	# ensure_op_finished(bpy.ops.object.select_all(action='DESELECT'), name="bpy.ops.object.select_all(action='DESELECT')")
 	# Это быстрее, чем оператор, и позволяет отжать скрытые объекты
-	# _C.selected_objects выдаёт AttributeError: '_RestrictContext' object has no attribute 'selected_objects'
-	while len(_C.view_layer.objects.selected) > 0:
-		_C.view_layer.objects.selected[0].select_set(False)
+	# bpy.context.selected_objects выдаёт AttributeError: '_RestrictContext' object has no attribute 'selected_objects'
+	while len(_bpy.context.view_layer.objects.selected) > 0:
+		_bpy.context.view_layer.objects.selected[0].select_set(False)
 
 
 class _TemporaryViewLayer(_contextlib.ContextDecorator):
@@ -213,22 +212,22 @@ class _TemporaryViewLayer(_contextlib.ContextDecorator):
 		self.original_view_layer = None  # type: ViewLayer
 	
 	def __enter__(self):
-		self.scene = _C.scene
-		self.original_view_layer = _C.view_layer
+		self.scene = _bpy.context.scene
+		self.original_view_layer = _bpy.context.view_layer
 		name = '__Temporary'
 		if self.name:
 			name += '-' + self.name
 		self.temp_view_layer = self.scene.view_layers.new(name)
-		# _C.window.view_layer = self.temp_view_layer
-		_C.view_layer = self.temp_view_layer
+		# _bpy.context.window.view_layer = self.temp_view_layer
+		_bpy.context.view_layer = self.temp_view_layer
 		return self
 	
 	def __exit__(self, *exc):
 		try:
-			# _C.window.scene = self.scene
-			# _C.window.view_layer = self.original_view_layer
-			_C.scene = self.scene
-			_C.view_layer = self.original_view_layer
+			# _bpy.context.window.scene = self.scene
+			# _bpy.context.window.view_layer = self.original_view_layer
+			_bpy.context.scene = self.scene
+			_bpy.context.view_layer = self.original_view_layer
 			self.scene.view_layers.remove(self.temp_view_layer)
 		except ReferenceError:
 			pass  # this is fine
@@ -242,8 +241,8 @@ class SaveSelection(_contextlib.ContextDecorator):
 		self.selected = None  # type: List[Object]
 	
 	def __enter__(self):
-		self.last_active_object = _C.view_layer.objects.active
-		self.selected = list(_C.view_layer.objects.selected)
+		self.last_active_object = _bpy.context.view_layer.objects.active
+		self.selected = list(_bpy.context.view_layer.objects.selected)
 		return self
 	
 	# def hide_set(self, obj: 'Object', state: 'bool'):
@@ -263,14 +262,14 @@ class SaveSelection(_contextlib.ContextDecorator):
 	# def activate_object(self, obj: 'Object'):
 	# 	self.hide_set(obj, False)
 	# 	self.select_set(obj, True)
-	# 	_C.view_layer.objects.selected = obj
+	# 	_bpy.context.view_layer.objects.selected = obj
 	#
 	# def activate_objects(self, objs: 'Iterable[Object]'):
 	# 	for obj in objs:
 	# 		self.activate_object(obj)
 	
 	def __exit__(self, *exc):
-		for obj in _C.view_layer.objects:
+		for obj in _bpy.context.view_layer.objects:
 			obj.select_set(obj in self.selected)
 		# if self.hide_state is not None:
 		# 	for obj, state in self.hide_state.items():
@@ -285,7 +284,7 @@ class SaveSelection(_contextlib.ContextDecorator):
 		# 		except ReferenceError:
 		# 			pass  # object invalid, this is fine
 		try:
-			_C.view_layer.objects.active = self.last_active_object
+			_bpy.context.view_layer.objects.active = self.last_active_object
 		except ReferenceError:
 			pass  # object invalid, this is fine
 
@@ -327,14 +326,14 @@ def remove_all_vertex_colors(obj: 'Object'):
 
 def remove_all_material_slots(obj: 'Object', slots=0):
 	while len(obj.material_slots) > slots:
-		_C.view_layer.objects.active = obj
+		_bpy.context.view_layer.objects.active = obj
 		ensure_op_finished(_bpy.ops.object.material_slot_remove(), name='bpy.ops.object.material_slot_remove')
 
 
 def find_objects_with_material(material: 'Material', where: 'Iterable[Object]' = None) -> 'Set[Object]':
 	objects = set()
 	if where is None:
-		where = _C.scene.objects
+		where = _bpy.context.scene.objects
 	for obj in where:
 		if not isinstance(obj.data, _bpy.types.Mesh):
 			continue

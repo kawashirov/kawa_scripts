@@ -9,7 +9,6 @@
 #
 
 import bpy as _bpy
-from bpy import context as _C
 
 from . import commons as _commons
 from . import shapekeys as _shapekeys
@@ -55,7 +54,7 @@ def _copy_modifier_and_move_up(ctx: 'ContextOverride', obj: 'Object', modifier_n
 
 
 def modifier_apply_compat(obj: 'Object', apply_as: 'str', modifier: 'str', keep_modifier=False, op: 'Operator' = None):
-	ctx = _C.copy()  # type: ContextOverride
+	ctx = _bpy.context.copy()  # type: ContextOverride
 	ctx['object'] = obj
 	ctx['active_object'] = obj
 	ctx['selected_objects'] = [obj]
@@ -105,7 +104,7 @@ def apply_deform_modifier_to_mesh_high_precision(mobj: 'Object', modifier: 'Modi
 		return modifier_apply_compat(mobj, 'DATA', modifier.name, keep_modifier=True)
 	#
 	# Сложный режим применения, когда есть шейп кеи на объекте
-	ctx = _C.copy()  # type: ContextOverride
+	ctx = _bpy.context.copy()  # type: ContextOverride
 	ctx['object'] = mobj
 	ctx['active_object'] = mobj
 	ctx['selected_objects'] = [mobj]
@@ -115,9 +114,9 @@ def apply_deform_modifier_to_mesh_high_precision(mobj: 'Object', modifier: 'Modi
 	# Новые объекты сохраняются в глобальный контекст, по этому нужно отлавливать их от туда
 	cobj = None
 	try:
-		selset = set(_C.selected_objects)
+		selset = set(_bpy.context.selected_objects)
 		_bpy.ops.object.duplicate(ctx)
-		selset = set(_C.selected_objects) - selset
+		selset = set(_bpy.context.selected_objects) - selset
 		assert len(selset) == 1
 		cobj = selset.pop()
 		# Удаление всего лишнего с копии
@@ -318,7 +317,7 @@ class KawaApplyArmatureToMeshesHighPrecision(_KawaOperator):
 				if 'FINISHED' in apply_deform_modifier_to_mesh_high_precision(mobj, modifier, keep_modifier=True, op=self):
 					modifc += 1
 			try:
-				# ctx = _C.copy()  # type: ContextOverride
+				# ctx = _bpy.context.copy()  # type: ContextOverride
 				# ctx['object'] = aobj
 				# ctx['active_object'] = aobj
 				# ctx['selected_objects'] = [aobj]

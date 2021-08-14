@@ -236,7 +236,7 @@ class BaseAtlasBaker:
 	
 	def _get_source_object(self, copy_obj: 'Object'):
 		name = copy_obj.get(self._PROP_ORIGIN_OBJECT)
-		origin_obj = _D.objects.get(name)
+		origin_obj = _bpy.data.objects.get(name)
 		return origin_obj
 	
 	def _get_matsize_safe(self, mat: 'Material') -> 'Tuple[float, float]':
@@ -347,7 +347,7 @@ class BaseAtlasBaker:
 			obj[self._PROP_ORIGIN_OBJECT] = obj.name
 			obj.data[self._PROP_ORIGIN_MESH] = obj.data.name
 		_commons.ensure_op_finished(_bpy.ops.object.duplicate(linked=False), name='bpy.ops.object.duplicate')
-		self._copies.update(_C.selected_objects)
+		self._copies.update(_bpy.context.selected_objects)
 		# Меченые имена, что бы если скрипт крашнется сразу было их видно
 		for obj in self._copies:
 			obj_name = obj.get(self._PROP_ORIGIN_OBJECT) or 'None'
@@ -364,7 +364,7 @@ class BaseAtlasBaker:
 		_commons.activate_objects(self._copies)
 		_commons.ensure_op_finished(_bpy.ops.mesh.separate(type='MATERIAL'), name='bpy.ops.mesh.separate')
 		count = len(self._copies)
-		self._copies.update(_C.selected_objects)
+		self._copies.update(_bpy.context.selected_objects)
 		_commons.ensure_deselect_all_objects()
 		_log.info("Separated {0} -> {1} temp objects".format(count, len(self._copies)))
 	
@@ -393,8 +393,8 @@ class BaseAtlasBaker:
 			cobj.hide_set(False)
 			cobj.select_set(True)
 		_commons.ensure_op_finished(_bpy.ops.object.delete(use_global=True, confirm=True), name='bpy.ops.object.delete')
-		if len(_C.selected_objects) > 0:  # TODO
-			raise RuntimeError("len(bpy.context.selected_objects) > 0", list(_C.selected_objects))
+		if len(_bpy.context.selected_objects) > 0:  # TODO
+			raise RuntimeError("len(bpy.context.selected_objects) > 0", list(_bpy.context.selected_objects))
 		for cobj in to_delete:
 			self._copies.discard(cobj)
 		_log.info("Removed {0} temp objects, left {1} objects.".format(len(to_delete), len(self._copies)))
@@ -490,8 +490,8 @@ class BaseAtlasBaker:
 			obj.hide_set(False)
 			obj.select_set(True)
 		_commons.ensure_op_finished(_bpy.ops.object.delete(use_global=True, confirm=True), name='bpy.ops.object.delete')
-		if len(_C.selected_objects) > 0:  # TODO
-			raise RuntimeError("len(bpy.context.selected_objects) > 0", list(_C.selected_objects))
+		if len(_bpy.context.selected_objects) > 0:  # TODO
+			raise RuntimeError("len(bpy.context.selected_objects) > 0", list(_bpy.context.selected_objects))
 		_log.info("Removed {0} temp objects.".format(count))
 	
 	def _create_transforms_from_islands(self):
@@ -550,7 +550,7 @@ class BaseAtlasBaker:
 	
 	def _prepare_bake_obj(self):
 		_commons.ensure_deselect_all_objects()
-		mesh = _D.meshes.new("__Kawa_Bake_UV_Mesh")  # type: Mesh
+		mesh = _bpy.data.meshes.new("__Kawa_Bake_UV_Mesh")  # type: Mesh
 		# Создаем столько полигонов, сколько трансформов
 		bm = _bmesh_new()
 		try:
@@ -590,13 +590,13 @@ class BaseAtlasBaker:
 		
 		# Вставляем меш на сцену и активируем
 		_commons.ensure_deselect_all_objects()
-		for obj in _C.scene.objects:
+		for obj in _bpy.context.scene.objects:
 			obj.hide_render = True
 			obj.hide_set(True)
-		self._bake_obj = _D.objects.new("__Kawa_Bake_UV_Object", mesh)  # add a new object using the mesh
-		_C.scene.collection.objects.link(self._bake_obj)
+		self._bake_obj = _bpy.data.objects.new("__Kawa_Bake_UV_Object", mesh)  # add a new object using the mesh
+		_bpy.context.scene.collection.objects.link(self._bake_obj)
 		# Debug purposes
-		for area in _C.screen.areas:
+		for area in _bpy.context.screen.areas:
 			if area.type == 'VIEW_3D':
 				for region in area.regions:
 					if region.type == 'WINDOW':
@@ -649,7 +649,7 @@ class BaseAtlasBaker:
 		if self._node_editor_override is not False:
 			return self._node_editor_override
 		self._node_editor_override = None
-		for screen in _D.screens:
+		for screen in _bpy.data.screens:
 			for area_idx in range(len(screen.areas)):
 				area = screen.areas[area_idx]
 				if area.type == 'NODE_EDITOR':
@@ -800,7 +800,7 @@ class BaseAtlasBaker:
 		_commons.ensure_deselect_all_objects()
 		_commons.activate_object(self._bake_obj)
 		_commons.ensure_op_finished(_bpy.ops.object.duplicate(linked=False), name='bpy.ops.object.duplicate')
-		local_bake_obj = _C.view_layer.objects.active
+		local_bake_obj = _bpy.context.view_layer.objects.active
 		self._bake_obj.hide_set(True)
 		_commons.ensure_deselect_all_objects()
 		_commons.activate_object(local_bake_obj)
@@ -817,14 +817,14 @@ class BaseAtlasBaker:
 		
 		emit_types = ('EMIT', 'ALPHA', 'DIFFUSE', 'METALLIC', 'ROUGHNESS')
 		cycles_bake_type = 'EMIT' if bake_type in emit_types else bake_type
-		_C.scene.cycles.bake_type = cycles_bake_type
-		_C.scene.render.bake.use_pass_direct = False
-		_C.scene.render.bake.use_pass_indirect = False
-		_C.scene.render.bake.use_pass_color = False
-		_C.scene.render.bake.use_pass_emit = bake_type in emit_types
-		_C.scene.render.bake.normal_space = 'TANGENT'
-		_C.scene.render.bake.margin = 64
-		_C.scene.render.bake.use_clear = True
+		_bpy.context.scene.cycles.bake_type = cycles_bake_type
+		_bpy.context.scene.render.bake.use_pass_direct = False
+		_bpy.context.scene.render.bake.use_pass_indirect = False
+		_bpy.context.scene.render.bake.use_pass_color = False
+		_bpy.context.scene.render.bake.use_pass_emit = bake_type in emit_types
+		_bpy.context.scene.render.bake.normal_space = 'TANGENT'
+		_bpy.context.scene.render.bake.margin = 64
+		_bpy.context.scene.render.bake.use_clear = True
 		
 		self._call_before_bake_safe(bake_type, target_image)
 		
@@ -839,10 +839,10 @@ class BaseAtlasBaker:
 		
 		garbage_materials = set(slot.material for slot in local_bake_obj.material_slots)
 		mesh = local_bake_obj.data
-		_C.blend_data.objects.remove(local_bake_obj, do_unlink=True)
-		_C.blend_data.meshes.remove(mesh, do_unlink=True)
+		_bpy.context.blend_data.objects.remove(local_bake_obj, do_unlink=True)
+		_bpy.context.blend_data.meshes.remove(mesh, do_unlink=True)
 		for mat in garbage_materials:
-			_C.blend_data.materials.remove(mat, do_unlink=True)
+			_bpy.context.blend_data.materials.remove(mat, do_unlink=True)
 		
 		self._call_after_bake_safe(bake_type, target_image)
 	

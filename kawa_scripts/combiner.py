@@ -15,8 +15,6 @@ See `kawa_scripts.combiner.BaseMeshCombiner`.
 from collections import deque as _deque
 
 import bpy as _bpy
-from bpy import data as _D
-from bpy import context as _C
 
 from . import commons as _commons
 from .reporter import LambdaReporter as _LambdaReporter
@@ -138,7 +136,7 @@ class BaseMeshCombiner:
 		pass
 	
 	def _check_roots(self):
-		scene = self.scene or _C.scene
+		scene = self.scene or _bpy.context.scene
 		wrong = list()
 		for root_name in self.roots_names:
 			if root_name not in scene.collection.objects:
@@ -154,9 +152,9 @@ class BaseMeshCombiner:
 		# TODO Довольно много итераций, можно ли это как-то ускорить?
 		related = list()
 		for obja_n in self.roots_names:
-			obja = _D.objects[obja_n]
+			obja = _bpy.data.objects[obja_n]
 			for objb_n in self.roots_names:
-				objb = _D.objects[objb_n]
+				objb = _bpy.data.objects[objb_n]
 				if obja is objb:
 					continue
 				objc = obja
@@ -196,7 +194,7 @@ class BaseMeshCombiner:
 		# log.info("Joining: %s <- %s", target.name, children)
 		_commons.ensure_deselect_all_objects()
 		for child_name in children:
-			obj = _D.objects[child_name]
+			obj = _bpy.data.objects[child_name]
 			obj.hide_set(False)
 			obj.select_set(True)
 			_commons.move_children_to_grandparent(obj)
@@ -222,13 +220,13 @@ class BaseMeshCombiner:
 	
 	def _process_root(self, root_name: 'str') -> 'int':
 		# Поиск меш-объектов-детей root на этой же сцене.
-		scene_objs = (self.scene or _C.scene).collection.objects
+		scene_objs = (self.scene or _bpy.context.scene).collection.objects
 		children_queue = _deque()  # type: Deque[str]
 		children = set()  # type: Set[str]
-		children_queue.extend(x.name for x in _D.objects[root_name].children)
+		children_queue.extend(x.name for x in _bpy.data.objects[root_name].children)
 		while len(children_queue) > 0:
 			child_name = children_queue.pop()
-			child = _D.objects[child_name]
+			child = _bpy.data.objects[child_name]
 			children_queue.extend(x.name for x in child.children)
 			if child_name not in scene_objs:
 				continue
@@ -252,8 +250,8 @@ class BaseMeshCombiner:
 		# log.info('%s %s', root_name, repr(groups))
 	
 		def create_mesh_obj(name):
-			new_mesh = _D.meshes.new(name + '-Mesh')
-			new_obj = _D.objects.new(name, object_data=new_mesh)
+			new_mesh = _bpy.data.meshes.new(name + '-Mesh')
+			new_obj = _bpy.data.objects.new(name, object_data=new_mesh)
 			new_obj.name = name  # force rename
 			scene_objs.link(new_obj)
 			return new_obj
@@ -264,13 +262,13 @@ class BaseMeshCombiner:
 		for group_name, obj_group in groups.items():
 			join_to = None
 			if group_name is None:
-				if isinstance(_D.objects[root_name].data, _bpy.types.Mesh):
+				if isinstance(_bpy.data.objects[root_name].data, _bpy.types.Mesh):
 					# root - Это меш, приклееваем к нему.
-					join_to = _D.objects[root_name]
+					join_to = _bpy.data.objects[root_name]
 				elif self.force_mesh_root:
 					# root - Это НЕ меш, но force_mesh_root.
 					base_name = root_name
-					old_root = _D.objects[root_name]
+					old_root = _bpy.data.objects[root_name]
 					old_root.name = base_name + '-Replaced'
 					self.replaced_objects.add(old_root.name)
 					join_to = create_mesh_obj(base_name)
@@ -290,13 +288,13 @@ class BaseMeshCombiner:
 					# root - Это НЕ меш, создаём подгруппу.
 					join_to = create_mesh_obj(root_name + '-' + self.default_group)
 					self.created_objects.add(join_to.name)
-					join_to.parent = _D.objects[root_name]
+					join_to.parent = _bpy.data.objects[root_name]
 					join_to.parent_type = 'OBJECT'
 					_commons.identity_transform(join_to)
 			else:
 				join_to = create_mesh_obj(root_name + '-' + group_name)
 				self.created_objects.add(join_to.name)
-				join_to.parent = _D.objects[root_name]
+				join_to.parent = _bpy.data.objects[root_name]
 				join_to.parent_type = 'OBJECT'
 				_commons.identity_transform(join_to)
 			self._call_before_join(root_name, join_to.name, group_name, obj_group)
