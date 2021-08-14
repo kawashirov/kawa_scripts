@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
+<meta name="generator" content="pdoc 0.10.0" />
+<title>kawa_scripts API documentation</title>
+<meta name="description" content="`kawa_scripts` is an addon and package of useful methods for **Blender 2.8x+**
+made by Kawashirov.
+It&#39;s designed to use mostly form Python interactive …" />
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/typography.min.css" integrity="sha256-7l/o7C8jubJiy74VsKTidCy1yBkRtiUGbVkYBylBqUg=" crossorigin>
+<link rel="stylesheet preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/styles/github.min.css" crossorigin>
+<style>:root{--highlight-color:#fe9}.flex{display:flex !important}body{line-height:1.5em}#content{padding:20px}#sidebar{padding:30px;overflow:hidden}#sidebar > *:last-child{margin-bottom:2cm}.http-server-breadcrumbs{font-size:130%;margin:0 0 15px 0}#footer{font-size:.75em;padding:5px 30px;border-top:1px solid #ddd;text-align:right}#footer p{margin:0 0 0 1em;display:inline-block}#footer p:last-child{margin-right:30px}h1,h2,h3,h4,h5{font-weight:300}h1{font-size:2.5em;line-height:1.1em}h2{font-size:1.75em;margin:1em 0 .50em 0}h3{font-size:1.4em;margin:25px 0 10px 0}h4{margin:0;font-size:105%}h1:target,h2:target,h3:target,h4:target,h5:target,h6:target{background:var(--highlight-color);padding:.2em 0}a{color:#058;text-decoration:none;transition:color .3s ease-in-out}a:hover{color:#e82}.title code{font-weight:bold}h2[id^="header-"]{margin-top:2em}.ident{color:#900}pre code{background:#f8f8f8;font-size:.8em;line-height:1.4em}code{background:#f2f2f1;padding:1px 4px;overflow-wrap:break-word}h1 code{background:transparent}pre{background:#f8f8f8;border:0;border-top:1px solid #ccc;border-bottom:1px solid #ccc;margin:1em 0;padding:1ex}#http-server-module-list{display:flex;flex-flow:column}#http-server-module-list div{display:flex}#http-server-module-list dt{min-width:10%}#http-server-module-list p{margin-top:0}.toc ul,#index{list-style-type:none;margin:0;padding:0}#index code{background:transparent}#index h3{border-bottom:1px solid #ddd}#index ul{padding:0}#index h4{margin-top:.6em;font-weight:bold}@media (min-width:200ex){#index .two-column{column-count:2}}@media (min-width:300ex){#index .two-column{column-count:3}}dl{margin-bottom:2em}dl dl:last-child{margin-bottom:4em}dd{margin:0 0 1em 3em}#header-classes + dl > dd{margin-bottom:3em}dd dd{margin-left:2em}dd p{margin:10px 0}.name{background:#eee;font-weight:bold;font-size:.85em;padding:5px 10px;display:inline-block;min-width:40%}.name:hover{background:#e0e0e0}dt:target .name{background:var(--highlight-color)}.name > span:first-child{white-space:nowrap}.name.class > span:nth-child(2){margin-left:.4em}.inherited{color:#999;border-left:5px solid #eee;padding-left:1em}.inheritance em{font-style:normal;font-weight:bold}.desc h2{font-weight:400;font-size:1.25em}.desc h3{font-size:1em}.desc dt code{background:inherit}.source summary,.git-link-div{color:#666;text-align:right;font-weight:400;font-size:.8em;text-transform:uppercase}.source summary > *{white-space:nowrap;cursor:pointer}.git-link{color:inherit;margin-left:1em}.source pre{max-height:500px;overflow:auto;margin:0}.source pre code{font-size:12px;overflow:visible}.hlist{list-style:none}.hlist li{display:inline}.hlist li:after{content:',\2002'}.hlist li:last-child:after{content:none}.hlist .hlist{display:inline;padding-left:1em}img{max-width:100%}td{padding:0 .5em}.admonition{padding:.1em .5em;margin-bottom:1em}.admonition-title{font-weight:bold}.admonition.note,.admonition.info,.admonition.important{background:#aef}.admonition.todo,.admonition.versionadded,.admonition.tip,.admonition.hint{background:#dfd}.admonition.warning,.admonition.versionchanged,.admonition.deprecated{background:#fd4}.admonition.error,.admonition.danger,.admonition.caution{background:lightpink}</style>
+<style media="screen and (min-width: 700px)">@media screen and (min-width:700px){#sidebar{width:30%;height:100vh;overflow:auto;position:sticky;top:0}#content{width:70%;max-width:100ch;padding:3em 4em;border-left:1px solid #ddd}pre code{font-size:1em}.item .name{font-size:1em}main{display:flex;flex-direction:row-reverse;justify-content:flex-end}.toc ul ul,#index ul{padding-left:1.5em}.toc > ul > li{margin-top:.5em}}</style>
+<style media="print">@media print{#sidebar h1{page-break-before:always}.source{display:none}}@media print{*{background:transparent !important;color:#000 !important;box-shadow:none !important;text-shadow:none !important}a[href]:after{content:" (" attr(href) ")";font-size:90%}a[href][title]:after{content:none}abbr[title]:after{content:" (" attr(title) ")"}.ir a:after,a[href^="javascript:"]:after,a[href^="#"]:after{content:""}pre,blockquote{border:1px solid #999;page-break-inside:avoid}thead{display:table-header-group}tr,img{page-break-inside:avoid}img{max-width:100% !important}@page{margin:0.5cm}p,h2,h3{orphans:3;widows:3}h1,h2,h3,h4,h5,h6{page-break-after:avoid}}</style>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/highlight.min.js" integrity="sha256-Uv3H6lx7dJmRfRvH8TH6kJD1TSK1aFcwgx+mdg3epi8=" crossorigin></script>
+<script>window.addEventListener('DOMContentLoaded', () => hljs.initHighlighting())</script>
+</head>
+<body>
+<main>
+<article id="content">
+<header>
+<h1 class="title">Package <code>kawa_scripts</code></h1>
+</header>
+<section id="section-intro">
+<p><code><a title="kawa_scripts" href="#kawa_scripts">kawa_scripts</a></code> is an addon and package of useful methods for <strong>Blender 2.8x+</strong>
+made by Kawashirov.
+It's designed to use mostly form Python interactive console or from Python scripts.</p>
+<p>Basically this addon provides powerful tool for making fully-automated script
+for preparing, finalizing and baking lots of raw parts (Objects, Meshes, Modifiers, Materials)
+into few export-ready assets.</p>
+<p>Besides internal API for building, there is a few useful operators,
+especially for editing Shape Keys (see <code><a title="kawa_scripts.shapekeys" href="shapekeys.html">kawa_scripts.shapekeys</a></code>) and applying Modifiers (see <code><a title="kawa_scripts.modifiers" href="modifiers.html">kawa_scripts.modifiers</a></code>).</p>
+<p><strong>Documentation is not yet finished, sorry.</strong>
+<strong>My English is not very good, also sorry.</strong></p>
+<h1 id="downloads-installation-and-contacts">Downloads, Installation and Contacts</h1>
+<p>You can find everything related to this on a <strong><a href="https://github.com/kawashirov/kawa_scripts">Github page</a></strong>.</p>
+<p><code><a title="kawa_scripts" href="#kawa_scripts">kawa_scripts</a></code> distributed as <a href="https://docs.blender.org/manual/en/latest/advanced/scripting/addon_tutorial.html">Blender addon</a>.
+Addon should work on all verisons of Blender <strong>from 2.80</strong>, but <strong>2.9x</strong> is recommended.</p>
+<p>You can find ready-to-install zipped addon on <strong><a href="https://github.com/kawashirov/kawa_scripts/releases">Releases page</a></strong>.</p>
+<p>To install you should go <em>Edit</em> &gt; <em>Preferences</em> &gt; <em>Add-ons</em>, click "<em>Install</em>" and select downloaded <code>.zip</code> archive.</p>
+<p><img alt="addons_page.png" src="https://i.imgur.com/uwdhl2v.png"></p>
+<p>There is no any auto-updaters, if you want to upgrade <code><a title="kawa_scripts" href="#kawa_scripts">kawa_scripts</a></code>,
+you should remove old version and install fresh one.</p>
+<p>After installation, you can use all features programmatically without UI
+by <code>import kawa_sripts</code> in Python Console or in <code>.py</code> text assets. </p>
+<h3 id="you-can-contact-me-here">You can contact me here:</h3>
+<ul>
+<li>Discord: <code>kawashirov#8363</code></li>
+<li>VRChatRU Discord: <a href="https://discord.gg/mxHxk3B"><code>mxHxk3B</code></a></li>
+<li>Twitter: <a href="https://twitter.com/kawashirov">@kawashirov</a></li>
+<li>Github: <a href="https://github.com/kawashirov">kawashirov</a></li>
+<li>VRChat: <a href="https://vrchat.com/home/user/usr_62eb0df9-7b6d-480f-be82-fd1b945e98aa">kawashirov</a></li>
+</ul>
+<p>Please follow and support me on ko-fi too ❤</p>
+<p><a href="https://ko-fi.com/kawashirov"><img alt="SupportMe_blue@60.png" src="https://i.imgur.com/b8bSntD.png"></a></p>
+<h1 id="features">Features</h1>
+<p>TODO ¯_(ツ)_/¯</p>
+<h1 id="how-to-use-example-of-vrchat-world-russian-apartament">How to use. Example of VRChat world: Russian Apartament: Хрущевка</h1>
+<p>My world <a href="https://vrchat.com/home/world/wrld_a5aa8c95-1903-4ce1-a2df-0027964e4b3e">"Russian Apartament: Хрущевка" for VRChat</a>
+uses this addon for baking large hierarchy of objects and 400+ materials
+into few combined objects and single 4K x 4K PBR atlas!</p>
+<p>And every time I change something in my project I don't need to set up anything: just
+<a href="https://gist.github.com/kawashirov/76041f63f2be37c398df9c89fec30e5c">running building script <code>bake2.py</code></a>,
+waiting a few minutes, and my <code>.fbx</code> + <code>.png</code> atlases are ready to be put into Unity project.</p>
+<p>You can use this building script as reference. Most of the features in <code><a title="kawa_scripts" href="#kawa_scripts">kawa_scripts</a></code>
+I implemented for my projects, especially this one.</p>
+<p>There is some utility functions in <code>bake2.py</code>, but main are <code>make_working_hierarchy</code> and <code>make_atlas</code>.</p>
+<h3 id="first-one-make_working_hierarchy">First one, <code>make_working_hierarchy</code></h3>
+<p>Does the following:</p>
+<ul>
+<li>Duplicates entire hierarchy of raw Objects into separate scene.</li>
+<li>Applies proper objects naming to duplicated hierarchy.</li>
+<li>Instantiates all collections (with proper objects naming).</li>
+<li>Makes single-user objects</li>
+<li>Converts non-mesh (Curves) objects into mesh-objects</li>
+<li>Instantiates all material slots (Object-overrides)</li>
+<li>Applies all modifiers of Objects.</li>
+<li>Applies all transform scales</li>
+<li>Combines some parts of hierarchy with a lots of small objects into few large objects.</li>
+</ul>
+<p>All these complex operations made using <code><a title="kawa_scripts.instantiator.BaseInstantiator" href="instantiator.html#kawa_scripts.instantiator.BaseInstantiator">BaseInstantiator</a></code> and <code><a title="kawa_scripts.combiner.BaseMeshCombiner" href="combiner.html#kawa_scripts.combiner.BaseMeshCombiner">BaseMeshCombiner</a></code>.</p>
+<p>For example this complex hierarchy:</p>
+<p><img alt="combiner_example_before.png" src="https://i.imgur.com/hA9Od1G.png"></p>
+<p>flattens to this:</p>
+<p><img alt="combiner_example_after.png" src="https://i.imgur.com/7QcrBDT.png"></p>
+<h3 id="second-one-make_atlas">Second one, <code>make_atlas</code></h3>
+<p>Packs most of the materials into large texture atlas:
+<a href="https://i.imgur.com/7T1sE37.jpg"><img alt="KhrushchyovkaAtlas-D+A.png" width="480" height="480" src="https://i.imgur.com/7T1sE37.jpg"/></a></p>
+<p>(Image scaled down to 2k because of hosting limits.)</p>
+<p>There is almost full support of PBR layers such as Normals, Metallic, Smoothness, Emission.
+Atlas is baked using Blender's bake features,
+so you can build own complex PBR materials using Cycles shader nodes
+and bake them together with other materials into same texture atlas.</p>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python"># Kawashirov&#39;s Scripts (c) 2019 by Sergey V. Kawashirov
+#
+# Kawashirov&#39;s Scripts is licensed under a
+# Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License.
+#
+# You should have received a copy of the license along with this
+# work.  If not, see &lt;http://creativecommons.org/licenses/by-nc-sa/3.0/&gt;.
+#
+#
+
+&#34;&#34;&#34;
+`kawa_scripts` is an addon and package of useful methods for **Blender 2.8x+**
+made by Kawashirov.
+It&#39;s designed to use mostly form Python interactive console or from Python scripts.
+
+Basically this addon provides powerful tool for making fully-automated script
+for preparing, finalizing and baking lots of raw parts (Objects, Meshes, Modifiers, Materials)
+into few export-ready assets.
+
+Besides internal API for building, there is a few useful operators,
+especially for editing Shape Keys (see `shapekeys`) and applying Modifiers (see `modifiers`).
+
+**Documentation is not yet finished, sorry.**
+**My English is not very good, also sorry.**
+
+.. include:: ./documentation.md
+&#34;&#34;&#34;
+
+from collections import OrderedDict as _OrderedDict
+
+import typing as _typing
+if _typing.TYPE_CHECKING:
+        from types import ModuleType
+        from typing import Dict
+        # Эти итак заимпортированы через __import__ но PyCharm их не видит
+        from . import shapekeys, commons, modifiers, vertex_groups
+
+bl_info = {
+        &#34;name&#34;: &#34;Kawashirov&#39;s Scripts&#34;,
+        &#34;author&#34;: &#34;Sergey V. Kawashirov&#34;,
+        &#34;description&#34;: &#34;Kawashirov&#39;s Scripts for Unity and VRChat content creation&#34;,
+        &#34;location&#34;: &#34;There is no UI. Use it from scripts or console by `import kawa_scripts` (or whatever)&#34;,
+        &#34;wiki_url&#34;: &#34;&#34;,
+        &#34;version&#34;: (2021, 8, 14),
+        &#34;blender&#34;: (2, 83, 0),
+        &#34;category&#34;: &#34;Object&#34;,
+}
+addon_name = __name__
+
+if &#34;bpy&#34; in locals() and &#34;_modules_loaded&#34; in locals():
+        from importlib import reload
+
+        print(&#34;Reloading Kawashirov&#39;s Scripts...&#34;)
+        for key, mod in list(_modules_loaded.items()):
+                print(&#34;Reloading {0}...&#34;.format(repr(mod)))
+                _modules_loaded[key] = reload(mod)
+        del reload
+        print(&#34;Reloaded Kawashirov&#39;s Scripts!&#34;)
+
+_modules = [
+        &#34;_internals&#34;,
+        &#34;atlas_baker&#34;,
+        &#34;combiner&#34;,
+        &#34;commons&#34;,
+        &#34;instantiator&#34;,
+        &#34;modifiers&#34;,
+        &#34;reporter&#34;,
+        &#34;shader_nodes&#34;,
+        &#34;shapekeys&#34;,
+        &#34;tex_size_finder&#34;,
+        &#34;uv&#34;,
+        &#34;vertex_groups&#34;,
+]
+
+import bpy
+
+__import__(name=__name__, fromlist=_modules)
+_namespace = globals()
+_modules_loaded = _OrderedDict()  # type: Dict[str, ModuleType]
+for _mod_name in _modules:
+        _modules_loaded[_mod_name] = _namespace.get(_mod_name)
+del _namespace
+
+
+from ._internals import log
+
+
+def _shape_key_edit_mode_context_menu(self, context):
+        self.layout.separator()  # EDIT-mode select
+        self.layout.operator(shapekeys.OperatorSelectVerticesAffectedByShapeKey.bl_idname, icon=&#39;VERTEXSEL&#39;)
+        self.layout.separator()  # EDIT-mode revert
+        self.layout.operator(shapekeys.OperatorRevertSelectedInActiveToBasis.bl_idname, icon=&#39;KEY_DEHLT&#39;)
+        self.layout.operator(shapekeys.OperatorRevertSelectedInAllToBasis.bl_idname, icon=&#39;KEY_DEHLT&#39;)
+        self.layout.separator()  # EDIT-mode apply
+        self.layout.operator(shapekeys.OperatorApplySelectedInActiveToBasis.bl_idname, icon=&#39;KEYINGSET&#39;)
+        self.layout.operator(shapekeys.OperatorApplySelectedInActiveToAll.bl_idname, icon=&#39;KEYINGSET&#39;)
+
+
+def _shape_key_object_mode_context_menu(self, context):
+        self.layout.separator()  # OBJECT-mode apply
+        self.layout.operator(shapekeys.OperatorApplyActiveToBasis.bl_idname, icon=&#39;KEYINGSET&#39;)
+        self.layout.operator(shapekeys.OperatorApplyActiveToAll.bl_idname, icon=&#39;KEYINGSET&#39;)
+        self.layout.separator()  # OBJECT-mode clean
+        self.layout.operator(shapekeys.OperatorCleanupActive.bl_idname, icon=&#39;KEY_DEHLT&#39;)
+        self.layout.operator(shapekeys.OperatorCleanupAll.bl_idname, icon=&#39;KEY_DEHLT&#39;)
+        self.layout.operator(shapekeys.OperatorRemoveEmpty.bl_idname, icon=&#39;KEY_DEHLT&#39;)
+
+
+# # #
+
+
+class _MESH_MT_shape_key_context_kawa_sub_menu(bpy.types.Menu):
+        bl_label = &#34;Kawashirov&#34;
+        bl_idname = &#34;MESH_MT_shape_key_context_kawa_sub_menu&#34;
+
+        def draw(self, context):
+                _shape_key_edit_mode_context_menu(self, context)
+                _shape_key_object_mode_context_menu(self, context)
+
+
+def _MESH_MT_shape_key_context_menu(self, context):
+        self.layout.menu(_MESH_MT_shape_key_context_kawa_sub_menu.bl_idname)
+
+
+# # #
+
+
+def _MESH_MT_vertex_group_context_menu(self, context):
+        self.layout.separator()
+        self.layout.operator(vertex_groups.OperatorRemoveEmpty.bl_idname, icon=&#39;X&#39;)
+
+
+# # #
+
+
+class _VIEW3D_MT_object_kawa_sub_menu(bpy.types.Menu):
+        bl_label = &#34;Kawashirov&#34;
+        bl_idname = &#34;VIEW3D_MT_object_kawa_sub_menu&#34;
+
+        def draw(self, context):
+                self.layout.separator()  # transforms
+                self.layout.operator(commons.KawaApplyParentInverseMatrices.bl_idname, icon=&#39;ORIENTATION_LOCAL&#39;)
+                self.layout.separator()  # modifiers
+                self.layout.operator(modifiers.KawaApplyDeformModifierHighPrecision.bl_idname, icon=&#39;MODIFIER&#39;)
+                self.layout.operator(modifiers.KawaApplyAllModifiersHighPrecision.bl_idname, icon=&#39;MODIFIER&#39;)
+                self.layout.operator(modifiers.KawaApplyArmatureToMeshesHighPrecision.bl_idname, icon=&#39;ARMATURE_DATA&#39;)
+                _shape_key_object_mode_context_menu(self, context)
+                self.layout.separator()  # vertex groups
+                self.layout.operator(vertex_groups.OperatorRemoveEmpty.bl_idname, icon=&#39;X&#39;)
+
+
+def _VIEW3D_MT_object(self, context):
+        self.layout.menu(_VIEW3D_MT_object_kawa_sub_menu.bl_idname)
+
+
+# # #
+
+class _VIEW3D_MT_edit_mesh_kawa_sub_menu(bpy.types.Menu):
+        bl_label = &#34;Kawashirov&#34;
+        bl_idname = &#34;VIEW3D_MT_edit_mesh_kawa_sub_menu&#34;
+        
+        def draw(self, context):
+                _shape_key_edit_mode_context_menu(self, context)
+
+
+def _VIEW3D_MT_edit_mesh_vertices(self, context):
+        self.layout.menu(_VIEW3D_MT_edit_mesh_kawa_sub_menu.bl_idname)
+
+
+def _VIEW3D_MT_edit_mesh_context_menu(self, context):
+        self.layout.menu(_VIEW3D_MT_edit_mesh_kawa_sub_menu.bl_idname)
+
+
+# # #
+
+
+def register():
+        print(&#34;Hello from {0}!&#34;.format(__name__))
+        import logging
+        from datetime import datetime
+        
+        log.py_log.setLevel(logging.DEBUG)
+        if len(log.py_log.handlers) &lt; 1:
+                import tempfile
+                print(&#34;Updating kawa_scripts log handler!&#34;)
+                log_file = tempfile.gettempdir() + &#39;/&#39; + datetime.now().strftime(&#34;%Y-%m-%d-%H-%M-%S&#34;) + &#39;-kawa.log&#39;
+                log_formatter = logging.Formatter(fmt=&#39;[%(asctime)s][%(levelname)s] %(message)s&#39;)
+                log_handler = logging.FileHandler(log_file, mode=&#39;w&#39;, encoding=&#39;utf-8&#39;, delay=False)
+                log_handler.setFormatter(log_formatter)
+                log.py_log.addHandler(log_handler)
+                log.info(&#34;Log handler updated!&#34;)
+        
+        from bpy.utils import register_class
+        for mod in _modules_loaded.values():
+                if mod and hasattr(mod, &#39;classes&#39;):
+                        for cls in mod.classes:
+                                register_class(cls)
+        
+        bpy.utils.register_class(_MESH_MT_shape_key_context_kawa_sub_menu)
+        bpy.utils.register_class(_VIEW3D_MT_object_kawa_sub_menu)
+        bpy.utils.register_class(_VIEW3D_MT_edit_mesh_kawa_sub_menu)
+        
+        bpy.types.VIEW3D_MT_object.append(_VIEW3D_MT_object)
+        bpy.types.VIEW3D_MT_object_context_menu.append(_VIEW3D_MT_object)
+        bpy.types.VIEW3D_MT_edit_mesh_context_menu.append(_VIEW3D_MT_edit_mesh_context_menu)
+        bpy.types.VIEW3D_MT_edit_mesh_vertices.append(_VIEW3D_MT_edit_mesh_vertices)
+        bpy.types.MESH_MT_shape_key_context_menu.append(_MESH_MT_shape_key_context_menu)
+        bpy.types.MESH_MT_vertex_group_context_menu.append(_MESH_MT_vertex_group_context_menu)
+        
+        log.info(&#34;Hello from {0} once again!&#34;.format(__name__))
+
+
+def unregister():
+        from bpy.utils import unregister_class
+
+        bpy.types.VIEW3D_MT_object.remove(_VIEW3D_MT_object)
+        bpy.types.VIEW3D_MT_object_context_menu.remove(_VIEW3D_MT_object)
+        bpy.types.VIEW3D_MT_edit_mesh_context_menu.remove(_VIEW3D_MT_edit_mesh_context_menu)
+        bpy.types.VIEW3D_MT_edit_mesh_vertices.remove(_VIEW3D_MT_edit_mesh_vertices)
+        bpy.types.MESH_MT_shape_key_context_menu.remove(_MESH_MT_shape_key_context_menu)
+        bpy.types.MESH_MT_vertex_group_context_menu.remove(_MESH_MT_vertex_group_context_menu)
+        
+        bpy.utils.unregister_class(_MESH_MT_shape_key_context_kawa_sub_menu)
+        bpy.utils.unregister_class(_VIEW3D_MT_object_kawa_sub_menu)
+        bpy.utils.unregister_class(_VIEW3D_MT_edit_mesh_kawa_sub_menu)
+        
+        for mod in reversed(_modules_loaded.values()):
+                if hasattr(mod, &#39;classes&#39;):
+                        for cls in reversed(mod.classes):
+                                if cls.is_registered:
+                                        unregister_class(cls)
+        
+        log.info(&#34;Goodbye from {0}...&#34;.format(__name__))
+
+
+__pdoc__ = dict()
+__pdoc__[&#39;register&#39;] = False
+__pdoc__[&#39;unregister&#39;] = False</code></pre>
+</details>
+</section>
+<section>
+<h2 class="section-title" id="header-submodules">Sub-modules</h2>
+<dl>
+<dt><code class="name"><a title="kawa_scripts.atlas_baker" href="atlas_baker.html">kawa_scripts.atlas_baker</a></code></dt>
+<dd>
+<div class="desc"><p>Tool for baking a lots of PBR materials on a lots of Objects into single texture atlas.
+See <code><a title="kawa_scripts.atlas_baker.BaseAtlasBaker" href="atlas_baker.html#kawa_scripts.atlas_baker.BaseAtlasBaker">BaseAtlasBaker</a></code>.</p></div>
+</dd>
+<dt><code class="name"><a title="kawa_scripts.combiner" href="combiner.html">kawa_scripts.combiner</a></code></dt>
+<dd>
+<div class="desc"><p>Tool for combining few objects into single one.
+See <code><a title="kawa_scripts.combiner.BaseMeshCombiner" href="combiner.html#kawa_scripts.combiner.BaseMeshCombiner">BaseMeshCombiner</a></code>.</p></div>
+</dd>
+<dt><code class="name"><a title="kawa_scripts.commons" href="commons.html">kawa_scripts.commons</a></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt><code class="name"><a title="kawa_scripts.instantiator" href="instantiator.html">kawa_scripts.instantiator</a></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt><code class="name"><a title="kawa_scripts.modifiers" href="modifiers.html">kawa_scripts.modifiers</a></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt><code class="name"><a title="kawa_scripts.reporter" href="reporter.html">kawa_scripts.reporter</a></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt><code class="name"><a title="kawa_scripts.shader_nodes" href="shader_nodes.html">kawa_scripts.shader_nodes</a></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+<dt><code class="name"><a title="kawa_scripts.shapekeys" href="shapekeys.html">kawa_scripts.shapekeys</a></code></dt>
+<dd>
+<div class="desc"><p>Useful tools for Shape Keys</p></div>
+</dd>
+<dt><code class="name"><a title="kawa_scripts.tex_size_finder" href="tex_size_finder.html">kawa_scripts.tex_size_finder</a></code></dt>
+<dd>
+<div class="desc"><p>Tool for figuring out a texture size of material.
+See <code><a title="kawa_scripts.tex_size_finder.TexSizeFinder" href="tex_size_finder.html#kawa_scripts.tex_size_finder.TexSizeFinder">TexSizeFinder</a></code>.</p></div>
+</dd>
+<dt><code class="name"><a title="kawa_scripts.uv" href="uv.html">kawa_scripts.uv</a></code></dt>
+<dd>
+<div class="desc"><p>Useful tools for UV Layers</p></div>
+</dd>
+<dt><code class="name"><a title="kawa_scripts.vertex_groups" href="vertex_groups.html">kawa_scripts.vertex_groups</a></code></dt>
+<dd>
+<div class="desc"><p>Useful tools for Vertex Groups</p></div>
+</dd>
+</dl>
+</section>
+<section>
+</section>
+<section>
+</section>
+<section>
+</section>
+</article>
+<nav id="sidebar">
+<h1>Index</h1>
+<div class="toc">
+<ul>
+<li><a href="#downloads-installation-and-contacts">Downloads, Installation and Contacts</a><ul>
+<li><a href="#you-can-contact-me-here">You can contact me here:</a></li>
+</ul>
+</li>
+<li><a href="#features">Features</a></li>
+<li><a href="#how-to-use-example-of-vrchat-world-russian-apartament">How to use. Example of VRChat world: Russian Apartament: Хрущевка</a><ul>
+<li><a href="#first-one-make_working_hierarchy">First one, make_working_hierarchy</a></li>
+<li><a href="#second-one-make_atlas">Second one, make_atlas</a></li>
+</ul>
+</li>
+</ul>
+</div>
+<ul id="index">
+<li><h3><a href="#header-submodules">Sub-modules</a></h3>
+<ul>
+<li><code><a title="kawa_scripts.atlas_baker" href="atlas_baker.html">kawa_scripts.atlas_baker</a></code></li>
+<li><code><a title="kawa_scripts.combiner" href="combiner.html">kawa_scripts.combiner</a></code></li>
+<li><code><a title="kawa_scripts.commons" href="commons.html">kawa_scripts.commons</a></code></li>
+<li><code><a title="kawa_scripts.instantiator" href="instantiator.html">kawa_scripts.instantiator</a></code></li>
+<li><code><a title="kawa_scripts.modifiers" href="modifiers.html">kawa_scripts.modifiers</a></code></li>
+<li><code><a title="kawa_scripts.reporter" href="reporter.html">kawa_scripts.reporter</a></code></li>
+<li><code><a title="kawa_scripts.shader_nodes" href="shader_nodes.html">kawa_scripts.shader_nodes</a></code></li>
+<li><code><a title="kawa_scripts.shapekeys" href="shapekeys.html">kawa_scripts.shapekeys</a></code></li>
+<li><code><a title="kawa_scripts.tex_size_finder" href="tex_size_finder.html">kawa_scripts.tex_size_finder</a></code></li>
+<li><code><a title="kawa_scripts.uv" href="uv.html">kawa_scripts.uv</a></code></li>
+<li><code><a title="kawa_scripts.vertex_groups" href="vertex_groups.html">kawa_scripts.vertex_groups</a></code></li>
+</ul>
+</li>
+</ul>
+</nav>
+</main>
+<footer id="footer">
+<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.10.0</a>.</p>
+</footer>
+</body>
+</html>

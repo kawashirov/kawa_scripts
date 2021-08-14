@@ -1,0 +1,711 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
+<meta name="generator" content="pdoc 0.10.0" />
+<title>kawa_scripts.instantiator API documentation</title>
+<meta name="description" content="" />
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/sanitize.min.css" integrity="sha256-PK9q560IAAa6WVRRh76LtCaI8pjTJ2z11v0miyNNjrs=" crossorigin>
+<link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/typography.min.css" integrity="sha256-7l/o7C8jubJiy74VsKTidCy1yBkRtiUGbVkYBylBqUg=" crossorigin>
+<link rel="stylesheet preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/styles/github.min.css" crossorigin>
+<style>:root{--highlight-color:#fe9}.flex{display:flex !important}body{line-height:1.5em}#content{padding:20px}#sidebar{padding:30px;overflow:hidden}#sidebar > *:last-child{margin-bottom:2cm}.http-server-breadcrumbs{font-size:130%;margin:0 0 15px 0}#footer{font-size:.75em;padding:5px 30px;border-top:1px solid #ddd;text-align:right}#footer p{margin:0 0 0 1em;display:inline-block}#footer p:last-child{margin-right:30px}h1,h2,h3,h4,h5{font-weight:300}h1{font-size:2.5em;line-height:1.1em}h2{font-size:1.75em;margin:1em 0 .50em 0}h3{font-size:1.4em;margin:25px 0 10px 0}h4{margin:0;font-size:105%}h1:target,h2:target,h3:target,h4:target,h5:target,h6:target{background:var(--highlight-color);padding:.2em 0}a{color:#058;text-decoration:none;transition:color .3s ease-in-out}a:hover{color:#e82}.title code{font-weight:bold}h2[id^="header-"]{margin-top:2em}.ident{color:#900}pre code{background:#f8f8f8;font-size:.8em;line-height:1.4em}code{background:#f2f2f1;padding:1px 4px;overflow-wrap:break-word}h1 code{background:transparent}pre{background:#f8f8f8;border:0;border-top:1px solid #ccc;border-bottom:1px solid #ccc;margin:1em 0;padding:1ex}#http-server-module-list{display:flex;flex-flow:column}#http-server-module-list div{display:flex}#http-server-module-list dt{min-width:10%}#http-server-module-list p{margin-top:0}.toc ul,#index{list-style-type:none;margin:0;padding:0}#index code{background:transparent}#index h3{border-bottom:1px solid #ddd}#index ul{padding:0}#index h4{margin-top:.6em;font-weight:bold}@media (min-width:200ex){#index .two-column{column-count:2}}@media (min-width:300ex){#index .two-column{column-count:3}}dl{margin-bottom:2em}dl dl:last-child{margin-bottom:4em}dd{margin:0 0 1em 3em}#header-classes + dl > dd{margin-bottom:3em}dd dd{margin-left:2em}dd p{margin:10px 0}.name{background:#eee;font-weight:bold;font-size:.85em;padding:5px 10px;display:inline-block;min-width:40%}.name:hover{background:#e0e0e0}dt:target .name{background:var(--highlight-color)}.name > span:first-child{white-space:nowrap}.name.class > span:nth-child(2){margin-left:.4em}.inherited{color:#999;border-left:5px solid #eee;padding-left:1em}.inheritance em{font-style:normal;font-weight:bold}.desc h2{font-weight:400;font-size:1.25em}.desc h3{font-size:1em}.desc dt code{background:inherit}.source summary,.git-link-div{color:#666;text-align:right;font-weight:400;font-size:.8em;text-transform:uppercase}.source summary > *{white-space:nowrap;cursor:pointer}.git-link{color:inherit;margin-left:1em}.source pre{max-height:500px;overflow:auto;margin:0}.source pre code{font-size:12px;overflow:visible}.hlist{list-style:none}.hlist li{display:inline}.hlist li:after{content:',\2002'}.hlist li:last-child:after{content:none}.hlist .hlist{display:inline;padding-left:1em}img{max-width:100%}td{padding:0 .5em}.admonition{padding:.1em .5em;margin-bottom:1em}.admonition-title{font-weight:bold}.admonition.note,.admonition.info,.admonition.important{background:#aef}.admonition.todo,.admonition.versionadded,.admonition.tip,.admonition.hint{background:#dfd}.admonition.warning,.admonition.versionchanged,.admonition.deprecated{background:#fd4}.admonition.error,.admonition.danger,.admonition.caution{background:lightpink}</style>
+<style media="screen and (min-width: 700px)">@media screen and (min-width:700px){#sidebar{width:30%;height:100vh;overflow:auto;position:sticky;top:0}#content{width:70%;max-width:100ch;padding:3em 4em;border-left:1px solid #ddd}pre code{font-size:1em}.item .name{font-size:1em}main{display:flex;flex-direction:row-reverse;justify-content:flex-end}.toc ul ul,#index ul{padding-left:1.5em}.toc > ul > li{margin-top:.5em}}</style>
+<style media="print">@media print{#sidebar h1{page-break-before:always}.source{display:none}}@media print{*{background:transparent !important;color:#000 !important;box-shadow:none !important;text-shadow:none !important}a[href]:after{content:" (" attr(href) ")";font-size:90%}a[href][title]:after{content:none}abbr[title]:after{content:" (" attr(title) ")"}.ir a:after,a[href^="javascript:"]:after,a[href^="#"]:after{content:""}pre,blockquote{border:1px solid #999;page-break-inside:avoid}thead{display:table-header-group}tr,img{page-break-inside:avoid}img{max-width:100% !important}@page{margin:0.5cm}p,h2,h3{orphans:3;widows:3}h1,h2,h3,h4,h5,h6{page-break-after:avoid}}</style>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.1/highlight.min.js" integrity="sha256-Uv3H6lx7dJmRfRvH8TH6kJD1TSK1aFcwgx+mdg3epi8=" crossorigin></script>
+<script>window.addEventListener('DOMContentLoaded', () => hljs.initHighlighting())</script>
+</head>
+<body>
+<main>
+<article id="content">
+<header>
+<h1 class="title">Module <code>kawa_scripts.instantiator</code></h1>
+</header>
+<section id="section-intro">
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python"># Kawashirov&#39;s Scripts (c) 2021 by Sergey V. Kawashirov
+#
+# Kawashirov&#39;s Scripts is licensed under a
+# Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License.
+#
+# You should have received a copy of the license along with this
+# work.  If not, see &lt;http://creativecommons.org/licenses/by-nc-sa/3.0/&gt;.
+#
+#
+from collections import deque as _deque
+
+import bpy as _bpy
+
+from . import commons as _commons
+from . import modifiers as _modifiers
+from .reporter import LambdaReporter as _LambdaReporter
+from ._internals import log as _log
+
+import typing as _typing
+
+if _typing.TYPE_CHECKING:
+        from typing import *
+        from bpy.types import *
+        
+        Collection = _bpy.types.Collection
+
+
+class BaseInstantiator:
+        ORIGINAL_NAME = &#39;__KawaInstantiator_OriginalName&#39;
+        
+        # Создаёт рабочию копию оригинальных объектов (для запекания):
+        # - Копирует объекты и их меши
+        # - Превращает инстансы коллекций в объекты
+        # - Заменяет OBJECT текстуры на DATA
+        # - Применяет все модификаторы
+        # -
+        # - TODO переименования
+        #
+        # Как использовать:
+        # - Задать сцены: .original_scene и .working_scene
+        # - Положить оригиналы в .originals
+        # - Запустить .run()
+        # - Копии будут лежать в copy2original и original2copy
+        # - Все новые объекты сохранятся в .copies
+        # Не стоит запускать run() повторно или изменять что-либо после run()
+        
+        def __init__(self):
+                self.original_scene = None  # type: Scene
+                self.working_scene = None  # type: Scene
+                self.instantiate_collections = True
+                self.instantiate_material_slots = True
+                self.apply_modifiers = True
+                self.apply_scales = False
+                self.report_time = 5
+                
+                self.originals = set()  # type: Set[Object]
+                self.copies = set()  # type: Set[Object]
+                
+                self._original_names = set()  # type: Set[Object]
+        
+        def rename_copy(self, obj: &#39;Object&#39;, original_name: &#39;str&#39;, ) -&gt; &#39;str&#39;:
+                return NotImplemented
+        
+        def rename_object_from_collection(self,
+                        parent_obj: &#39;Object&#39;, parent_obj_orig_name: &#39;str&#39;,
+                        inst_obj: &#39;Object&#39;, inst_obj_orig_name: &#39;str&#39;,
+                        collection: &#39;Collection&#39;
+        ) -&gt; &#39;str&#39;:
+                return NotImplemented
+        
+        def _check_originals(self):
+                wrong_scene = set()
+                for original in self.originals:
+                        if self.original_scene not in original.users_scene:
+                                wrong_scene.add(original)
+                if len(wrong_scene) &gt; 0:
+                        wrong_scene_str = &#39;, &#39;.join(repr(x.name) for x in wrong_scene)
+                        msg = &#39;{0} of {1} original objects does not belong to original_scene={2}: {3}&#39;.format(
+                                len(wrong_scene), len(self.originals), repr(self.original_scene.name), wrong_scene_str)
+                        _log.error(msg)
+                        raise RuntimeError(msg, wrong_scene)
+
+        def _register_original_names(self):
+                original_names_q = _deque()
+                original_names_q.extend(self.originals)
+                self._original_names.clear()
+                while len(original_names_q) &gt; 0:
+                        obj = original_names_q.pop()  # type: Object
+                        self._original_names.add(obj)
+                        if obj.instance_type == &#39;COLLECTION&#39; and obj.instance_collection is not None:
+                                original_names_q.extend(obj.instance_collection.objects)
+                for obj in self._original_names:
+                        obj[self.ORIGINAL_NAME] = obj.name
+                        
+        def _put_originals_on_working(self):
+                _commons.ensure_deselect_all_objects()
+                for original in self.originals:
+                        if original.name not in self.working_scene.collection.objects:
+                                self.working_scene.collection.objects.link(original)
+                        _commons.activate_object(original)
+        
+        def _duplicate(self):
+                _commons.ensure_op_finished(_bpy.ops.object.duplicate(linked=False), name=&#39;bpy.ops.object.duplicate&#39;)
+                self.copies.update(_bpy.context.selected_objects)
+                _log.info(&#39;Basic copies created: {0}&#39;.format(len(self.copies)))
+                _commons.ensure_deselect_all_objects()
+                
+        def _unlink_originals_from_working(self):
+                for original in self.originals:
+                        if original.name in self.working_scene.collection.objects:
+                                self.working_scene.collection.objects.unlink(original)
+        
+        def _rename_copies(self):
+                _log.info(&#39;Renaming copies...&#39;)
+                for copy in self.copies:
+                        original_name = copy.get(self.ORIGINAL_NAME)
+                        if original_name is not None:
+                                new_name = None
+                                try:
+                                        new_name = self.rename_copy(copy, original_name)
+                                except Exception as exc:
+                                        # TODO
+                                        raise RuntimeError(&#39;rename&#39;, copy, original_name, new_name) from exc
+                                if isinstance(new_name, str):
+                                        copy.name = new_name
+
+        def _instantiate_collections(self):
+                _log.info(&#39;Instantiating collections...&#39;)
+                
+                created, obj_i, inst_i = 0, 0, 0
+                reporter = _LambdaReporter(self.report_time)
+                reporter.func = lambda r, t: _log.info(
+                        &#34;Instantiating collections: Objects={0}/{1}, Instantiated={2}, Created={3}, Time={4:.1f} sec...&#34;.format(
+                                obj_i, len(self.copies), inst_i, created, t))
+                
+                queue = _deque()
+                queue.extend(self.copies)
+                while len(queue) &gt; 0:
+                        obj = queue.pop()  # type: Object
+                        obj_i += 1
+                        if obj.type != &#39;EMPTY&#39; or obj.instance_type != &#39;COLLECTION&#39; or obj.instance_collection is None:
+                                continue
+                        inst_i += 1
+                        _commons.ensure_deselect_all_objects()
+                        _commons.activate_object(obj)
+                        collection = obj.instance_collection
+                        _commons.ensure_op_finished(_bpy.ops.object.duplicates_make_real(
+                                use_base_parent=True, use_hierarchy=True
+                        ), name=&#39;bpy.ops.object.duplicates_make_real&#39;)
+                        self.copies.update(_bpy.context.selected_objects)
+                        queue.extend(_bpy.context.selected_objects)
+                        created += len(_bpy.context.selected_objects)
+                        obj_orignal_name = obj.get(self.ORIGINAL_NAME)
+                        for inst_obj in list(_bpy.context.selected_objects):
+                                inst_obj_orignal_name = inst_obj.get(self.ORIGINAL_NAME)
+                                new_name = self.rename_object_from_collection(obj, obj_orignal_name, inst_obj, inst_obj_orignal_name, collection)
+                                if isinstance(new_name, str):
+                                        inst_obj.name = new_name
+                                elif isinstance(inst_obj_orignal_name, str):
+                                        inst_obj.name = obj.name + &#39;-&#39; + inst_obj_orignal_name
+                        reporter.ask_report(False)
+                        
+                _commons.ensure_deselect_all_objects()
+                reporter.ask_report(True)
+        
+        def _convert_curves_to_meshes(self):
+                _log.info(&#39;Converting curves to meshes...&#39;)
+                curves = list(obj for obj in self.copies if isinstance(obj.data, _bpy.types.Curve))
+                if len(curves) &lt; 1:
+                        return
+                _commons.ensure_deselect_all_objects()
+                _commons.activate_objects(curves)
+                self.copies.difference_update(curves)
+                _commons.ensure_op_finished(_bpy.ops.object.convert(target=&#39;MESH&#39;), name=&#39;bpy.ops.object.convert&#39;)
+                self.copies.update(_bpy.context.selected_objects)
+                _commons.ensure_deselect_all_objects()
+                _log.info(&#39;Converted {0} curves to meshes.&#39;.format(len(curves)))
+        
+        def _make_single_user(self):
+                _log.info(&#39;Making data blocks single-users...&#39;)
+                _commons.ensure_deselect_all_objects()
+                _commons.select_set_all(self.copies, True)
+                before = len(set(obj.data for obj in self.copies if obj.data is not None))
+                _commons.ensure_op_finished(_bpy.ops.object.make_single_user(
+                        object=False, obdata=True, material=False, animation=False,
+                ), name=&#39;bpy.ops.object.make_single_user&#39;)
+                after = len(set(obj.data for obj in self.copies if obj.data is not None))
+                self.copies.update(_bpy.context.selected_objects)
+                _commons.ensure_deselect_all_objects()
+                _log.info(&#39;make_single_user, data blocks: {0} +{1} -&gt; {2}&#39;.format(before, (after - before), after))
+        
+        def _instantiate_material_slots(self):
+                obj_i, slot_i = 0, 0
+                
+                reporter = _LambdaReporter(self.report_time)
+                reporter.func = lambda r, t: _log.info(
+                        &#34;Instantiating material slots: Objects={0}/{1}, Slots={2}, Time={3:.1f} sec, ETA={4:.1f} sec...&#34;.format(
+                                obj_i, len(self.copies), slot_i, t, r.get_eta(1.0 * obj_i / len(self.copies))))
+                
+                _log.info(&#39;Instantiating material slots...&#39;)
+                for copy in self.copies:
+                        if not isinstance(copy.data, _bpy.types.Mesh):
+                                continue
+                        for slot in copy.material_slots:
+                                if slot.material is None or slot.link == &#39;DATA&#39;:
+                                        continue  # Пропуск пустых или DATA материалов
+                                mat = slot.material
+                                # log.info(&#34;Object=&#39;%s&#39;: Switching Material=&#39;%s&#39; from OBJECT to DATA...&#34;, copy, mat)
+                                slot.link = &#39;DATA&#39;
+                                slot.material = mat
+                                slot_i += 1
+                        obj_i += 1
+                        reporter.ask_report(False)
+                reporter.ask_report(True)
+        
+        def _apply_modifiers(self):
+                obj_n, obj_i, mod_i = len(self.copies), 0, 0
+                
+                reporter = _LambdaReporter(self.report_time)
+                reporter.func = lambda r, t: _log.info(
+                        &#34;Applying modifiers: Objects={0}/{1}, Modifiers={2}, Time={3:.1f} sec, ETA={4:.1f} sec...&#34;.format(
+                                obj_i, obj_n, mod_i, t, r.get_eta(1.0 * obj_i / obj_n)))
+                
+                _log.info(&#39;Applying modifiers...&#39;)
+                for copy in self.copies:
+                        mod_i += _modifiers.apply_all_modifiers(copy)
+                        obj_i += 1
+                        reporter.ask_report(False)
+                reporter.ask_report(True)
+
+        def _clean_original_names(self):
+                for original in self._original_names:
+                        if self.ORIGINAL_NAME in original:
+                                del original[self.ORIGINAL_NAME]
+
+        def run(self) -&gt; &#39;None&#39;:
+                if self.original_scene is None:
+                        raise RuntimeError(&#34;original_scene is not set&#34;)
+                if self.working_scene is None:
+                        raise RuntimeError(&#34;working_scene is not set&#34;)
+                
+                self._check_originals()
+                _log.info(&#39;Instantiating {0} objects from scene {1} to {2}... &#39;.format(
+                        len(self.originals), repr(self.original_scene.name), repr(self.working_scene.name)))
+                self._register_original_names()
+                _bpy.context.window.scene = self.working_scene
+                self._put_originals_on_working()
+                self._duplicate()
+                self._unlink_originals_from_working()
+                self._rename_copies()
+                
+                if self.instantiate_collections:
+                        self._instantiate_collections()
+                        
+                self._make_single_user()
+                self._convert_curves_to_meshes()
+                
+                if self.instantiate_material_slots:
+                        self._instantiate_material_slots()
+
+                if self.apply_modifiers:
+                        self._apply_modifiers()
+                
+                if self.apply_scales:
+                        _log.info(&#39;Applying scales...&#39;)
+                        _commons.select_set_all(self.copies, True)
+                        _bpy.ops.object.transform_apply(location=False, rotation=False, scale=self.apply_scales, properties=False)
+                        _commons.select_set_all(self.copies, False)
+                        _log.info(&#39;Applied scales.&#39;)
+                
+                invalids = list(obj for obj in self.copies if obj.name not in self.working_scene.collection.objects)
+                if len(invalids) &gt; 0:
+                        _log.info(&#34;Discarding {0} invalid objects...&#34;.format(len(invalids)))
+                        for invalid in invalids:
+                                self.copies.discard(invalid)
+
+                self._clean_original_names()
+                
+                _log.info(&#34;Instantiation done: {0} original -&gt; {1} copies.&#34;.format(len(self.originals), len(self.copies)))</code></pre>
+</details>
+</section>
+<section>
+</section>
+<section>
+</section>
+<section>
+</section>
+<section>
+<h2 class="section-title" id="header-classes">Classes</h2>
+<dl>
+<dt id="kawa_scripts.instantiator.BaseInstantiator"><code class="flex name class">
+<span>class <span class="ident">BaseInstantiator</span></span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class BaseInstantiator:
+        ORIGINAL_NAME = &#39;__KawaInstantiator_OriginalName&#39;
+        
+        # Создаёт рабочию копию оригинальных объектов (для запекания):
+        # - Копирует объекты и их меши
+        # - Превращает инстансы коллекций в объекты
+        # - Заменяет OBJECT текстуры на DATA
+        # - Применяет все модификаторы
+        # -
+        # - TODO переименования
+        #
+        # Как использовать:
+        # - Задать сцены: .original_scene и .working_scene
+        # - Положить оригиналы в .originals
+        # - Запустить .run()
+        # - Копии будут лежать в copy2original и original2copy
+        # - Все новые объекты сохранятся в .copies
+        # Не стоит запускать run() повторно или изменять что-либо после run()
+        
+        def __init__(self):
+                self.original_scene = None  # type: Scene
+                self.working_scene = None  # type: Scene
+                self.instantiate_collections = True
+                self.instantiate_material_slots = True
+                self.apply_modifiers = True
+                self.apply_scales = False
+                self.report_time = 5
+                
+                self.originals = set()  # type: Set[Object]
+                self.copies = set()  # type: Set[Object]
+                
+                self._original_names = set()  # type: Set[Object]
+        
+        def rename_copy(self, obj: &#39;Object&#39;, original_name: &#39;str&#39;, ) -&gt; &#39;str&#39;:
+                return NotImplemented
+        
+        def rename_object_from_collection(self,
+                        parent_obj: &#39;Object&#39;, parent_obj_orig_name: &#39;str&#39;,
+                        inst_obj: &#39;Object&#39;, inst_obj_orig_name: &#39;str&#39;,
+                        collection: &#39;Collection&#39;
+        ) -&gt; &#39;str&#39;:
+                return NotImplemented
+        
+        def _check_originals(self):
+                wrong_scene = set()
+                for original in self.originals:
+                        if self.original_scene not in original.users_scene:
+                                wrong_scene.add(original)
+                if len(wrong_scene) &gt; 0:
+                        wrong_scene_str = &#39;, &#39;.join(repr(x.name) for x in wrong_scene)
+                        msg = &#39;{0} of {1} original objects does not belong to original_scene={2}: {3}&#39;.format(
+                                len(wrong_scene), len(self.originals), repr(self.original_scene.name), wrong_scene_str)
+                        _log.error(msg)
+                        raise RuntimeError(msg, wrong_scene)
+
+        def _register_original_names(self):
+                original_names_q = _deque()
+                original_names_q.extend(self.originals)
+                self._original_names.clear()
+                while len(original_names_q) &gt; 0:
+                        obj = original_names_q.pop()  # type: Object
+                        self._original_names.add(obj)
+                        if obj.instance_type == &#39;COLLECTION&#39; and obj.instance_collection is not None:
+                                original_names_q.extend(obj.instance_collection.objects)
+                for obj in self._original_names:
+                        obj[self.ORIGINAL_NAME] = obj.name
+                        
+        def _put_originals_on_working(self):
+                _commons.ensure_deselect_all_objects()
+                for original in self.originals:
+                        if original.name not in self.working_scene.collection.objects:
+                                self.working_scene.collection.objects.link(original)
+                        _commons.activate_object(original)
+        
+        def _duplicate(self):
+                _commons.ensure_op_finished(_bpy.ops.object.duplicate(linked=False), name=&#39;bpy.ops.object.duplicate&#39;)
+                self.copies.update(_bpy.context.selected_objects)
+                _log.info(&#39;Basic copies created: {0}&#39;.format(len(self.copies)))
+                _commons.ensure_deselect_all_objects()
+                
+        def _unlink_originals_from_working(self):
+                for original in self.originals:
+                        if original.name in self.working_scene.collection.objects:
+                                self.working_scene.collection.objects.unlink(original)
+        
+        def _rename_copies(self):
+                _log.info(&#39;Renaming copies...&#39;)
+                for copy in self.copies:
+                        original_name = copy.get(self.ORIGINAL_NAME)
+                        if original_name is not None:
+                                new_name = None
+                                try:
+                                        new_name = self.rename_copy(copy, original_name)
+                                except Exception as exc:
+                                        # TODO
+                                        raise RuntimeError(&#39;rename&#39;, copy, original_name, new_name) from exc
+                                if isinstance(new_name, str):
+                                        copy.name = new_name
+
+        def _instantiate_collections(self):
+                _log.info(&#39;Instantiating collections...&#39;)
+                
+                created, obj_i, inst_i = 0, 0, 0
+                reporter = _LambdaReporter(self.report_time)
+                reporter.func = lambda r, t: _log.info(
+                        &#34;Instantiating collections: Objects={0}/{1}, Instantiated={2}, Created={3}, Time={4:.1f} sec...&#34;.format(
+                                obj_i, len(self.copies), inst_i, created, t))
+                
+                queue = _deque()
+                queue.extend(self.copies)
+                while len(queue) &gt; 0:
+                        obj = queue.pop()  # type: Object
+                        obj_i += 1
+                        if obj.type != &#39;EMPTY&#39; or obj.instance_type != &#39;COLLECTION&#39; or obj.instance_collection is None:
+                                continue
+                        inst_i += 1
+                        _commons.ensure_deselect_all_objects()
+                        _commons.activate_object(obj)
+                        collection = obj.instance_collection
+                        _commons.ensure_op_finished(_bpy.ops.object.duplicates_make_real(
+                                use_base_parent=True, use_hierarchy=True
+                        ), name=&#39;bpy.ops.object.duplicates_make_real&#39;)
+                        self.copies.update(_bpy.context.selected_objects)
+                        queue.extend(_bpy.context.selected_objects)
+                        created += len(_bpy.context.selected_objects)
+                        obj_orignal_name = obj.get(self.ORIGINAL_NAME)
+                        for inst_obj in list(_bpy.context.selected_objects):
+                                inst_obj_orignal_name = inst_obj.get(self.ORIGINAL_NAME)
+                                new_name = self.rename_object_from_collection(obj, obj_orignal_name, inst_obj, inst_obj_orignal_name, collection)
+                                if isinstance(new_name, str):
+                                        inst_obj.name = new_name
+                                elif isinstance(inst_obj_orignal_name, str):
+                                        inst_obj.name = obj.name + &#39;-&#39; + inst_obj_orignal_name
+                        reporter.ask_report(False)
+                        
+                _commons.ensure_deselect_all_objects()
+                reporter.ask_report(True)
+        
+        def _convert_curves_to_meshes(self):
+                _log.info(&#39;Converting curves to meshes...&#39;)
+                curves = list(obj for obj in self.copies if isinstance(obj.data, _bpy.types.Curve))
+                if len(curves) &lt; 1:
+                        return
+                _commons.ensure_deselect_all_objects()
+                _commons.activate_objects(curves)
+                self.copies.difference_update(curves)
+                _commons.ensure_op_finished(_bpy.ops.object.convert(target=&#39;MESH&#39;), name=&#39;bpy.ops.object.convert&#39;)
+                self.copies.update(_bpy.context.selected_objects)
+                _commons.ensure_deselect_all_objects()
+                _log.info(&#39;Converted {0} curves to meshes.&#39;.format(len(curves)))
+        
+        def _make_single_user(self):
+                _log.info(&#39;Making data blocks single-users...&#39;)
+                _commons.ensure_deselect_all_objects()
+                _commons.select_set_all(self.copies, True)
+                before = len(set(obj.data for obj in self.copies if obj.data is not None))
+                _commons.ensure_op_finished(_bpy.ops.object.make_single_user(
+                        object=False, obdata=True, material=False, animation=False,
+                ), name=&#39;bpy.ops.object.make_single_user&#39;)
+                after = len(set(obj.data for obj in self.copies if obj.data is not None))
+                self.copies.update(_bpy.context.selected_objects)
+                _commons.ensure_deselect_all_objects()
+                _log.info(&#39;make_single_user, data blocks: {0} +{1} -&gt; {2}&#39;.format(before, (after - before), after))
+        
+        def _instantiate_material_slots(self):
+                obj_i, slot_i = 0, 0
+                
+                reporter = _LambdaReporter(self.report_time)
+                reporter.func = lambda r, t: _log.info(
+                        &#34;Instantiating material slots: Objects={0}/{1}, Slots={2}, Time={3:.1f} sec, ETA={4:.1f} sec...&#34;.format(
+                                obj_i, len(self.copies), slot_i, t, r.get_eta(1.0 * obj_i / len(self.copies))))
+                
+                _log.info(&#39;Instantiating material slots...&#39;)
+                for copy in self.copies:
+                        if not isinstance(copy.data, _bpy.types.Mesh):
+                                continue
+                        for slot in copy.material_slots:
+                                if slot.material is None or slot.link == &#39;DATA&#39;:
+                                        continue  # Пропуск пустых или DATA материалов
+                                mat = slot.material
+                                # log.info(&#34;Object=&#39;%s&#39;: Switching Material=&#39;%s&#39; from OBJECT to DATA...&#34;, copy, mat)
+                                slot.link = &#39;DATA&#39;
+                                slot.material = mat
+                                slot_i += 1
+                        obj_i += 1
+                        reporter.ask_report(False)
+                reporter.ask_report(True)
+        
+        def _apply_modifiers(self):
+                obj_n, obj_i, mod_i = len(self.copies), 0, 0
+                
+                reporter = _LambdaReporter(self.report_time)
+                reporter.func = lambda r, t: _log.info(
+                        &#34;Applying modifiers: Objects={0}/{1}, Modifiers={2}, Time={3:.1f} sec, ETA={4:.1f} sec...&#34;.format(
+                                obj_i, obj_n, mod_i, t, r.get_eta(1.0 * obj_i / obj_n)))
+                
+                _log.info(&#39;Applying modifiers...&#39;)
+                for copy in self.copies:
+                        mod_i += _modifiers.apply_all_modifiers(copy)
+                        obj_i += 1
+                        reporter.ask_report(False)
+                reporter.ask_report(True)
+
+        def _clean_original_names(self):
+                for original in self._original_names:
+                        if self.ORIGINAL_NAME in original:
+                                del original[self.ORIGINAL_NAME]
+
+        def run(self) -&gt; &#39;None&#39;:
+                if self.original_scene is None:
+                        raise RuntimeError(&#34;original_scene is not set&#34;)
+                if self.working_scene is None:
+                        raise RuntimeError(&#34;working_scene is not set&#34;)
+                
+                self._check_originals()
+                _log.info(&#39;Instantiating {0} objects from scene {1} to {2}... &#39;.format(
+                        len(self.originals), repr(self.original_scene.name), repr(self.working_scene.name)))
+                self._register_original_names()
+                _bpy.context.window.scene = self.working_scene
+                self._put_originals_on_working()
+                self._duplicate()
+                self._unlink_originals_from_working()
+                self._rename_copies()
+                
+                if self.instantiate_collections:
+                        self._instantiate_collections()
+                        
+                self._make_single_user()
+                self._convert_curves_to_meshes()
+                
+                if self.instantiate_material_slots:
+                        self._instantiate_material_slots()
+
+                if self.apply_modifiers:
+                        self._apply_modifiers()
+                
+                if self.apply_scales:
+                        _log.info(&#39;Applying scales...&#39;)
+                        _commons.select_set_all(self.copies, True)
+                        _bpy.ops.object.transform_apply(location=False, rotation=False, scale=self.apply_scales, properties=False)
+                        _commons.select_set_all(self.copies, False)
+                        _log.info(&#39;Applied scales.&#39;)
+                
+                invalids = list(obj for obj in self.copies if obj.name not in self.working_scene.collection.objects)
+                if len(invalids) &gt; 0:
+                        _log.info(&#34;Discarding {0} invalid objects...&#34;.format(len(invalids)))
+                        for invalid in invalids:
+                                self.copies.discard(invalid)
+
+                self._clean_original_names()
+                
+                _log.info(&#34;Instantiation done: {0} original -&gt; {1} copies.&#34;.format(len(self.originals), len(self.copies)))</code></pre>
+</details>
+<h3>Class variables</h3>
+<dl>
+<dt id="kawa_scripts.instantiator.BaseInstantiator.ORIGINAL_NAME"><code class="name">var <span class="ident">ORIGINAL_NAME</span></code></dt>
+<dd>
+<div class="desc"></div>
+</dd>
+</dl>
+<h3>Methods</h3>
+<dl>
+<dt id="kawa_scripts.instantiator.BaseInstantiator.rename_copy"><code class="name flex">
+<span>def <span class="ident">rename_copy</span></span>(<span>self, obj: Object, original_name: str) ‑> str</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def rename_copy(self, obj: &#39;Object&#39;, original_name: &#39;str&#39;, ) -&gt; &#39;str&#39;:
+        return NotImplemented</code></pre>
+</details>
+</dd>
+<dt id="kawa_scripts.instantiator.BaseInstantiator.rename_object_from_collection"><code class="name flex">
+<span>def <span class="ident">rename_object_from_collection</span></span>(<span>self, parent_obj: Object, parent_obj_orig_name: str, inst_obj: Object, inst_obj_orig_name: str, collection: Collection) ‑> str</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def rename_object_from_collection(self,
+                parent_obj: &#39;Object&#39;, parent_obj_orig_name: &#39;str&#39;,
+                inst_obj: &#39;Object&#39;, inst_obj_orig_name: &#39;str&#39;,
+                collection: &#39;Collection&#39;
+) -&gt; &#39;str&#39;:
+        return NotImplemented</code></pre>
+</details>
+</dd>
+<dt id="kawa_scripts.instantiator.BaseInstantiator.run"><code class="name flex">
+<span>def <span class="ident">run</span></span>(<span>self) ‑> None</span>
+</code></dt>
+<dd>
+<div class="desc"></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def run(self) -&gt; &#39;None&#39;:
+        if self.original_scene is None:
+                raise RuntimeError(&#34;original_scene is not set&#34;)
+        if self.working_scene is None:
+                raise RuntimeError(&#34;working_scene is not set&#34;)
+        
+        self._check_originals()
+        _log.info(&#39;Instantiating {0} objects from scene {1} to {2}... &#39;.format(
+                len(self.originals), repr(self.original_scene.name), repr(self.working_scene.name)))
+        self._register_original_names()
+        _bpy.context.window.scene = self.working_scene
+        self._put_originals_on_working()
+        self._duplicate()
+        self._unlink_originals_from_working()
+        self._rename_copies()
+        
+        if self.instantiate_collections:
+                self._instantiate_collections()
+                
+        self._make_single_user()
+        self._convert_curves_to_meshes()
+        
+        if self.instantiate_material_slots:
+                self._instantiate_material_slots()
+
+        if self.apply_modifiers:
+                self._apply_modifiers()
+        
+        if self.apply_scales:
+                _log.info(&#39;Applying scales...&#39;)
+                _commons.select_set_all(self.copies, True)
+                _bpy.ops.object.transform_apply(location=False, rotation=False, scale=self.apply_scales, properties=False)
+                _commons.select_set_all(self.copies, False)
+                _log.info(&#39;Applied scales.&#39;)
+        
+        invalids = list(obj for obj in self.copies if obj.name not in self.working_scene.collection.objects)
+        if len(invalids) &gt; 0:
+                _log.info(&#34;Discarding {0} invalid objects...&#34;.format(len(invalids)))
+                for invalid in invalids:
+                        self.copies.discard(invalid)
+
+        self._clean_original_names()
+        
+        _log.info(&#34;Instantiation done: {0} original -&gt; {1} copies.&#34;.format(len(self.originals), len(self.copies)))</code></pre>
+</details>
+</dd>
+</dl>
+</dd>
+</dl>
+</section>
+</article>
+<nav id="sidebar">
+<h1>Index</h1>
+<div class="toc">
+<ul></ul>
+</div>
+<ul id="index">
+<li><h3>Super-module</h3>
+<ul>
+<li><code><a title="kawa_scripts" href="index.html">kawa_scripts</a></code></li>
+</ul>
+</li>
+<li><h3><a href="#header-classes">Classes</a></h3>
+<ul>
+<li>
+<h4><code><a title="kawa_scripts.instantiator.BaseInstantiator" href="#kawa_scripts.instantiator.BaseInstantiator">BaseInstantiator</a></code></h4>
+<ul class="">
+<li><code><a title="kawa_scripts.instantiator.BaseInstantiator.ORIGINAL_NAME" href="#kawa_scripts.instantiator.BaseInstantiator.ORIGINAL_NAME">ORIGINAL_NAME</a></code></li>
+<li><code><a title="kawa_scripts.instantiator.BaseInstantiator.rename_copy" href="#kawa_scripts.instantiator.BaseInstantiator.rename_copy">rename_copy</a></code></li>
+<li><code><a title="kawa_scripts.instantiator.BaseInstantiator.rename_object_from_collection" href="#kawa_scripts.instantiator.BaseInstantiator.rename_object_from_collection">rename_object_from_collection</a></code></li>
+<li><code><a title="kawa_scripts.instantiator.BaseInstantiator.run" href="#kawa_scripts.instantiator.BaseInstantiator.run">run</a></code></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</nav>
+</main>
+<footer id="footer">
+<p>Generated by <a href="https://pdoc3.github.io/pdoc" title="pdoc: Python API documentation generator"><cite>pdoc</cite> 0.10.0</a>.</p>
+</footer>
+</body>
+</html>
