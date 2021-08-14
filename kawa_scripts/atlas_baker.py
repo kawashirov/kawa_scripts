@@ -171,6 +171,9 @@ class BaseAtlasBaker:
 		# Используем общий, что бы не пересоздовать его каждый раз
 		self._bmesh_loops_mem = set()  # type: Set[int]
 		self._bmesh_loops_mem_hits = 0
+		# Для _find_islands_obj
+		# Используем общий, что бы не пересоздовать его каждый раз
+		self._find_islands_vectors = list()
 	
 	# # # Переопределяемые методы # # #
 	
@@ -431,48 +434,24 @@ class BaseAtlasBaker:
 		# Поиск островов, наполнение self._islands
 		for mat, group in self._groups.items():
 			# log.info("Searching islands of material %s in %d objects...", mat.name, len(group))
-			mat_size_x, mat_size_y = self._matsizes.get(mat)
+			mat_size = self._matsizes.get(mat)
 			builder = _commons.dict_get_or_add(self._islands, mat, _uv.IslandsBuilder)
 			for obj in group:
-				origin = self._get_source_object(obj)
-				mesh = _commons.get_mesh_safe(obj)
-				epsilon = self._get_epsilon_safe(origin, mat)
-				uv_data = self._get_uv_data_safe(origin, mat, mesh)
-				
-				polygons = list(mesh.polygons)  # type: List[MeshPolygon]
-				# Оптимизация. Сортировка от большей площади к меньшей,
-				# что бы сразу сделать большие боксы и реже пере-расширять их.
-				polygons.sort(key=lambda p: _uv.uv_area(p, uv_data), reverse=True)
-				
-				mode = self.get_island_mode(origin, mat)
-				if mode == 'OBJECT':
-					# Режим одного острова: все точки всех полигонов формируют общий bbox
-					vec2s = list()
-					for poly in polygons:
-						for loop in poly.loop_indices:
-							vec2 = uv_data[loop].uv.xy  # type: Vector
-							# Преобразование в размеры текстуры
-							vec2.x *= mat_size_x
-							vec2.y *= mat_size_y
-							vec2s.append(vec2)
-					builder.add_seq(vec2s, epsilon=epsilon)
-				elif mode == 'POLYGON':
-					# Режим многих островов: каждый полигон формируют свой bbox
-					try:
-						for poly in polygons:
-							vec2s = list()
-							for loop in poly.loop_indices:  # type: int
-								vec2 = uv_data[loop].uv.xy  # type: Vector
-								# Преобразование в размеры текстуры
-								vec2.x *= mat_size_x
-								vec2.y *= mat_size_y
-								vec2s.append(vec2)
-							builder.add_seq(vec2s, epsilon=epsilon)
-					except Exception as exc:
-						raise RuntimeError("Error searching multiple islands!", uv_data, obj, mat, mesh, builder) from exc
-				else:
-					raise RuntimeError('Invalid mode', mode)
-				obj_i += 1
+				bm, mesh = None, None
+				try:
+					mesh = _commons.get_mesh_safe(obj)
+					bm = _bmesh_new()
+					bm.from_mesh(mesh)
+					self._find_islands_obj(obj, mesh, bm, mat, builder, mat_size)
+					obj_i += 1
+				except Exception as exc:
+					msg = "Can not find islands on {0}: {1}, {2}, {3}, {4}: {5}".format(
+						repr(obj), repr(mesh), repr(bm), repr(mat), repr(builder), repr(mat_size), repr(exc))
+					_log.error(msg)
+					raise RuntimeError(msg) from exc
+				finally:
+					if bm is not None:
+						bm.free()
 				reporter.ask_report(False)
 			mat_i += 1
 			reporter.ask_report(False)
@@ -486,6 +465,52 @@ class BaseAtlasBaker:
 		# можно явно от него избавиться
 		_gc_collect()
 		pass
+	
+	def _find_islands_obj(self, obj: 'Object', mesh: 'Mesh', bm: 'BMesh', mat: 'Material', builder: '_uv.IslandsBuilder',
+			mat_size: 'Tuple[float,float]'):
+		mat_size_x, mat_size_y = mat_size
+		origin = self._get_source_object(obj)
+		epsilon = self._get_epsilon_safe(origin, mat)
+		
+		uv_name = self.get_uv_name(origin, mat) or 0
+		bm_uv_layer = bm.loops.layers.uv[uv_name]  # type: BMLayerItem
+		
+		bm.faces.ensure_lookup_table()
+		faces = list(bm_face.index for bm_face in bm.faces)  # type: List[int]
+		# Оптимизация. Сортировка от большей площади к меньшей,
+		# что бы сразу сделать большие боксы и реже пере-расширять их.
+		faces.sort(key=lambda index: _uv.uv_area_bmesh(bm.faces[index], bm_uv_layer), reverse=True)
+		
+		mode = self.get_island_mode(origin, mat)
+		if mode == 'OBJECT':
+			# Режим одного острова: все точки всех полигонов формируют общий bbox
+			self._find_islands_vectors.clear()
+			for bm_face_index in faces:
+				bm_face = bm.faces[bm_face_index]
+				for bm_loop in bm_face.loops:
+					vec2 = bm_loop[bm_uv_layer].uv.copy()
+					# Преобразование в размеры текстуры
+					vec2.x *= mat_size_x
+					vec2.y *= mat_size_y
+					self._find_islands_vectors.append(vec2)
+			builder.add_seq(self._find_islands_vectors, epsilon=epsilon)
+		elif mode == 'POLYGON':
+			# Режим многих островов: каждый полигон формируют свой bbox
+			try:
+				for bm_face_index in faces:
+					bm_face = bm.faces[bm_face_index]
+					self._find_islands_vectors.clear()
+					for bm_loop in bm_face.loops:
+						vec2 = bm_loop[bm_uv_layer].uv.copy()  # type: Vector
+						# Преобразование в размеры текстуры
+						vec2.x *= mat_size_x
+						vec2.y *= mat_size_y
+						self._find_islands_vectors.append(vec2)
+					builder.add_seq(self._find_islands_vectors, epsilon=epsilon)
+			except Exception as exc:
+				raise RuntimeError("Error searching multiple islands!", bm_uv_layer, obj, mat, mesh, builder) from exc
+		else:
+			raise RuntimeError('Invalid mode', mode)
 	
 	def _delete_groups(self):
 		count = len(self._copies)
