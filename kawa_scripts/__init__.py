@@ -9,7 +9,7 @@
 #
 
 """
-`kawa_scripts` is an addon and package of useful methods for Blender 2.8x+
+`kawa_scripts` is an addon and package of useful methods for **Blender 2.8x+**
 made by Kawashirov.
 It's designed to use mostly form Python interactive console or from Python scripts.
 
@@ -17,13 +17,13 @@ Basically this addon provides powerful tool for making fully-automated script
 for preparing, finalizing and baking lots of raw parts (Objects, Meshes, Modifiers, Materials)
 into few export-ready assets.
 
-For example, my world "Russian Apartament: Хрущевка" for VRChat and ChilloutVR uses this pack
-for baking 400+ materials into single 4K x 4K PBR atlas!
-And every time I edit something in my project I don't need to setup anything: just running building script,
-waiting a few minutes, and my .fbx + .png atlases are ready to be put in Unity project.
-
 Besides internal API for building, there is a few useful operators,
 especially for editing Shape Keys (see `shapekeys`) and applying Modifiers (see `modifiers`).
+
+**Documentation is not yet finished, sorry.**
+**My English is not very good, also sorry.**
+
+.. include:: ./documentation.md
 """
 
 from collections import OrderedDict as _OrderedDict
