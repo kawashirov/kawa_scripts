@@ -413,7 +413,7 @@ class BaseAtlasBaker:
 				group = set()
 				self._groups[mat] = group
 			group.add(obj)
-		_log.info("Grouped {0} temp objects into %d material groups.".format(len(self._copies), len(self._groups)))
+		_log.info("Grouped {0} temp objects into {1} material groups.".format(len(self._copies), len(self._groups)))
 	
 	def _find_islands(self):
 		mat_i, obj_i = 0, 0
@@ -929,11 +929,12 @@ class BaseAtlasBaker:
 			epsilon_x, epsilon_y = epsilon / src_size_x / 2, epsilon / src_size_y / 2
 			target_mat = self._materials.get((obj, source_mat))
 			uv_name = self.get_uv_name(obj, source_mat) or 0
-			bm_uv_layer = bm.loops.layers.uv[uv_name]
+			bm_uv_layer = bm.loops.layers.uv[uv_name]  # type: BMLayerItem
 			# Здесь мы, получается, обходм все фейсы по несколько раз (на каждый материал)
 			# Но это лучше, чем проходить один раз, но каждый раз дёргать
 			# dict.get(bm_face.material_index) и распаковывать метаданные
 			_t3 = _perf_counter()
+			bm.faces.ensure_lookup_table()
 			for bm_face in bm.faces:
 				if bm_face.material_index != material_index:
 					continue
