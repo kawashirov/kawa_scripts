@@ -18,8 +18,6 @@ from time import perf_counter as _perf_counter
 from random import shuffle as _shuffle
 
 import bpy as _bpy
-from bpy import data as _D
-from bpy import context as _C
 from bmesh import new as _bmesh_new
 from mathutils import Vector as _Vector
 from mathutils.geometry import box_pack_2d as _box_pack_2d
@@ -396,6 +394,8 @@ class BaseAtlasBaker:
 			tmat = self._materials.get((sobj, smat))
 			if tmat is None or tmat is False:
 				to_delete.add(cobj)
+		if len(to_delete) < 1:
+			return
 		_commons.ensure_deselect_all_objects()
 		for cobj in to_delete:
 			cobj.hide_set(False)
@@ -845,6 +845,13 @@ class BaseAtlasBaker:
 			n_bake = _snodes.prepare_and_get_node_for_baking(slot.material)
 			n_bake.image = target_image
 		
+		_bpy.context.scene.render.engine = 'CYCLES'
+		_bpy.context.scene.cycles.feature_set = 'SUPPORTED'
+		_bpy.context.scene.cycles.device = 'GPU'  # can be overriden in before_bake
+		_bpy.context.scene.cycles.use_adaptive_sampling = True
+		_bpy.context.scene.cycles.adaptive_threshold = 0
+		_bpy.context.scene.cycles.adaptive_min_samples = 0
+		
 		emit_types = ('EMIT', 'ALPHA', 'DIFFUSE', 'METALLIC', 'ROUGHNESS')
 		cycles_bake_type = 'EMIT' if bake_type in emit_types else bake_type
 		_bpy.context.scene.cycles.bake_type = cycles_bake_type
@@ -855,6 +862,8 @@ class BaseAtlasBaker:
 		_bpy.context.scene.render.bake.normal_space = 'TANGENT'
 		_bpy.context.scene.render.bake.margin = 64
 		_bpy.context.scene.render.bake.use_clear = True
+		_bpy.context.scene.render.use_lock_interface = True
+		_bpy.context.scene.render.use_persistent_data = False
 		
 		self._call_before_bake_safe(bake_type, target_image)
 		
@@ -862,9 +871,12 @@ class BaseAtlasBaker:
 			repr(target_image.name), bake_type, cycles_bake_type, tuple(target_image.size)))
 		_commons.ensure_deselect_all_objects()
 		_commons.activate_object(local_bake_obj)
+		_gc_collect()  # Подчищаем память прямо перед печкой т.к. оно моного жрёт.
+		_bpy.ops.wm.memory_statistics()
 		bake_start = _perf_counter()
 		_commons.ensure_op_finished(_bpy.ops.object.bake(type=cycles_bake_type, use_clear=True), name='bpy.ops.object.bake')
 		bake_time = _perf_counter() - bake_start
+		_bpy.ops.wm.memory_statistics()
 		_log.info("Baked atlas Image={0} type={1}, time spent: {2:.1f} sec.".format(repr(target_image.name), bake_type, bake_time))
 		
 		garbage_materials = set(slot.material for slot in local_bake_obj.material_slots)
@@ -873,6 +885,8 @@ class BaseAtlasBaker:
 		_bpy.context.blend_data.meshes.remove(mesh, do_unlink=True)
 		for mat in garbage_materials:
 			_bpy.context.blend_data.materials.remove(mat, do_unlink=True)
+		if _bpy.app.version >= (2, 93, 0):
+			_bpy.data.orphans_purge(do_recursive=True)
 		
 		self._call_after_bake_safe(bake_type, target_image)
 	
@@ -885,8 +899,18 @@ class BaseAtlasBaker:
 			layer.active_render = layer.name == self._UV_ORIGINAL
 			layer.active_clone = False
 		for bake_type, target_image in self._bake_types:
+			for _, image in self._bake_types:
+				# Для экономии памяти выгружаем целевые картинки если они прогружены
+				if image is target_image and not image.has_data:
+					target_image.gl_free()
+					target_image.buffers_free()
 			self._bake_image(bake_type, target_image)
+			# Сразу после рендера целевая картинка скорее всего не нужна
+			if target_image.has_data:
+				target_image.gl_free()
+				target_image.buffers_free()
 			_gc_collect()
+		_bpy.ops.wm.memory_statistics()
 		
 		_commons.ensure_deselect_all_objects()
 		if self._bake_obj is not None:
