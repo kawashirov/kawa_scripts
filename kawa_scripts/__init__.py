@@ -29,6 +29,7 @@ especially for editing Shape Keys (see `shapekeys`) and applying Modifiers (see 
 from collections import OrderedDict as _OrderedDict
 
 import typing as _typing
+
 if _typing.TYPE_CHECKING:
 	from types import ModuleType
 	from typing import Dict
@@ -50,9 +51,12 @@ addon_name = __name__
 
 if "bpy" in locals() and "_modules_loaded" in locals():
 	from importlib import reload
-
+	
 	print("Reloading Kawashirov's Scripts...")
 	for key, mod in list(_modules_loaded.items()):
+		if mod is None:
+			print("Skip {0}...".format(repr(key)))
+			continue
 		print("Reloading {0}...".format(repr(mod)))
 		_modules_loaded[key] = reload(mod)
 	del reload
