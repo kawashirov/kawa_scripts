@@ -784,7 +784,7 @@ class BaseAtlasBaker:
 				bake_color.default_value[:] = (0.75, 0.75, 0.75, 1.0)
 		elif bake_type == 'METALLIC':
 			bake_shader, bake_color = replace_shader()
-			src_metallic = src_shader.inputs.get('Metallic') or src_shader.inputs.get('Specular')  # type: NodeSocket
+			src_metallic = src_shader.inputs.get('Metallic')  # or src_shader.inputs.get('Specular')  # type: NodeSocket
 			if src_metallic is not None:  # TODO RGB <-> value
 				copy_input_value(src_metallic, bake_color)
 			else:
