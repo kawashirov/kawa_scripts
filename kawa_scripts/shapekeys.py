@@ -276,6 +276,7 @@ class OperatorApplySelectedInActiveToBasis(_KawaOperator):
 class OperatorApplySelectedInActiveToAll(_KawaOperator):
 	"""
 	Same as `OperatorApplyActiveToAll`, but only for selected vertices in edit-mode.
+	[Video demonstration.](https://www.youtube.com/watch?v=xfKzI0hn8os)
 	See also: `apply_active_to_all`.
 	"""
 	bl_idname = "kawa.apply_selected_shape_keys_in_active_to_all"
