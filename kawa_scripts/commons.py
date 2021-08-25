@@ -203,6 +203,16 @@ def ensure_deselect_all_objects():
 		_bpy.context.view_layer.objects.selected[0].select_set(False)
 
 
+def object_mode_set_strict(mode: 'str', context: 'Context' = None, op: 'Operator' = None):
+	context = context or _bpy.context
+	if context.mode != mode:
+		_bpy.ops.object.mode_set(mode=mode)
+	if context.mode != mode:
+		msg = 'Can not switch object {} to mode {}, got {} instead.'.format(context.active_object, mode, context.mode)
+		_log.error(msg, op=op)
+		raise RuntimeError(msg)
+
+
 class _TemporaryViewLayer(_contextlib.ContextDecorator):
 	# Does not work
 	def __init__(self, name=None):
@@ -341,6 +351,27 @@ def find_objects_with_material(material: 'Material', where: 'Iterable[Object]' =
 			if slot.material == material:
 				objects.add(obj)
 	return objects
+
+
+def is_mesh_affected_by_armature(arm_obj: 'Object', mesh_obj: 'Object') -> 'bool':
+	if arm_obj.type != 'ARMATURE':
+		raise ValueError("arm_obj {} is not 'ARMATURE' type ({})".format(repr(arm_obj), repr(arm_obj.type)))
+	if mesh_obj.type != 'MESH':
+		raise ValueError("mesh_obj {} is not 'MESH' type ({})".format(repr(mesh_obj), repr(mesh_obj.type)))
+	for mod in mesh_obj.modifiers:
+		if mod.type == 'ARMATURE' and mod.object == arm_obj:
+			return True
+	return False
+
+
+def is_mesh_affected_by_any_armature(arm_objs: 'Iterable[Object]', mesh_obj: 'Object') -> 'bool':
+	return any(is_mesh_affected_by_armature(arm_obj, mesh_obj) for arm_obj in arm_objs)
+
+
+def find_meshes_affected_by_armatue(arm_obj: 'Object', where: 'Iterable[Object]' = None) -> 'List[Object]':
+	if where is None:
+		where = _bpy.data.objects
+	return list(obj for obj in where if obj.type == 'MESH' and is_mesh_affected_by_armature(arm_obj, obj))
 
 
 def is_parent(parent_object: 'Object', child_object: 'Object') -> 'bool':
