@@ -111,7 +111,7 @@ def halfbone_apply_weight(obj: 'bpy.types.Object', ctrl_a: 'Union[str, int]', ct
 # 	return vert_count
 
 
-def merge_weights(objs: 'Iterable[Object]', mapping: 'Dict[str, Dict[str, float]]') -> 'int':
+def merge_weights(objs: 'Iterable[Object]', mapping: 'Dict[str, Dict[str, float]]') -> 'Tuple[int, int, int]':
 	"""
 	Merges vertex groups weights on given Mesh-objects, using given mapping of weights.
 	Mapping should contain names of groups that should be merged as keys and list of tuple-pairs as values.
@@ -135,20 +135,32 @@ def merge_weights(objs: 'Iterable[Object]', mapping: 'Dict[str, Dict[str, float]
 	
 	This function can be used to merge one bones of armatures to others,
 	like in CATS, but multiple targets are supported.
+	
+	Returns tuple of 3 ints: verts_modified, groups_removed, objects_modified
 	"""
 	
-	verts_modified = 0
-	new_weights = dict()  # временный
-	remap = list()  # также временный
+	verts_modified, groups_removed, meshes_modified = 0, 0, 0
+	new_weights = dict()  # type: Dict[int, float]  # временный
+	remap = list()  # type: List[List[float]]  # также временный
 	for obj in objs:
+		object_modified = False
 		if obj.type != 'MESH' or obj.data is None:
 			continue
+		if len(obj.vertex_groups) < 1:
+			# Если на меши нет групп вообще, то и объединять нечего.
+			continue
 		# досоздаём необходимые группы на объекте
+		any_to_merge = False
 		for src_bone, targets in mapping.items():
 			if src_bone in obj.vertex_groups:
+				any_to_merge = True
 				for dst_bone, _ in targets.items():
 					if dst_bone not in obj.vertex_groups:
 						obj.vertex_groups.new(name=dst_bone)
+		if not any_to_merge:
+			# Если на меши нет объединяемых групп, то делать тут тоже нечего.
+			_log.info('There is no groups to merge on {} (any_to_merge).'.format(repr(obj)))
+			continue
 		# создаём отображение на листе в intах что бы быстро
 		for i in range(max(len(obj.vertex_groups), len(remap))):
 			if len(remap) <= i:
@@ -163,30 +175,39 @@ def merge_weights(objs: 'Iterable[Object]', mapping: 'Dict[str, Dict[str, float]
 			remap[src_vg.index] = list()
 			for dst_bone, weight in targets.items():
 				dst_vg = obj.vertex_groups.get(dst_bone)
-				remap.append((dst_vg.index, weight))
-		if not any(remap) < 1:
+				remap[src_vg.index].append((dst_vg.index, weight))
+		if not any(remap):
+			_log.info('There is no groups to merge on {} (any(remap)).'.format(repr(obj)))
 			continue  # на этом объекте нет групп, которые нужно смешивать
+		_log.info('Remap for {}: {}.'.format(repr(obj), repr(remap)))
 		bm = _bmesh_new()
 		try:
 			bm.from_mesh(obj.data)
 			deform_layer = bm.verts.layers.deform.active  # type: BMLayerItem
+			if deform_layer is None:
+				# Такая ситуация случается если на меши есть группы, но ни одна точка не привязана.
+				_log.info('There is no deform layer on {}.'.format(repr(obj)))
+				continue
 			bm.verts.ensure_lookup_table()
 			for v in bm.verts:
 				dv = v[deform_layer]  # type: BMDeformVert
 				modified = False
+				new_weights.clear()
 				for src_index, src_weight in dv.items():
-					if mapping[src_index] is None:
-						# сохраняем веса вне маппинга
+					if remap[src_index] is None:
+						# вес не сливается: сохраняем как есть
 						new_weights[src_index] = src_weight + new_weights.get(src_index, 0.0)
 					else:
-						# микшируем
-						for dst_index, dst_weight in mapping[src_index]:
+						# вес сливается: микшируем
+						for dst_index, dst_weight in remap[src_index]:
 							new_weights[dst_index] = dst_weight * src_weight + new_weights.get(dst_index, 0.0)
 						modified = True
 				if modified:
+					object_modified = True
 					dv.clear()
-					for new_index, new_weight in new_weights:
+					for new_index, new_weight in new_weights.items():
 						dv[new_index] = new_weight  # slice not supported
+					# _log.info('New weights for {!r} in {!r}: new_weights={!r}, v[deform_layer]={!r}.'.format(obj, v, new_weights, dv))
 					verts_modified += 1
 			bm.to_mesh(obj.data)
 		finally:
@@ -194,8 +215,15 @@ def merge_weights(objs: 'Iterable[Object]', mapping: 'Dict[str, Dict[str, float]
 				bm.free()
 		for src_name, src_group in obj.vertex_groups.items():
 			if src_name in mapping:
+				groups_removed += 1
+				object_modified = True
 				obj.vertex_groups.remove(src_group)
-	return verts_modified
+		if object_modified:
+			meshes_modified += 1
+	if verts_modified == 0 or groups_removed == 0 or meshes_modified == 0:
+		# Если любой равен нулю, то и остальые тоже должны быть равны нулю.
+		assert verts_modified == 0 and groups_removed == 0 and meshes_modified == 0
+	return verts_modified, groups_removed, meshes_modified
 
 
 def remove_empty(objs: 'Iterable[Object]', limit: 'float' = 0.0, ignore_locked: 'bool' = False, op: 'Operator' = None) -> 'Tuple[int, int]':
