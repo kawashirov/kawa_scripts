@@ -65,6 +65,7 @@ if "bpy" in locals() and "_modules_loaded" in locals():
 _modules = [
 	"_internals",
 	"_ui",
+	"armature",
 	"atlas_baker",
 	"combiner",
 	"commons",
@@ -86,7 +87,6 @@ _modules_loaded = _OrderedDict()  # type: Dict[str, ModuleType]
 for _mod_name in _modules:
 	_modules_loaded[_mod_name] = _namespace.get(_mod_name)
 del _namespace
-
 
 from ._internals import log
 

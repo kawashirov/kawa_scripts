@@ -13,6 +13,7 @@ from . import commons as _commons
 from . import shapekeys as _shapekeys
 from . import vertex_groups as _vertex_groups
 from . import modifiers as _modifiers
+from . import armature as _armature
 
 
 def _shape_key_edit_mode_context_menu(self, context):
@@ -103,15 +104,36 @@ def _VIEW3D_MT_edit_mesh_context_menu(self, context):
 
 # # #
 
+class _VIEW3D_MT_edit_armature_kawa_sub_menu(_bpy.types.Menu):
+	bl_label = "Kawashirov"
+	bl_idname = "VIEW3D_MT_edit_armature_kawa_sub_menu"
+	
+	def draw(self, context):
+		self.layout.operator(_armature.OperatorMergeActiveUniformly.bl_idname, icon='X')
+		self.layout.operator(_armature.OperatorMergeSelectedToHierarchy.bl_idname, icon='X')
+
+
+def _VIEW3D_MT_edit_armature(self, context):
+	self.layout.menu(_VIEW3D_MT_edit_armature_kawa_sub_menu.bl_idname)
+
+
+# # #
+
 def register():
 	_bpy.utils.register_class(_MESH_MT_shape_key_context_kawa_sub_menu)
 	_bpy.utils.register_class(_VIEW3D_MT_object_kawa_sub_menu)
 	_bpy.utils.register_class(_VIEW3D_MT_edit_mesh_kawa_sub_menu)
+	_bpy.utils.register_class(_VIEW3D_MT_edit_armature_kawa_sub_menu)
 	
 	_bpy.types.VIEW3D_MT_object.append(_VIEW3D_MT_object)
 	_bpy.types.VIEW3D_MT_object_context_menu.append(_VIEW3D_MT_object)
+	
 	_bpy.types.VIEW3D_MT_edit_mesh_context_menu.append(_VIEW3D_MT_edit_mesh_context_menu)
 	_bpy.types.VIEW3D_MT_edit_mesh_vertices.append(_VIEW3D_MT_edit_mesh_vertices)
+	
+	_bpy.types.VIEW3D_MT_edit_armature.append(_VIEW3D_MT_edit_armature)
+	_bpy.types.VIEW3D_MT_pose.append(_VIEW3D_MT_edit_armature)
+	
 	_bpy.types.MESH_MT_shape_key_context_menu.append(_MESH_MT_shape_key_context_menu)
 	_bpy.types.MESH_MT_vertex_group_context_menu.append(_MESH_MT_vertex_group_context_menu)
 
