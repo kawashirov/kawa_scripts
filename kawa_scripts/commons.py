@@ -205,12 +205,15 @@ def ensure_deselect_all_objects():
 
 def object_mode_set_strict(mode: 'str', context: 'Context' = None, op: 'Operator' = None):
 	context = context or _bpy.context
-	if context.mode != mode:
+	active_object = context.object or context.active_object or context.view_layer.objects.active
+	if active_object is None:
+		msg = 'There is no active object, can not set mode {}.'.format(repr(mode))
+		_log.raise_error(RuntimeError, msg, op=op)
+	if active_object.mode != mode:
 		_bpy.ops.object.mode_set(mode=mode)
-	if context.mode != mode:
-		msg = 'Can not switch object {} to mode {}, got {} instead.'.format(context.active_object, mode, context.mode)
-		_log.error(msg, op=op)
-		raise RuntimeError(msg)
+	if active_object.mode != mode:
+		msg = 'Can not switch object {} to mode {}, got {} instead.'.format(repr(active_object), repr(mode), repr(context.object.mode))
+		_log.raise_error(RuntimeError, msg, op=op)
 
 
 class _TemporaryViewLayer(_contextlib.ContextDecorator):
