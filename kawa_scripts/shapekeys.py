@@ -28,15 +28,16 @@ In Vertex context menu in "*3D Viewport*" window at Mesh-Edit-mode:
 
 import bpy as _bpy
 
-from ._internals import log as _log
-from ._internals import KawaOperator as _KawaOperator
+from . import _internals
 from . import _doc
+from . import meshes as _meshes
+from ._internals import log as _log
 
 import typing as _typing
 
 if _typing.TYPE_CHECKING:
 	from typing import *
-	from bpy.types import *
+	from bpy.types import Object, Mesh, ShapeKey, Key, Operator, Context
 
 
 def ensure_len_match(mesh: 'Mesh', shape_key: 'ShapeKey', op: 'Operator' = None):
@@ -56,8 +57,9 @@ def _mesh_have_shapekeys(mesh: 'Mesh', n: int = 1):
 	return mesh is not None and mesh.shape_keys is not None and len(mesh.shape_keys.key_blocks) >= n
 
 
-def _obj_have_shapekeys(obj: 'Object', n: int = 1):
-	return obj is not None and obj.type == 'MESH' and _mesh_have_shapekeys(obj.data, n=n)
+def _obj_have_shapekeys(obj: 'Object', n: int = 1, strict: 'Optional[bool]' = None):
+	mesh = _meshes.get_mesh_safe(obj, strict=strict)
+	return mesh is not None and _mesh_have_shapekeys(mesh, n=n)
 
 
 def _mesh_selection_to_vertices(mesh: 'Mesh'):
@@ -71,7 +73,7 @@ def _mesh_selection_to_vertices(mesh: 'Mesh'):
 				mesh.vertices[i].select = True
 
 
-class OperatorSelectVerticesAffectedByShapeKey(_KawaOperator):
+class OperatorSelectVerticesAffectedByShapeKey(_internals.KawaOperator):
 	"""
 	**Select Vertices Affected by Active Shape Key.**
 	"""
@@ -93,7 +95,7 @@ class OperatorSelectVerticesAffectedByShapeKey(_KawaOperator):
 	@classmethod
 	def poll(cls, context: 'Context'):
 		obj = cls.get_active_obj(context)
-		if not obj or obj.type != 'MESH':
+		if not _meshes.is_mesh_object(obj):
 			return False  # Требуется активный меш-объект
 		if not obj.active_shape_key or obj.active_shape_key_index == 0:
 			return False  # Требуется что бы был активный не первый шейпкей
@@ -112,7 +114,7 @@ class OperatorSelectVerticesAffectedByShapeKey(_KawaOperator):
 		_bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 		
 		obj = self.get_active_obj(context)
-		mesh = obj.data  # type: Mesh
+		mesh = _meshes.get_mesh_safe(obj)
 		shape_key = obj.active_shape_key
 		reference = mesh.shape_keys.reference_key
 		
@@ -137,7 +139,7 @@ class OperatorSelectVerticesAffectedByShapeKey(_KawaOperator):
 		return {'FINISHED'}
 
 
-class OperatorRevertSelectedInActiveToBasis(_KawaOperator):
+class OperatorRevertSelectedInActiveToBasis(_internals.KawaOperator):
 	"""
 	**Revert selected vertices in edit-mode to Reference Shape Key (Basis) in active Shape Key.**
 	"""
@@ -149,7 +151,7 @@ class OperatorRevertSelectedInActiveToBasis(_KawaOperator):
 	@classmethod
 	def poll(cls, context: 'Context'):
 		obj = cls.get_active_obj(context)
-		if not obj or obj.type != 'MESH':
+		if not _meshes.is_mesh_object(obj):
 			return False  # Требуется активный меш-объект
 		if not obj.active_shape_key or obj.active_shape_key_index == 0:
 			return False  # Требуется что бы был активный не первый шейпкей
@@ -161,7 +163,7 @@ class OperatorRevertSelectedInActiveToBasis(_KawaOperator):
 		obj = self.get_active_obj(context)
 		# Рофл в том, что операции над мешью надо проводить вне эдит-мода
 		_bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-		mesh = obj.data  # type: Mesh
+		mesh = _meshes.get_mesh_safe(obj)
 		shape_key = obj.active_shape_key
 		reference = mesh.shape_keys.reference_key
 		
@@ -181,7 +183,7 @@ class OperatorRevertSelectedInActiveToBasis(_KawaOperator):
 		return {'FINISHED'}
 
 
-class OperatorRevertSelectedInAllToBasis(_KawaOperator):
+class OperatorRevertSelectedInAllToBasis(_internals.KawaOperator):
 	"""
 	**Revert selected vertices in edit-mode to Reference Shape Key (Basis) in every Shape Key.**
 	"""
@@ -193,10 +195,10 @@ class OperatorRevertSelectedInAllToBasis(_KawaOperator):
 	@classmethod
 	def poll(cls, context: 'Context'):
 		obj = cls.get_active_obj(context)
-		if not obj or obj.type != 'MESH':
+		mesh = _meshes.get_mesh_safe(obj, strict=False)
+		if mesh is None:
 			return False  # Требуется активный меш-объект
-		data = obj.data  # type: Mesh
-		if data.shape_keys is None or len(data.shape_keys.key_blocks) < 2:
+		if mesh.shape_keys is None or len(mesh.shape_keys.key_blocks) < 2:
 			return False  # Требуется что бы было 2 или более шейпкея
 		if context.mode != 'EDIT_MESH':
 			return False  # Требуется режим  EDIT_MESH
@@ -206,7 +208,7 @@ class OperatorRevertSelectedInAllToBasis(_KawaOperator):
 		obj = self.get_active_obj(context)
 		# Рофл в том, что операции над мешью надо проводить вне эдит-мода
 		_bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-		mesh = obj.data  # type: Mesh
+		mesh = _meshes.get_mesh_safe(obj)
 		reference = mesh.shape_keys.reference_key
 		
 		if not ensure_len_match(mesh, reference, op=self):
@@ -228,7 +230,7 @@ class OperatorRevertSelectedInAllToBasis(_KawaOperator):
 		return {'FINISHED'}
 
 
-class OperatorApplySelectedInActiveToBasis(_KawaOperator):
+class OperatorApplySelectedInActiveToBasis(_internals.KawaOperator):
 	"""
 	Same as `OperatorApplyActiveToBasis`, but only for selected vertices in edit-mode.
 	See also: `apply_active_to_basis`.
@@ -241,7 +243,7 @@ class OperatorApplySelectedInActiveToBasis(_KawaOperator):
 	@classmethod
 	def poll(cls, context: 'Context'):
 		obj = cls.get_active_obj(context)
-		if not obj or obj.type != 'MESH':
+		if not _meshes.is_mesh_object(obj):
 			return False  # Требуется активный меш-объект
 		if not obj.active_shape_key or obj.active_shape_key_index == 0:
 			return False  # Требуется что бы был активный не первый шейпкей
@@ -253,7 +255,7 @@ class OperatorApplySelectedInActiveToBasis(_KawaOperator):
 		obj = self.get_active_obj(context)
 		# Рофл в том, что операции над мешью надо проводить вне эдит-мода
 		_bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-		mesh = obj.data  # type: Mesh
+		mesh = _meshes.get_mesh_safe(obj)
 		active_key = obj.active_shape_key
 		ref_key = mesh.shape_keys.reference_key
 		
@@ -273,7 +275,7 @@ class OperatorApplySelectedInActiveToBasis(_KawaOperator):
 		return {'FINISHED'}
 
 
-class OperatorApplySelectedInActiveToAll(_KawaOperator):
+class OperatorApplySelectedInActiveToAll(_internals.KawaOperator):
 	"""
 	Same as `OperatorApplyActiveToAll`, but only for selected vertices in edit-mode.
 	[Video demonstration.](https://www.youtube.com/watch?v=xfKzI0hn8os)
@@ -299,7 +301,7 @@ class OperatorApplySelectedInActiveToAll(_KawaOperator):
 		obj = self.get_active_obj(context)
 		# Рофл в том, что операции над мешью надо проводить вне эдит-мода
 		_bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-		mesh = obj.data  # type: Mesh
+		mesh = _meshes.get_mesh_safe(obj)
 		active_key = obj.active_shape_key
 		ref_key = mesh.shape_keys.reference_key
 		
@@ -349,7 +351,7 @@ def apply_active_to_basis(obj: 'Object', keep_reverted=True, op: 'Operator' = No
 	See also: `apply_active_to_all`, `OperatorApplySelectedInActiveToBasis`.
 	"""
 	# No context control
-	mesh = obj.data  # type: Mesh
+	mesh = _meshes.get_mesh_safe(obj)
 	active_key = obj.active_shape_key
 	ref_key = mesh.shape_keys.reference_key
 	
@@ -371,7 +373,7 @@ def apply_active_to_basis(obj: 'Object', keep_reverted=True, op: 'Operator' = No
 	return True
 
 
-class OperatorApplyActiveToBasis(_KawaOperator):
+class OperatorApplyActiveToBasis(_internals.KawaOperator):
 	"""
 	Operator of `apply_active_to_basis`.
 	See also: `OperatorApplySelectedInActiveToBasis`.
@@ -422,7 +424,7 @@ def apply_active_to_all(obj: 'Object', keep_reverted=False, op: 'Operator' = Non
 	See also: `OperatorApplySelectedInActiveToAll`.
 	"""
 	# No context control
-	mesh = obj.data  # type: Mesh
+	mesh = _meshes.get_mesh_safe(obj)
 	active_key = obj.active_shape_key
 	ref_key = mesh.shape_keys.reference_key
 	
@@ -454,7 +456,7 @@ def apply_active_to_all(obj: 'Object', keep_reverted=False, op: 'Operator' = Non
 	return True
 
 
-class OperatorApplyActiveToAll(_KawaOperator):
+class OperatorApplyActiveToAll(_internals.KawaOperator):
 	"""
 	Operator of `apply_active_to_all`.
 	See also: `OperatorApplySelectedInActiveToAll`.
@@ -488,7 +490,7 @@ class OperatorApplyActiveToAll(_KawaOperator):
 		return {'FINISHED'} if apply_active_to_all(self.get_active_obj(context), keep_reverted=self.keep_reverted, op=self) else {'CANCELLED'}
 
 
-def cleanup_active(obj: 'Object', epsilon: 'float', op: 'Operator' = None) -> 'int':
+def cleanup_active(obj: 'Object', epsilon: 'float', op: 'Operator' = None, strict: 'Optional[bool]' = None) -> 'int':
 	"""
 	**Removes micro-offsets in active Shape Key.**
 	If position of a vertex differs from position in Reference Shape Key (Basis) for `epsilon` or less,
@@ -498,9 +500,12 @@ def cleanup_active(obj: 'Object', epsilon: 'float', op: 'Operator' = None) -> 'i
 	
 	Available as operator `OperatorCleanupActive`
 	"""
-	if not _obj_have_shapekeys(obj, n=2):
+	mesh = _meshes.get_mesh_safe(obj, strict=strict)
+	if mesh is None:
 		return 0
-	mesh = obj.data  # type: Mesh
+	if not _mesh_have_shapekeys(mesh, n=2):
+		return 0
+	
 	active_key = obj.active_shape_key
 	ref_key = mesh.shape_keys.reference_key
 	if active_key == ref_key:
@@ -520,7 +525,7 @@ def cleanup_active(obj: 'Object', epsilon: 'float', op: 'Operator' = None) -> 'i
 	return changed
 
 
-class OperatorCleanupActive(_KawaOperator):
+class OperatorCleanupActive(_internals.KawaOperator):
 	"""
 	Operator of `cleanup_active`
 	"""
@@ -562,7 +567,7 @@ class OperatorCleanupActive(_KawaOperator):
 		return {'FINISHED'} if changed > 0 else {'CANCELLED'}
 
 
-def cleanup_all(objs: 'Iterable[Object]', epsilon: float, op: 'Operator' = None) -> 'Tuple[int, int, int]':
+def cleanup_all(objs: 'Iterable[Object]', epsilon: float, op: 'Operator' = None, strict: 'Optional[bool]' = None) -> 'Tuple[int, int, int]':
 	"""
 	**Removes micro-offsets in all Shape Keys.**
 	Same as `cleanup_active`, but for every shape key (except reference one) for every object.
@@ -571,11 +576,11 @@ def cleanup_all(objs: 'Iterable[Object]', epsilon: float, op: 'Operator' = None)
 	
 	Available as operator `OperatorCleanupAll`
 	"""
-	objs = list(obj for obj in objs if _obj_have_shapekeys(obj, n=2))  # type: List[Object]
+	objs = list(obj for obj in objs if _obj_have_shapekeys(obj, n=2, strict=strict))  # type: List[Object]
 	meshes = set()
 	vertices_changed, shapekeys_changed, meshes_changed = 0, 0, 0
 	for obj in objs:
-		mesh = obj.data  # type: Mesh
+		mesh = _meshes.get_mesh_safe(obj, strict=strict)
 		if mesh in meshes:
 			continue  # Уже трогали
 		meshes.add(mesh)
@@ -596,7 +601,7 @@ def cleanup_all(objs: 'Iterable[Object]', epsilon: float, op: 'Operator' = None)
 	return vertices_changed, shapekeys_changed, meshes_changed
 
 
-class OperatorCleanupAll(_KawaOperator):
+class OperatorCleanupAll(_internals.KawaOperator):
 	"""
 	Operator of `cleanup_all`
 	"""
@@ -620,7 +625,7 @@ class OperatorCleanupAll(_KawaOperator):
 	def poll(cls, context: 'Context'):
 		if context.mode != 'OBJECT':
 			return False  # Требуется режим OBJECT
-		if not any(True for obj in cls.get_selected_objs(context) if _obj_have_shapekeys(obj, n=2)):
+		if not any(True for obj in cls.get_selected_objs(context) if _obj_have_shapekeys(obj, n=2, strict=False)):
 			return False  # Должны быть выбраны Меш-объекты c 2 или более шейпами
 		return True
 	
@@ -638,7 +643,7 @@ class OperatorCleanupAll(_KawaOperator):
 		return {'FINISHED'} if vertices_cleaned > 0 else {'CANCELLED'}
 
 
-def remove_empty(objs: 'Iterable[Object]', epsilon: float, op: 'Operator' = None) -> 'Tuple[int, int]':
+def remove_empty(objs: 'Iterable[Object]', epsilon: float, op: 'Operator' = None, strict: 'Optional[bool]' = None) -> 'Tuple[int, int]':
 	"""
 	**Removes empty Shape Keys from Mesh-objects.**
 	Shape Key is empty, if positions of **every** vertex differ from Reference Shape Key (Basis) for `epsilon` or less.
@@ -647,11 +652,11 @@ def remove_empty(objs: 'Iterable[Object]', epsilon: float, op: 'Operator' = None
 	
 	Available as operator `OperatorRemoveEmpty`
 	"""
-	objs = list(obj for obj in objs if _obj_have_shapekeys(obj, n=2))  # type: List[Object]
+	objs = list(obj for obj in objs if _obj_have_shapekeys(obj, n=2, strict=strict))  # type: List[Object]
 	removed_shapekeys, changed_meshes = 0, 0
 	meshes = set()
 	for obj in objs:
-		mesh = obj.data  # type: Mesh
+		mesh = _meshes.get_mesh_safe(obj, strict=strict)
 		if mesh in meshes:
 			continue  # Уже трогали
 		meshes.add(mesh)
@@ -674,13 +679,13 @@ def remove_empty(objs: 'Iterable[Object]', epsilon: float, op: 'Operator' = None
 		for empty_key in empty_keys:
 			# На всякий случай удаляю по прямому пути, вдруг там что-то перестраивается в процессе удаления.
 			# Не спроста же Key-блоки можно редактировать только через Object-блоки
-			obj.shape_key_remove(obj.data.shape_keys.key_blocks[empty_key])
+			obj.shape_key_remove(mesh.shape_keys.key_blocks[empty_key])
 		removed_shapekeys += len(empty_keys)
 		changed_meshes += 1
 	return removed_shapekeys, changed_meshes
 
 
-class OperatorRemoveEmpty(_KawaOperator):
+class OperatorRemoveEmpty(_internals.KawaOperator):
 	"""
 	Operator of `remove_empty`.
 	"""
@@ -706,7 +711,7 @@ class OperatorRemoveEmpty(_KawaOperator):
 	def poll(cls, context: 'Context'):
 		if context.mode != 'OBJECT':
 			return False  # Требуется режим OBJECT
-		if not any(True for obj in cls.get_selected_objs(context) if _obj_have_shapekeys(obj, n=2)):
+		if not any(True for obj in cls.get_selected_objs(context) if _obj_have_shapekeys(obj, n=2, strict=False)):
 			return False  # Должны быть выбраны какие-то Меш-объекты
 		return True
 	

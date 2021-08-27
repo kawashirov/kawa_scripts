@@ -12,7 +12,7 @@ Tool for figuring out a texture size of material.
 See `kawa_scripts.tex_size_finder.TexSizeFinder`.
 """
 
-from collections import deque as _deque
+import collections as _collections
 
 import bpy as _bpy
 
@@ -21,8 +21,8 @@ from ._internals import log as _log
 import typing as _typing
 
 if _typing.TYPE_CHECKING:
-	from typing import *
-	from bpy.types import *
+	from typing import Optional, Tuple, Iterator, Deque, Set
+	from bpy.types import Material, Image, ShaderNodeTree, ShaderNodeTexImage
 
 
 class TexSizeFinder:
@@ -38,7 +38,7 @@ class TexSizeFinder:
 	(in overridden `kawa_scripts.atlas_baker.BaseAtlasBaker.get_material_size`),
 	but not necessary, you can provide material sizes by you self.
 	"""
-
+	
 	def __init__(self):
 		pass
 	
@@ -70,7 +70,7 @@ class TexSizeFinder:
 		return tuple(image.size)
 	
 	def iterate_nodes(self, node_tree: 'ShaderNodeTree') -> 'Iterator[ShaderNodeTexImage]':
-		node_trees = _deque()  # type: Deque[ShaderNodeTree]
+		node_trees = _collections.deque()  # type: Deque[ShaderNodeTree]
 		node_trees.append(node_tree)
 		node_trees_history = set()  # type: Set[ShaderNodeTree]
 		while len(node_trees) > 0:
@@ -83,7 +83,7 @@ class TexSizeFinder:
 					yield node
 				elif isinstance(node, _bpy.types.ShaderNodeGroup):
 					node_trees.append(node.node_tree)
-
+	
 	def iterate_sizes(self, node_tree: 'ShaderNodeTree') -> 'Iterator[Tuple[float, float]]':
 		for node in self.iterate_nodes(node_tree):
 			size = self.nodeteximage_size(node)
@@ -103,8 +103,8 @@ class TexSizeFinder:
 	
 	def max_mat_size(self, mat: 'Material') -> 'Optional[Tuple[float, float]]':
 		""" Returns maximum found size of all counted images in Shader Note Tree of Material or None. """
-		return max((s for s in self.iterate_sizes(mat.node_tree)), key=lambda x: x[0]*x[1], default=None)
-
+		return max((s for s in self.iterate_sizes(mat.node_tree)), key=lambda x: x[0] * x[1], default=None)
+	
 	def mat_size(self, mat: 'Material') -> 'Optional[Tuple[float, float]]':
 		""" Returns found size of Material or None. By default is `max_mat_size`. User can override this. """
 		return self.max_mat_size(mat)  # default

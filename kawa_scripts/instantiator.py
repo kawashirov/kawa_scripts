@@ -7,20 +7,21 @@
 # work.  If not, see <http://creativecommons.org/licenses/by-nc-sa/3.0/>.
 #
 #
-from collections import deque as _deque
+import collections as _collections
 
 import bpy as _bpy
 
 from . import commons as _commons
+from . import objects as _objects
 from . import modifiers as _modifiers
-from .reporter import LambdaReporter as _LambdaReporter
+from . import reporter as _reporter
 from ._internals import log as _log
 
 import typing as _typing
 
 if _typing.TYPE_CHECKING:
-	from typing import *
-	from bpy.types import *
+	from typing import Set
+	from bpy.types import Scene, Object
 	
 	Collection = _bpy.types.Collection
 
@@ -81,7 +82,7 @@ class BaseInstantiator:
 			raise RuntimeError(msg, wrong_scene)
 
 	def _register_original_names(self):
-		original_names_q = _deque()
+		original_names_q = _collections.deque()
 		original_names_q.extend(self.originals)
 		self._original_names.clear()
 		while len(original_names_q) > 0:
@@ -93,17 +94,17 @@ class BaseInstantiator:
 			obj[self.ORIGINAL_NAME] = obj.name
 			
 	def _put_originals_on_working(self):
-		_commons.ensure_deselect_all_objects()
+		_objects.deselect_all()
 		for original in self.originals:
 			if original.name not in self.working_scene.collection.objects:
 				self.working_scene.collection.objects.link(original)
-			_commons.activate_object(original)
+			_objects.activate(original)
 	
 	def _duplicate(self):
 		_commons.ensure_op_finished(_bpy.ops.object.duplicate(linked=False), name='bpy.ops.object.duplicate')
 		self.copies.update(_bpy.context.selected_objects)
 		_log.info('Basic copies created: {0}'.format(len(self.copies)))
-		_commons.ensure_deselect_all_objects()
+		_objects.deselect_all()
 		
 	def _unlink_originals_from_working(self):
 		for original in self.originals:
@@ -128,12 +129,12 @@ class BaseInstantiator:
 		_log.info('Instantiating collections...')
 		
 		created, obj_i, inst_i = 0, 0, 0
-		reporter = _LambdaReporter(self.report_time)
+		reporter = _reporter.LambdaReporter(self.report_time)
 		reporter.func = lambda r, t: _log.info(
 			"Instantiating collections: Objects={0}/{1}, Instantiated={2}, Created={3}, Time={4:.1f} sec...".format(
 				obj_i, len(self.copies), inst_i, created, t))
 		
-		queue = _deque()
+		queue = _collections.deque()
 		queue.extend(self.copies)
 		while len(queue) > 0:
 			obj = queue.pop()  # type: Object
@@ -141,8 +142,8 @@ class BaseInstantiator:
 			if obj.type != 'EMPTY' or obj.instance_type != 'COLLECTION' or obj.instance_collection is None:
 				continue
 			inst_i += 1
-			_commons.ensure_deselect_all_objects()
-			_commons.activate_object(obj)
+			_objects.deselect_all()
+			_objects.activate(obj)
 			collection = obj.instance_collection
 			_commons.ensure_op_finished(_bpy.ops.object.duplicates_make_real(
 				use_base_parent=True, use_hierarchy=True
@@ -160,7 +161,7 @@ class BaseInstantiator:
 					inst_obj.name = obj.name + '-' + inst_obj_orignal_name
 			reporter.ask_report(False)
 			
-		_commons.ensure_deselect_all_objects()
+		_objects.deselect_all()
 		reporter.ask_report(True)
 	
 	def _convert_curves_to_meshes(self):
@@ -168,31 +169,31 @@ class BaseInstantiator:
 		curves = list(obj for obj in self.copies if isinstance(obj.data, _bpy.types.Curve))
 		if len(curves) < 1:
 			return
-		_commons.ensure_deselect_all_objects()
-		_commons.activate_objects(curves)
+		_objects.deselect_all()
+		_objects.activate(curves)
 		self.copies.difference_update(curves)
 		_commons.ensure_op_finished(_bpy.ops.object.convert(target='MESH'), name='bpy.ops.object.convert')
 		self.copies.update(_bpy.context.selected_objects)
-		_commons.ensure_deselect_all_objects()
+		_objects.deselect_all()
 		_log.info('Converted {0} curves to meshes.'.format(len(curves)))
 	
 	def _make_single_user(self):
 		_log.info('Making data blocks single-users...')
-		_commons.ensure_deselect_all_objects()
-		_commons.select_set_all(self.copies, True)
+		_objects.deselect_all()
+		_objects.select(self.copies)
 		before = len(set(obj.data for obj in self.copies if obj.data is not None))
 		_commons.ensure_op_finished(_bpy.ops.object.make_single_user(
 			object=False, obdata=True, material=False, animation=False,
 		), name='bpy.ops.object.make_single_user')
 		after = len(set(obj.data for obj in self.copies if obj.data is not None))
 		self.copies.update(_bpy.context.selected_objects)
-		_commons.ensure_deselect_all_objects()
+		_objects.deselect_all()
 		_log.info('make_single_user, data blocks: {0} +{1} -> {2}'.format(before, (after - before), after))
 	
 	def _instantiate_material_slots(self):
 		obj_i, slot_i = 0, 0
 		
-		reporter = _LambdaReporter(self.report_time)
+		reporter = _reporter.LambdaReporter(self.report_time)
 		reporter.func = lambda r, t: _log.info(
 			"Instantiating material slots: Objects={0}/{1}, Slots={2}, Time={3:.1f} sec, ETA={4:.1f} sec...".format(
 				obj_i, len(self.copies), slot_i, t, r.get_eta(1.0 * obj_i / len(self.copies))))
@@ -216,7 +217,7 @@ class BaseInstantiator:
 	def _apply_modifiers(self):
 		obj_n, obj_i, mod_i = len(self.copies), 0, 0
 		
-		reporter = _LambdaReporter(self.report_time)
+		reporter = _reporter.LambdaReporter(self.report_time)
 		reporter.func = lambda r, t: _log.info(
 			"Applying modifiers: Objects={0}/{1}, Modifiers={2}, Time={3:.1f} sec, ETA={4:.1f} sec...".format(
 				obj_i, obj_n, mod_i, t, r.get_eta(1.0 * obj_i / obj_n)))
@@ -263,9 +264,9 @@ class BaseInstantiator:
 		
 		if self.apply_scales:
 			_log.info('Applying scales...')
-			_commons.select_set_all(self.copies, True)
+			_objects.select(self.copies)
 			_bpy.ops.object.transform_apply(location=False, rotation=False, scale=self.apply_scales, properties=False)
-			_commons.select_set_all(self.copies, False)
+			_objects.select(self.copies, state=False)
 			_log.info('Applied scales.')
 		
 		invalids = list(obj for obj in self.copies if obj.name not in self.working_scene.collection.objects)

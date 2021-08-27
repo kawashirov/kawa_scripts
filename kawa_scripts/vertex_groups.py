@@ -13,18 +13,18 @@ Useful tools for Vertex Groups
 from math import sqrt as _sqrt
 
 import bpy as _bpy
-from bmesh import new as _bmesh_new
+import bmesh as _bmesh
 
-from ._internals import log as _log
-from ._internals import KawaOperator as _KawaOperator
+from . import _internals
 from . import _doc
+from ._internals import log as _log
 
 import typing as _typing
 
 if _typing.TYPE_CHECKING:
-	from typing import *
-	from bpy.types import *
-	from bmesh.types import *
+	from typing import Union, Iterable, Tuple, Dict, List
+	from bpy.types import Object, Mesh, VertexGroup, Context, MeshVertex, Operator
+	from bmesh.types import BMLayerItem, BMDeformVert
 
 
 def _any_weight(mesh: 'Mesh', group_index: 'int', limit: 'float' = 0.0):
@@ -42,12 +42,9 @@ def get_weight_safe(group: 'VertexGroup', index: 'int', default=0.0):
 		return group.weight(index)
 	except RuntimeError:
 		return default
-	
-	
-	
 
 
-def halfbone_apply_weight(obj: 'bpy.types.Object', ctrl_a: 'Union[str, int]', ctrl_b: 'Union[str, int]', half_name: 'Union[str, int]'):
+def halfbone_apply_weight(obj: 'Object', ctrl_a: 'Union[str, int]', ctrl_b: 'Union[str, int]', half_name: 'Union[str, int]'):
 	mesh = obj.data  # type: Mesh
 	a_group = obj.vertex_groups.get(ctrl_a)
 	b_group = obj.vertex_groups.get(ctrl_b)
@@ -141,7 +138,7 @@ def merge_weights(objs: 'Iterable[Object]', mapping: 'Dict[str, Dict[str, float]
 	
 	verts_modified, groups_removed, meshes_modified = 0, 0, 0
 	new_weights = dict()  # type: Dict[int, float]  # временный
-	remap = list()  # type: List[List[float]]  # также временный
+	remap = list()  # type: List[Union[None, List[float]]]  # также временный
 	for obj in objs:
 		object_modified = False
 		if obj.type != 'MESH' or obj.data is None:
@@ -180,7 +177,7 @@ def merge_weights(objs: 'Iterable[Object]', mapping: 'Dict[str, Dict[str, float]
 			_log.info('There is no groups to merge on {} (any(remap)).'.format(repr(obj)))
 			continue  # на этом объекте нет групп, которые нужно смешивать
 		_log.info('Remap for {}: {}.'.format(repr(obj), repr(remap)))
-		bm = _bmesh_new()
+		bm = _bmesh.new()
 		try:
 			bm.from_mesh(obj.data)
 			deform_layer = bm.verts.layers.deform.active  # type: BMLayerItem
@@ -273,7 +270,7 @@ def remove_empty(objs: 'Iterable[Object]', limit: 'float' = 0.0, ignore_locked: 
 	return removed_groups, removed_objects
 
 
-class OperatorRemoveEmpty(_KawaOperator):
+class OperatorRemoveEmpty(_internals.KawaOperator):
 	"""
 	Operator of `remove_empty`.
 	"""

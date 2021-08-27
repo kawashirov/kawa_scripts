@@ -3,7 +3,7 @@ from time import perf_counter as _perf_counter
 import typing as _typing
 
 if _typing.TYPE_CHECKING:
-	from typing import *
+	from typing import Callable
 
 
 class AbstractReporter:

@@ -10,18 +10,17 @@
 """
 Useful tools for Vertex Groups
 """
-from math import sqrt as _sqrt
-from collections import deque as _deque
+import collections as _collections
 
 import bpy as _bpy
-from bmesh import new as _bmesh_new
-from mathutils import Vector as _Vector
 
-from ._internals import log as _log
-from ._internals import KawaOperator as _KawaOperator
+from . import _internals
 from . import _doc
 from . import commons as _commons
+from . import objects as _objects
+from . import meshes as _meshes
 from . import vertex_groups as _vertex_groups
+from ._internals import log as _log
 
 import typing as _typing
 
@@ -30,7 +29,8 @@ if _typing.TYPE_CHECKING:
 	from bpy.types import Context, Object, Bone, EditBone, PoseBone, Operator
 
 
-class _KawaBoneModeOperator(_KawaOperator):
+class _KawaBoneModeOperator(_internals.KawaOperator):
+	# TODO
 	@classmethod
 	def get_selected_bones(cls, context: 'Context') -> 'List[Bone]':
 		# Note: only returns exist bones (saved from edit-mode)
@@ -55,24 +55,24 @@ def _ensure_valid_armature(arm_obj: 'Object'):
 def remove_bones(arm_obj: 'Object', bones_to_remove: 'Container[str]'):
 	bones_removed = 0
 	_ensure_valid_armature(arm_obj)
-	_commons.ensure_deselect_all_objects()
-	_commons.activate_object(arm_obj)
+	_objects.deselect_all()
+	_objects.activate(arm_obj)
 	try:
-		_commons.object_mode_set_strict('EDIT')
+		_objects.mode_set('EDIT')
 		for edit_bone in list(arm_obj.data.edit_bones):  # type: EditBone
 			if edit_bone.name in bones_to_remove:
 				arm_obj.data.edit_bones.remove(edit_bone)
 				bones_removed += 1
 	finally:
-		_commons.object_mode_set_strict('OBJECT')
-	_commons.ensure_deselect_all_objects()
+		_objects.mode_set('OBJECT')
+	_objects.deselect_all()
 	return bones_removed
 
 
 def merge_bones(arm_obj: 'Object', mapping: 'Dict[str, Dict[str, float]]', meshes_objs: 'List[Object]' = None) -> 'Tuple[int, int, int, int]':
 	verts_modified, groups_removed, meshes_modified, bones_removed = 0, 0, 0, 0
 	_ensure_valid_armature(arm_obj)
-	meshes_objs = _commons.find_meshes_affected_by_armatue(arm_obj, where=meshes_objs)
+	meshes_objs = _meshes.find_meshes_affected_by_armatue(arm_obj, where=meshes_objs)
 	if len(meshes_objs) < 1:
 		return verts_modified, groups_removed, meshes_modified, bones_removed
 	verts_modified, groups_removed, meshes_modified = _vertex_groups.merge_weights(meshes_objs, mapping)
@@ -80,7 +80,7 @@ def merge_bones(arm_obj: 'Object', mapping: 'Dict[str, Dict[str, float]]', meshe
 	return verts_modified, groups_removed, meshes_modified, bones_removed
 
 
-class OperatorMergeActiveUniformly(_KawaOperator):
+class OperatorMergeActiveUniformly(_internals.KawaOperator):
 	"""
 	Operator of `kawa_scripts.vertex_groups.merge_bones` that merges weights of **active bone into selected bone** uniformly.
 	"""
@@ -125,7 +125,7 @@ class OperatorMergeActiveUniformly(_KawaOperator):
 		other_bones = list(eb for eb in context.selected_bones if eb != active_bone)  # type: List[EditBone]
 		if len(other_bones) < 1:
 			return {'CANCELLED'}
-		meshes_objs = _commons.find_meshes_affected_by_armatue(arm_obj)
+		meshes_objs = _meshes.find_meshes_affected_by_armatue(arm_obj)
 		if len(meshes_objs) < 1:
 			self.warning("There is no meshes affected by {}, so there is no point to run this complex merge. ".format(
 				repr(arm_obj)) + "Operation CANCELLED. Why not just delete active bone?")
@@ -162,10 +162,10 @@ class OperatorMergeActiveUniformly(_KawaOperator):
 		arm_obj = self.get_active_obj(context)
 		original_mode = arm_obj.mode
 		try:
-			_commons.object_mode_set_strict('EDIT', context=context, op=self)
+			_objects.mode_set('EDIT', context=context, op=self)
 			return self._execute_edit_mode(context)
 		finally:
-			_commons.object_mode_set_strict(original_mode, context=context, op=self)
+			_objects.mode_set(original_mode, context=context, op=self)
 
 
 def _find_parent_target(merging_bone: 'EditBone', invalid_bones: 'Container[EditBone]') -> 'EditBone':
@@ -177,7 +177,7 @@ def _find_parent_target(merging_bone: 'EditBone', invalid_bones: 'Container[Edit
 
 def _find_children_targets(merging_bone: 'EditBone', invalid_bones: 'Container[EditBone]') -> 'List[Tuple[EditBone, float]]':
 	valid_children = list()  # type: List[Tuple[EditBone, float]]
-	queue = _deque()  # type: Deque[Tuple[EditBone, float]]
+	queue = _collections.deque()  # type: Deque[Tuple[EditBone, float]]
 	queue.append((merging_bone, 1.0))
 	while len(queue) > 0:
 		bone, weight = queue.pop()
@@ -236,16 +236,16 @@ def merge_to_hierarchy(
 		op: 'Operator' = None
 ) -> 'Tuple[int, int, int, int, List[str]]':
 	_ensure_valid_armature(arm_obj)
-	_commons.ensure_deselect_all_objects()
-	_commons.activate_object(arm_obj)
+	_objects.deselect_all()
+	_objects.activate(arm_obj)
 	mapping, cancelled = None, None
 	try:
-		_commons.object_mode_set_strict('EDIT', op=op)
+		_objects.mode_set('EDIT', op=op)
 		merge_ebones = list(eb for eb in arm_obj.data.edit_bones if eb.name in bones)
 		mapping, cancelled = _find_hierarchy_mapping(merge_ebones, merge_ebones, to_parents=to_parents, to_children=to_children)
 		cancelled = list(eb.name for eb in cancelled)
 	finally:
-		_commons.object_mode_set_strict('OBJECT', op=op)
+		_objects.mode_set('OBJECT', op=op)
 	if not allow_cancelled and len(cancelled) > 0:
 		msg = 'Can not merge bones: {!r}'.format(cancelled)
 		_log.raise_error(ValueError, msg, op=op)
@@ -254,7 +254,7 @@ def merge_to_hierarchy(
 	return (*result, cancelled)
 
 
-class OperatorMergeSelectedToHierarchy(_KawaOperator):
+class OperatorMergeSelectedToHierarchy(_internals.KawaOperator):
 	"""
 	Operator of `kawa_scripts.vertex_groups.merge_bones` that merges weights of **selected bones** into
 	hierarchy of unselected **parent** and/or **children**.
@@ -301,7 +301,7 @@ class OperatorMergeSelectedToHierarchy(_KawaOperator):
 		selected_bones = context.selected_bones  # type: List[EditBone]
 		if len(selected_bones) < 1:
 			return {'CANCELLED'}
-		meshes_objs = _commons.find_meshes_affected_by_armatue(arm_obj)
+		meshes_objs = _meshes.find_meshes_affected_by_armatue(arm_obj)
 		if len(meshes_objs) < 1:
 			self.warning("There is no meshes affected by {}, so there is no point to run this complex merge. ".format(
 				repr(arm_obj)) + "Operation CANCELLED. Why not just delete selected bones?")
@@ -350,10 +350,10 @@ class OperatorMergeSelectedToHierarchy(_KawaOperator):
 		arm_obj = self.get_active_obj(context)
 		original_mode = arm_obj.mode
 		try:
-			_commons.object_mode_set_strict('EDIT', context=context, op=self)
+			_objects.mode_set('EDIT', context=context, op=self)
 			return self._execute_edit_mode(context)
 		finally:
-			_commons.object_mode_set_strict(original_mode, context=context, op=self)
+			_objects.mode_set(original_mode, context=context, op=self)
 
 
 classes = (

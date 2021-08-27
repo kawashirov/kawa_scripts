@@ -12,29 +12,32 @@ Useful tools for UV Layers
 """
 
 import bpy as _bpy
-from mathutils import Vector as _Vector
+import mathutils as _mu
 
+from . import _internals
 from . import commons as _commons
-from ._internals import common_str_slots
+from . import objects as _objects
+from . import meshes as _meshes
 from ._internals import log as _log
 
 import typing as _typing
+
 if _typing.TYPE_CHECKING:
-	from typing import *
-	from bpy.types import *
+	from typing import Union, Optional, Iterable, Sequence, List, Callable
+	from bpy.types import Object, Mesh, Material, bpy_prop_collection, MeshPolygon, MeshUVLoop
 	from mathutils import Vector
-	from bmesh.types import *
+	from bmesh.types import BMFace, BMLayerItem
 
 
 def uv_area(poly: 'MeshPolygon', uv_layer_data: 'Union[bpy_prop_collection, List[MeshUVLoop]]'):
 	""" Returns area of given polygon on given UV Layer in normalized (0..1) space (for bpy.types.Mesh). """
 	# tuple чуть-чуть быстрее на малых длинах, тестил через timeit
-	return _commons.poly2_area2(tuple(uv_layer_data[loop].uv for loop in poly.loop_indices))
+	return _meshes.poly2_area2(list(uv_layer_data[loop].uv for loop in poly.loop_indices))
 
 
 def uv_area_bmesh(bm_face: 'BMFace', bm_uv_layer: 'BMLayerItem'):
 	""" Returns area of given polygon on given UV Layer in normalized (0..1) space (for besh.types.BMesh). """
-	return _commons.poly2_area2(tuple(bm_loop[bm_uv_layer].uv for bm_loop in bm_face.loops))
+	return _meshes.poly2_area2(list(bm_loop[bm_uv_layer].uv for bm_loop in bm_face.loops))
 
 
 def repack_active_uv(
@@ -49,8 +52,8 @@ def repack_active_uv(
 	"""
 	e = _commons.ensure_op_finished
 	try:
-		_commons.ensure_deselect_all_objects()
-		_commons.activate_object(obj)
+		_objects.deselect_all()
+		_objects.activate(obj)
 		# Перепаковка...
 		e(_bpy.ops.object.mode_set_with_submode(mode='EDIT', mesh_select_mode={'FACE'}), name='object.mode_set_with_submode')
 		e(_bpy.ops.mesh.reveal(select=True), name='mesh.reveal')
@@ -89,19 +92,19 @@ def repack_active_uv(
 		e(_bpy.ops.object.mode_set(mode='OBJECT'), name='object.mode_set')
 
 
-def remove_all_uv_layers(obj: 'Object'):
+def remove_all_uv_layers(obj: 'Object', strict: 'Optional[bool]' = None):
 	"""
 	Remove all UV Layers from Mesh-Object.
 	"""
-	mesh = _commons.get_mesh_safe(obj)
+	mesh = _meshes.get_mesh_safe(obj, strict=strict)
 	while len(mesh.uv_layers) > 0:
 		mesh.uv_layers.remove(mesh.uv_layers[0])
 
 
 def _remove_uv_layer_by_condition(
 		mesh: 'Mesh',
-		func_should_delete: 'Callable[str, MeshTexturePolyLayer, bool]',
-		func_on_delete: 'Callable[str, MeshTexturePolyLayer, None]'
+		func_should_delete: 'Callable[[str, MeshTexturePolyLayer], bool]',
+		func_on_delete: 'Callable[[str, MeshTexturePolyLayer], None]'
 ):
 	# TODO лагаси говно переписать
 	while True:
@@ -132,15 +135,15 @@ class Island:
 		self.mx = mx  # type: Optional[Vector]
 		self.extends = 0  # Для диагностических целей
 	
-	def __str__(self) -> str: return common_str_slots(self, self.__slots__)
+	def __str__(self) -> str: return _internals.common_str_slots(self, self.__slots__)
 	
-	def __repr__(self) -> str: return common_str_slots(self, self.__slots__)
+	def __repr__(self) -> str: return _internals.common_str_slots(self, self.__slots__)
 	
 	def is_valid(self):
 		return self.mn is not None and self.mx is not None
 	
 	def is_inside_vec2(self, item: 'Vector', epsilon: 'float' = 0):
-		if type(item) != _Vector:
+		if not isinstance(item, _mu.Vector):
 			raise ValueError("type(item) != Vector")
 		if len(item) != 2:
 			raise ValueError("len(item) != 2")
@@ -161,7 +164,7 @@ class Island:
 		return True
 	
 	def get_points(self) -> 'Sequence[Vector]':
-		return self.mn, self.mx, _Vector((self.mn.x, self.mx.y)), _Vector((self.mx.x, self.mn.y))
+		return self.mn, self.mx, _mu.Vector((self.mn.x, self.mx.y)), _mu.Vector((self.mx.x, self.mn.y))
 	
 	def any_inside_vec2(self, items: 'Iterable[Vector]', epsilon: 'float' = 0):
 		return any(self.is_inside_vec2(x, epsilon=epsilon) for x in items)
@@ -223,9 +226,9 @@ class IslandsBuilder:
 		self.merges = 0  # Для диагностических целей
 		""" For diagnostic and debug purposes. Number of Island merges happened. """
 	
-	def __str__(self) -> str: return common_str_slots(self, self.__slots__)
+	def __str__(self) -> str: return _internals.common_str_slots(self, self.__slots__)
 	
-	def __repr__(self) -> str: return common_str_slots(self, self.__slots__)
+	def __repr__(self) -> str: return _internals.common_str_slots(self, self.__slots__)
 	
 	def add_bbox(self, bbox: 'Island', epsilon: 'float' = 0):
 		# Добавляет набор точек

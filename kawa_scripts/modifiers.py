@@ -10,18 +10,18 @@
 
 import bpy as _bpy
 
-from . import commons as _commons
-from . import shapekeys as _shapekeys
+from . import _internals
 from ._internals import log as _log
-from ._internals import KawaOperator as _KawaOperator
-from .reporter import LambdaReporter as _LambdaReporter
+from . import commons as _commons
+from . import objects as _objects
+from . import shapekeys as _shapekeys
 
 import typing as _typing
 
 if _typing.TYPE_CHECKING:
 	from typing import *
-	from bpy.types import *
-	from ._internals import *
+	from bpy.types import Object, Modifier, ArmatureModifier, Operator, Mesh, ShapeKey, Context, Event
+	from ._internals import ContextOverride
 
 MODIFIER_TYPES_DEFORM = {'ARMATURE', 'CAST', 'CURVE', 'DISPLACE', 'HOOK', 'LAPLACIANDEFORM', 'LATTICE', 'MESH_DEFORM', 'SHRINKWRAP',
 	'SIMPLE_DEFORM', 'SMOOTH', 'CORRECTIVE_SMOOTH', 'LAPLACIANSMOOTH', 'SURFACE_DEFORM', 'WARP', 'WAVE'}
@@ -81,8 +81,8 @@ def modifier_apply_compat(obj: 'Object', apply_as: 'str', modifier: 'str', keep_
 
 def apply_all_modifiers(obj: 'Object', op: 'Operator' = None) -> 'int':
 	# No context control
-	_commons.ensure_deselect_all_objects()
-	_commons.activate_object(obj)
+	_objects.deselect_all()
+	_objects.activate(obj)
 	modifc = 0
 	for mod_i, mod_name in list(enumerate(m.name for m in obj.modifiers)):
 		if 'FINISHED' in _bpy.ops.object.modifier_apply(modifier=mod_name):
@@ -90,7 +90,7 @@ def apply_all_modifiers(obj: 'Object', op: 'Operator' = None) -> 'int':
 		else:
 			_log.warning("Can not apply modifier #{0} {1} on {2}!".format(mod_i, repr(mod_name), repr(obj)), op=op)
 		modifc += 1
-	_commons.ensure_deselect_all_objects()
+	_objects.deselect_all()
 	return modifc
 
 
@@ -166,7 +166,7 @@ def apply_deform_modifier_to_mesh_high_precision(mobj: 'Object', modifier: 'Modi
 	return {'FINISHED'}
 
 
-class KawaApplyDeformModifierHighPrecision(_KawaOperator):
+class KawaApplyDeformModifierHighPrecision(_internals.KawaOperator):
 	bl_idname = "kawa.apply_deform_modifier_high_precision"
 	bl_label = "Apply Deform Modifier (Shape Keys High Precision)"
 	bl_description = "\n".join((
@@ -197,7 +197,7 @@ class KawaApplyDeformModifierHighPrecision(_KawaOperator):
 		return self.execute(context)
 
 
-class KawaApplyAllModifiersHighPrecision(_KawaOperator):
+class KawaApplyAllModifiersHighPrecision(_internals.KawaOperator):
 	bl_idname = "kawa.apply_all_modifiers_high_precision"
 	bl_label = "Apply All Modifiers (Shape Keys High Precision for Deform-Only)"
 	bl_description = "\n".join((
@@ -258,7 +258,7 @@ class KawaApplyAllModifiersHighPrecision(_KawaOperator):
 		return self.execute(context)
 
 
-class KawaApplyArmatureToMeshesHighPrecision(_KawaOperator):
+class KawaApplyArmatureToMeshesHighPrecision(_internals.KawaOperator):
 	bl_idname = "kawa.apply_armature_to_meshes_high_precision"
 	bl_label = "Apply Armature Poses to Meshes (Shape Keys High Precision)"
 	bl_description = "\n".join((
@@ -310,7 +310,7 @@ class KawaApplyArmatureToMeshesHighPrecision(_KawaOperator):
 			self.warning("No Mesh-objects bound to given Armature-objects selected!")
 			return {'CANCELLED'}
 		self.info("Applying poses from {0} armatures to {1} meshes...".format(len(armatures), modifc))
-
+		
 		aobjc, modifc = 0, 0
 		for aobj, modifiers in armatures.items():  # type: Object
 			for mobj, modifier in modifiers:

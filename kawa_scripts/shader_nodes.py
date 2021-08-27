@@ -9,7 +9,7 @@
 #
 
 import bpy as _bpy
-from mathutils import Vector as _Vector
+import mathutils as _mu
 
 from . import commons as _commons
 from ._internals import log as _log
@@ -17,8 +17,8 @@ from ._internals import log as _log
 import typing as _typing
 
 if _typing.TYPE_CHECKING:
-	from typing import *
-	from bpy.types import *
+	from typing import Optional, List
+	from bpy.types import Material, Node, ShaderNodeTexImage, NodeSocket, ShaderNodeOutputMaterial, ShaderNode
 
 KAWA_BAKE_TARGET = 'KAWA_BAKE_TARGET'
 KAWA_BAKE_DEFAULT = 'KAWA_BAKE_DEFAULT'
@@ -148,7 +148,7 @@ def prepare_and_get_alpha_shader_node(mat: 'Material'):
 		sh_alpha_in = sh_alpha.inputs['Color']
 		if sh_default is not None:
 			# Если есть default шейдер, то размещаем новый над ним и пытаемся своровать 'Alpha'
-			sh_alpha.location = sh_default.location + _Vector((0, 200))
+			sh_alpha.location = sh_default.location + _mu.Vector((0, 200))
 			n_alpha = get_node_input_safe(sh_default, 'Alpha')
 			if n_alpha is not None and get_socket_input_safe(sh_alpha_in) is None:
 				# Если ничего не забинджено в ALPHA шедер, то подрубаем из DEFAULT

@@ -3,10 +3,11 @@ import logging as _logging
 import bpy as _bpy
 
 import typing as _typing
+
 if _typing.TYPE_CHECKING:
-	from typing import *
-	from bpy.types import *
-	ContextOverride = Union[Context, Dict[str, Any]]
+	from typing import Any, Type, Union, Iterable, Collection, Dict, Set, Sized
+	from bpy.types import Object, Operator, Context
+	ContextOverride = Dict[str, Any]
 
 
 def _op_report(op: 'Operator', t: 'Set[str]', message: str):
@@ -59,13 +60,13 @@ class KawaOperator(_bpy.types.Operator):
 	debug = False
 	
 	@classmethod
-	def get_active_obj(cls, context: 'ContextOverride') -> 'Object':
+	def get_active_obj(cls, context: 'Context') -> 'Object':
 		return context.object or context.active_object or context.view_layer.objects.active
 	
 	@classmethod
-	def get_selected_objs(cls, context: 'ContextOverride') -> 'Union[Sized, Iterable[Object]]':
+	def get_selected_objs(cls, context: 'Context') -> 'Union[Sized, Iterable[Object]]':
 		return context.selected_objects or context.view_layer.objects.selected
-
+	
 	@classmethod
 	def is_debug(cls):
 		return cls.debug or log.is_debug()

@@ -12,19 +12,20 @@ Tool for combining few objects into single one.
 See `kawa_scripts.combiner.BaseMeshCombiner`.
 """
 
-from collections import deque as _deque
+import collections as _collections
 
 import bpy as _bpy
 
 from . import commons as _commons
-from .reporter import LambdaReporter as _LambdaReporter
+from . import objects as _objects
+from . import reporter as _reporter
 from ._internals import log as _log
 
 import typing as _typing
 
 if _typing.TYPE_CHECKING:
-	from typing import *
-	from bpy.types import *
+	from typing import Optional, Union, Iterable, Set, Deque, Dict
+	from bpy.types import Scene, Object
 
 
 class BaseMeshCombiner:
@@ -192,15 +193,15 @@ class BaseMeshCombiner:
 
 	def _join_objects(self, target: 'Object', children: 'Iterable[str]'):
 		# log.info("Joining: %s <- %s", target.name, children)
-		_commons.ensure_deselect_all_objects()
+		_objects.deselect_all()
 		for child_name in children:
 			obj = _bpy.data.objects[child_name]
 			obj.hide_set(False)
 			obj.select_set(True)
-			_commons.move_children_to_grandparent(obj)
-		_commons.activate_object(target)
+			_objects.move_children_to_grandparent(obj)
+		_objects.activate(target)
 		_commons.ensure_op_finished(_bpy.ops.object.join(), name='bpy.ops.object.join')
-		_commons.ensure_deselect_all_objects()
+		_objects.deselect_all()
 		# log.info("Joined: %s <- %s", target, children)
 		pass
 	
@@ -221,7 +222,7 @@ class BaseMeshCombiner:
 	def _process_root(self, root_name: 'str') -> 'int':
 		# Поиск меш-объектов-детей root на этой же сцене.
 		scene_objs = (self.scene or _bpy.context.scene).collection.objects
-		children_queue = _deque()  # type: Deque[str]
+		children_queue = _collections.deque()  # type: Deque[str]
 		children = set()  # type: Set[str]
 		children_queue.extend(x.name for x in _bpy.data.objects[root_name].children)
 		while len(children_queue) > 0:
@@ -290,13 +291,13 @@ class BaseMeshCombiner:
 					self.created_objects.add(join_to.name)
 					join_to.parent = _bpy.data.objects[root_name]
 					join_to.parent_type = 'OBJECT'
-					_commons.identity_transform(join_to)
+					_objects.identity_transform(join_to)
 			else:
 				join_to = create_mesh_obj(root_name + '-' + group_name)
 				self.created_objects.add(join_to.name)
 				join_to.parent = _bpy.data.objects[root_name]
 				join_to.parent_type = 'OBJECT'
-				_commons.identity_transform(join_to)
+				_objects.identity_transform(join_to)
 			self._call_before_join(root_name, join_to.name, group_name, obj_group)
 			self._join_objects(join_to, obj_group)
 			self._call_after_join(root_name, join_to.name, group_name)
@@ -307,7 +308,7 @@ class BaseMeshCombiner:
 		self._check_roots()
 		
 		obj_n, obj_i, joins = len(self.roots_names), 0, 0
-		reporter = _LambdaReporter(self.report_time)
+		reporter = _reporter.LambdaReporter(self.report_time)
 		reporter.func = lambda r, t: _log.info(
 			"Joining meshes: Roots={0}/{1}, Joined={2}, Time={3:.1f} sec, ETA={4:.1f} sec...".format(
 				obj_i, obj_n, joins, t, r.get_eta(1.0 * obj_i / obj_n)))
