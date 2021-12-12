@@ -249,6 +249,23 @@ def is_parent(parent_object: 'Object', child_object: 'Object') -> 'bool':
 	return False
 
 
+def traverse_children_single(parent_object: 'Object', include_self=True) -> 'Iterable[Object]':
+	deque = _collections.deque()  # type: Deque[Object]
+	if include_self:
+		deque.append(parent_object)
+	else:
+		deque.extend(parent_object.children)
+	while len(deque) > 0:
+		child_obj = deque.pop()
+		deque.extend(child_obj.children)
+		yield child_obj
+
+
+def traverse_children(objs: 'Iterable[Object]', include_self=True) -> 'Iterable[Object]':
+	for obj in objs:
+		yield from traverse_children_single(obj, include_self=include_self)
+
+
 def find_all_child_objects(parent_object: 'Object', where: 'Optional[Container[Object]]' = None) -> 'Set[Object]':
 	child_objects = set()
 	deque = _collections.deque()  # type: Deque[Object]
