@@ -14,6 +14,7 @@ from . import shapekeys as _shapekeys
 from . import vertex_groups as _vertex_groups
 from . import modifiers as _modifiers
 from . import armature as _armature
+from . import objects as _objects
 
 
 def _shape_key_edit_mode_context_menu(self, context):
@@ -70,7 +71,7 @@ class _VIEW3D_MT_object_kawa_sub_menu(_bpy.types.Menu):
 	
 	def draw(self, context):
 		self.layout.separator()  # transforms
-		self.layout.operator(_commons.KawaApplyParentInverseMatrices.bl_idname, icon='ORIENTATION_LOCAL')
+		self.layout.operator(_objects.KawaApplyParentInverseMatrices.bl_idname, icon='ORIENTATION_LOCAL')
 		self.layout.separator()  # modifiers
 		self.layout.operator(_modifiers.KawaApplyDeformModifierHighPrecision.bl_idname, icon='MODIFIER')
 		self.layout.operator(_modifiers.KawaApplyAllModifiersHighPrecision.bl_idname, icon='MODIFIER')

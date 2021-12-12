@@ -34,7 +34,22 @@ if _typing.TYPE_CHECKING:
 	from types import ModuleType
 	from typing import Dict
 	# Эти итак заимпортированы через __import__ но PyCharm их не видит
+	from . import _internals
 	from . import _ui
+	from . import armature
+	from . import atlas_baker
+	from . import combiner
+	from . import commons
+	from . import instantiator
+	from . import meshes
+	from . import modifiers
+	from . import objects
+	from . import reporter
+	from . import shader_nodes
+	from . import shapekeys
+	from . import tex_size_finder
+	from . import uv
+	from . import vertex_groups
 
 bl_info = {
 	"name": "Kawashirov's Scripts",
