@@ -96,6 +96,8 @@ def apply_all_modifiers(obj: 'Object', op: 'Operator' = None) -> 'int':
 
 def apply_deform_modifier_to_mesh_high_precision(mobj: 'Object', modifier: 'Modifier', keep_modifier=False, ignore_other_modifies=True,
 		op: 'Operator' = None):
+	if _log.is_debug():
+		_log.info(f"Applying Modifier {modifier} on Object {mobj} with mobj.data={mobj.data}, keep_modifier={keep_modifier}, ignore_other_modifies={ignore_other_modifies}", op=op)
 	if not is_deform_modifier(modifier):
 		_log.raise_error(ValueError, "Modifier {0} on {1} has non-deform type {2}".format(
 			repr(modifier.name), repr(mobj), repr(modifier.type)), op=op)
@@ -115,16 +117,25 @@ def apply_deform_modifier_to_mesh_high_precision(mobj: 'Object', modifier: 'Modi
 	cobj = None
 	try:
 		selset = set(_bpy.context.selected_objects)
-		_bpy.ops.object.duplicate(ctx)
+		# _log.info(f"Check1: mobj={mobj}, mobj.data={mobj.data}", op=op)
+		_bpy.ops.object.duplicate(ctx, linked=True)
+		# _log.info(f"Check2: mobj={mobj}, mobj.data={mobj.data}", op=op)
 		selset = set(_bpy.context.selected_objects) - selset
 		assert len(selset) == 1
 		cobj = selset.pop()
 		# Удаление всего лишнего с копии
+		ctx = _bpy.context.copy()  # type: ContextOverride
 		ctx['object'] = cobj
 		ctx['active_object'] = cobj
 		ctx['selected_objects'] = [cobj]
 		ctx['mode'] = 'OBJECT'
 		ctx['edit_object'] = None
+		# Из-за странного бага duplicate копирует объект, но изменяет оригинал,
+		# но если сделать linked копию, а потом инстанциировать ее через make_single_user,
+		# то все работает нормально. Беды с башкой блендера.
+		_bpy.ops.object.make_single_user(ctx, type='SELECTED_OBJECTS', obdata=True)
+		# _log.info(f"Check3: mobj={mobj}, mobj.data={mobj.data}", op=op)
+		assert mobj.data != cobj.data  # Странный баг
 		cobj.shape_key_clear()
 		if ignore_other_modifies:
 			for cobj_modifier in list(m.name for m in cobj.modifiers if m.name != modifier.name):
@@ -132,6 +143,8 @@ def apply_deform_modifier_to_mesh_high_precision(mobj: 'Object', modifier: 'Modi
 		# Пересчет шейпкеев на копии
 		mobj_mesh = mobj.data  # type: Mesh
 		cobj_mesh = cobj.data  # type: Mesh
+		# if _log.is_debug():
+		# 	_log.info(f"mobj={mobj}, cobj={cobj}, mobj_mesh={mobj_mesh}, cobj_mesh={cobj_mesh}", op=op)
 		for key in list(mobj.data.shape_keys.key_blocks):  # type: ShapeKey
 			if _log.is_debug():
 				_log.info("Transforming {0} on original {1} and copy {2}".format(key, mobj, cobj), op=op)
