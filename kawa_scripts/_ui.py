@@ -36,6 +36,8 @@ def _shape_key_object_mode_context_menu(self, context):
 	self.layout.operator(_shapekeys.OperatorCleanupActive.bl_idname, icon='KEY_DEHLT')
 	self.layout.operator(_shapekeys.OperatorCleanupAll.bl_idname, icon='KEY_DEHLT')
 	self.layout.operator(_shapekeys.OperatorRemoveEmpty.bl_idname, icon='KEY_DEHLT')
+	self.layout.separator()  # OBJECT-mode fixes
+	self.layout.operator(_shapekeys.OperatorFixCorrupted.bl_idname, icon='ERROR')
 
 
 # # #

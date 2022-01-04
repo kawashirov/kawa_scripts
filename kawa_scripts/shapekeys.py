@@ -30,6 +30,7 @@ import bpy as _bpy
 
 from . import _internals
 from . import _doc
+from . import objects as _objects
 from . import meshes as _meshes
 from ._internals import log as _log
 
@@ -81,7 +82,7 @@ class OperatorSelectVerticesAffectedByShapeKey(_internals.KawaOperator):
 	bl_label = "Select Vertices Affected by Active Shape Key"
 	bl_description = "Select Vertices Affected by Active Shape Key."
 	bl_options = {'REGISTER', 'UNDO'}
-
+	
 	epsilon: _bpy.props.FloatProperty(
 		name="Epsilon",
 		description="Selection precision in local space",
@@ -122,7 +123,7 @@ class OperatorSelectVerticesAffectedByShapeKey(_internals.KawaOperator):
 		match_ref = ensure_len_match(mesh, reference, op=self)
 		if not match_skd or not match_ref:
 			return {'CANCELLED'}
-
+		
 		for p in mesh.polygons:
 			p.select = False
 		for e in mesh.edges:
@@ -725,6 +726,79 @@ class OperatorRemoveEmpty(_internals.KawaOperator):
 		return {'FINISHED'} if removed_shapekeys > 0 else {'CANCELLED'}
 
 
+def fix_corrupted(objs: 'Iterable[Object]', op: 'Operator' = None, strict: 'Optional[bool]' = None):
+	"""
+	**Fixes corrupted Shape Keys on Mesh-objects.**
+	TODO
+	Available as operator ``
+	"""
+	objs = list(obj for obj in objs if _obj_have_shapekeys(obj, n=1, strict=strict))  # type: List[Object]
+	changed_meshes = 0
+	meshes = set()
+	
+	original_selected = list(_bpy.context.selected_objects)
+	original_active = _bpy.context.active_object
+	
+	for mobj in objs:
+		mesh = _meshes.get_mesh_safe(mobj, strict=strict)
+		if mesh in meshes:
+			continue  # Уже трогали
+		meshes.add(mesh)
+		
+		_objects.deselect_all()
+		_objects.activate(mobj)
+		mobj.active_shape_key_index = 0
+		try:
+			_bpy.context.object.use_shape_key_edit_mode = False
+			_bpy.ops.object.mode_set_with_submode(mode='EDIT', toggle=False, mesh_select_mode={'VERT', 'EDGE', 'FACE'})
+			_bpy.ops.mesh.select_all(action='SELECT')
+			_bpy.ops.mesh.separate(type='SELECTED')
+			_bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+			assert len(_bpy.context.selected_objects) == 2
+			# sobjs = list(obj for obj in _bpy.context.selected_objects if obj != mobj)
+			# assert len(sobjs) == 1
+			# sobj = sobjs[0]
+			mobj.shape_key_clear()
+			# _objects.activate(sobj)
+			_objects.activate(mobj)
+			_bpy.ops.object.join()
+			assert len(_bpy.context.selected_objects) == 1
+			changed_meshes += 1
+		finally:
+			pass  # TODO
+		_objects.deselect_all()
+		_objects.select(original_selected)
+		_objects.activate(original_active)
+	return changed_meshes
+
+
+class OperatorFixCorrupted(_internals.KawaOperator):
+	"""
+	Operator of `fix_corrupted`.
+	"""
+	bl_idname = "kawa.fix_corrupted_shape_keys"
+	bl_label = "Fix Corrupted Shape Keys"
+	bl_description = "\n".join((
+		"",
+		"",
+	))  # TODO
+	bl_options = {'REGISTER', 'UNDO'}
+	
+	@classmethod
+	def poll(cls, context: 'Context'):
+		if context.mode != 'OBJECT':
+			return False  # Требуется режим OBJECT
+		if not any(True for obj in cls.get_selected_objs(context) if _obj_have_shapekeys(obj, n=1, strict=False)):
+			return False  # Должны быть выбраны какие-то Меш-объекты
+		return True
+	
+	def execute(self, context: 'Context'):
+		objs = list(obj for obj in self.get_selected_objs(context) if _meshes.get_mesh_safe(obj, strict=False) is not None)
+		changed_meshes = fix_corrupted(objs, op=self)
+		_log.info(f"Fixed corrupted shape keys on {changed_meshes} Meshes.", op=self)
+		return {'FINISHED'} if changed_meshes > 0 else {'CANCELLED'}
+
+
 OperatorApplySelectedInActiveToBasis.bl_description = \
 	"Same as {}, but only for selected vertices in edit-mode.".format(repr(OperatorApplyActiveToBasis.bl_label))
 OperatorApplySelectedInActiveToAll.bl_description = \
@@ -747,6 +821,8 @@ classes = (
 	OperatorCleanupActive,
 	OperatorCleanupAll,
 	OperatorRemoveEmpty,
+		#
+	OperatorFixCorrupted,
 )
 
 __pdoc__ = dict()
