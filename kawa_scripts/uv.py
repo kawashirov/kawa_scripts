@@ -42,7 +42,7 @@ def uv_area_bmesh(bm_face: 'BMFace', bm_uv_layer: 'BMLayerItem'):
 
 def repack_active_uv(
 		obj: 'Object', get_scale: 'Optional[Callable[[Material], float]]' = None,
-		rotate: 'bool' = None, margin: 'float' = 0.0
+		rotate: 'bool' = None, margin: 'float' = 0.0, aspect_1: 'bool' = True,
 ):
 	"""
 	Repack active UV Layer of a given Object with some adjustments:
@@ -51,9 +51,18 @@ def repack_active_uv(
 	- Runs `bpy.ops.uv.pack_islands` with given `rotate` and `margin`
 	"""
 	e = _commons.ensure_op_finished
+	materials = None
 	try:
 		_objects.deselect_all()
 		_objects.activate(obj)
+		if aspect_1:
+			# Оператор uv.pack_islands использует активную текстуру в материале как референс соотношения сторон
+			# и это никак не переопределяется. Проще всего отключить материалы, тогда соотношение становится 1:1
+			materials = list()
+			for i in range(len(obj.material_slots)):
+				slot = obj.material_slots[i]
+				materials.append(slot.material)
+				slot.material = None
 		# Перепаковка...
 		e(_bpy.ops.object.mode_set_with_submode(mode='EDIT', mesh_select_mode={'FACE'}), name='object.mode_set_with_submode')
 		e(_bpy.ops.mesh.reveal(select=True), name='mesh.reveal')
@@ -90,6 +99,9 @@ def repack_active_uv(
 			_bpy.context.area.type = area_type
 	finally:
 		e(_bpy.ops.object.mode_set(mode='OBJECT'), name='object.mode_set')
+		if materials is not None:
+			for i in range(len(materials)):
+				obj.material_slots[i].material = materials[i]
 
 
 def remove_all_uv_layers(obj: 'Object', strict: 'Optional[bool]' = None):
