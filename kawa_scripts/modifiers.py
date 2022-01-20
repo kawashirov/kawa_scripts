@@ -14,6 +14,7 @@ from . import _internals
 from ._internals import log as _log
 from . import commons as _commons
 from . import objects as _objects
+from . import meshes as _meshes
 from . import shapekeys as _shapekeys
 
 import typing as _typing
@@ -94,60 +95,52 @@ def apply_all_modifiers(obj: 'Object', op: 'Operator' = None) -> 'int':
 	return modifc
 
 
-def apply_deform_modifier_to_mesh_high_precision(mobj: 'Object', modifier: 'Modifier', keep_modifier=False, ignore_other_modifies=True,
-		op: 'Operator' = None):
+def apply_deform_modifier_to_mesh_high_precision(modifier: 'Modifier', keep_modifier=False, ignore_other_modifies=True, op: 'Operator' = None):
 	if _log.is_debug():
-		_log.info(f"Applying Modifier {modifier} on Object {mobj} with mobj.data={mobj.data}, keep_modifier={keep_modifier}, ignore_other_modifies={ignore_other_modifies}", op=op)
+		_log.info(f"Applying Modifier {modifier} on Object {modifier.id_data} with keep_modifier={keep_modifier}, ignore_other_modifies={ignore_other_modifies}", op=op)
+	if not modifier:
+		_log.raise_error(ValueError, f"Modifier is None", op=op)
+	mobj = modifier.id_data
+	if not mobj:
+		_log.raise_error(ValueError, f"Modifier {modifier.name!r} id_data is None", op=op)
 	if not is_deform_modifier(modifier):
-		_log.raise_error(ValueError, "Modifier {0} on {1} has non-deform type {2}".format(
-			repr(modifier.name), repr(mobj), repr(modifier.type)), op=op)
+		_log.raise_error(ValueError, f"Modifier {modifier.name!r} on {mobj!r} has non-deform type {modifier.type!r}", op=op)
 	if mobj.data.shape_keys is None:
 		# Простой режим применения, когда нет шейп-кеев на объекте
 		return modifier_apply_compat(mobj, 'DATA', modifier.name, keep_modifier=True)
 	#
 	# Сложный режим применения, когда есть шейп кеи на объекте
-	ctx = _bpy.context.copy()  # type: ContextOverride
-	ctx['object'] = mobj
-	ctx['active_object'] = mobj
-	ctx['selected_objects'] = [mobj]
-	ctx['mode'] = 'OBJECT'
-	ctx['edit_object'] = None
+	# Здесь были контекст-оверрайды но они вызывают какие-то странные багули
+	# По этому просто нагло редактируем контекст под себя
+	if _bpy.context.mode != 'OBJECT':
+		_commons.ensure_op_finished(_bpy.ops.object.mode_set(mode='OBJECT'))
+	#
 	# Создание временной копии основного объекта
 	# Новые объекты сохраняются в глобальный контекст, по этому нужно отлавливать их от туда
 	cobj = None
 	try:
-		selset = set(_bpy.context.selected_objects)
-		# _log.info(f"Check1: mobj={mobj}, mobj.data={mobj.data}", op=op)
-		_bpy.ops.object.duplicate(ctx, linked=True)
-		# _log.info(f"Check2: mobj={mobj}, mobj.data={mobj.data}", op=op)
-		selset = set(_bpy.context.selected_objects) - selset
-		assert len(selset) == 1
-		cobj = selset.pop()
-		# Удаление всего лишнего с копии
-		ctx = _bpy.context.copy()  # type: ContextOverride
-		ctx['object'] = cobj
-		ctx['active_object'] = cobj
-		ctx['selected_objects'] = [cobj]
-		ctx['mode'] = 'OBJECT'
-		ctx['edit_object'] = None
+		_objects.deselect_all()
+		_objects.activate(mobj, op=op)
+		_commons.ensure_op_finished(_bpy.ops.object.duplicate(linked=True), op=op)
+		assert len(_bpy.context.selected_objects) == 1
+		assert _bpy.context.selected_objects[0] == _bpy.context.active_object
+		cobj = _bpy.context.active_object  # type: Object
 		# Из-за странного бага duplicate копирует объект, но изменяет оригинал,
 		# но если сделать linked копию, а потом инстанциировать ее через make_single_user,
 		# то все работает нормально. Беды с башкой блендера.
-		_bpy.ops.object.make_single_user(ctx, type='SELECTED_OBJECTS', obdata=True)
-		# _log.info(f"Check3: mobj={mobj}, mobj.data={mobj.data}", op=op)
+		_commons.ensure_op_finished(_bpy.ops.object.make_single_user(type='SELECTED_OBJECTS', obdata=True), op=op)
 		assert mobj.data != cobj.data  # Странный баг
+		# Удаление всего лишнего с копии
 		cobj.shape_key_clear()
 		if ignore_other_modifies:
 			for cobj_modifier in list(m.name for m in cobj.modifiers if m.name != modifier.name):
-				_bpy.ops.object.modifier_remove(ctx, modifier=cobj_modifier)
+				_commons.ensure_op_finished(_bpy.ops.object.modifier_remove(modifier=cobj_modifier), op=op)
 		# Пересчет шейпкеев на копии
-		mobj_mesh = mobj.data  # type: Mesh
-		cobj_mesh = cobj.data  # type: Mesh
-		# if _log.is_debug():
-		# 	_log.info(f"mobj={mobj}, cobj={cobj}, mobj_mesh={mobj_mesh}, cobj_mesh={cobj_mesh}", op=op)
+		mobj_mesh = _meshes.get_mesh_safe(mobj)  # type: Mesh
+		cobj_mesh = _meshes.get_mesh_safe(cobj)  # type: Mesh
 		for key in list(mobj.data.shape_keys.key_blocks):  # type: ShapeKey
 			if _log.is_debug():
-				_log.info("Transforming {0} on original {1} and copy {2}".format(key, mobj, cobj), op=op)
+				_log.info(f"Transforming {key!r} on original {mobj!r} and copy {cobj!r}", op=op)
 			if not _shapekeys.ensure_len_match(mobj_mesh, key, op=op):
 				continue
 			if not _shapekeys.ensure_len_match(cobj_mesh, key, op=op):
@@ -161,21 +154,13 @@ def apply_deform_modifier_to_mesh_high_precision(mobj: 'Object', modifier: 'Modi
 			for i in range(len(key.data)):
 				key.data[i].co = cobj_mesh.vertices[i].co
 	finally:
-		if cobj is not None:
-			ctx['object'] = cobj
-			ctx['active_object'] = cobj
-			ctx['selected_objects'] = [cobj]
-			ctx['mode'] = 'OBJECT'
-			ctx['edit_object'] = None
-			_bpy.ops.object.delete(ctx, use_global=True, confirm=False)
-			pass
+		cmesh = _meshes.get_mesh_safe(cobj, strict=False)
+		if cobj:
+			_bpy.data.objects.remove(cobj, do_unlink=True, do_ui_user=True)
+		if cmesh:
+			_bpy.data.meshes.remove(cmesh, do_unlink=True, do_ui_user=True)
 	if not keep_modifier:
-		ctx['object'] = mobj
-		ctx['active_object'] = mobj
-		ctx['selected_objects'] = [mobj]
-		ctx['mode'] = 'OBJECT'
-		ctx['edit_object'] = None
-		_bpy.ops.object.modifier_remove(ctx, modifier=modifier.name)
+		mobj.modifiers.remove(modifier)
 	return {'FINISHED'}
 
 
@@ -203,11 +188,8 @@ class KawaApplyDeformModifierHighPrecision(_internals.KawaOperator):
 	
 	def execute(self, context: 'Context'):
 		obj = self.get_active_obj(context)
-		apply_deform_modifier_to_mesh_high_precision(obj, obj.modifiers.active)
+		apply_deform_modifier_to_mesh_high_precision(obj.modifiers.active)
 		return {'FINISHED'}
-	
-	def invoke(self, context: 'Context', event: 'Event'):
-		return self.execute(context)
 
 
 class KawaApplyAllModifiersHighPrecision(_internals.KawaOperator):
@@ -231,10 +213,11 @@ class KawaApplyAllModifiersHighPrecision(_internals.KawaOperator):
 	def _execute_obj(self, context: 'Context', obj) -> int:
 		modifc = 0
 		for mod_i, mod_name in list(enumerate(m.name for m in obj.modifiers)):
-			mod = obj.modifiers[mod_name]  # Численый индекс меняется при итерации
+			# Численый индекс меняется при итерации
+			mod = obj.modifiers[mod_name]  # type: Modifier
 			if is_deform_modifier(mod):
 				# Деформирующий модификатор - применим и не шейпкеии
-				result = apply_deform_modifier_to_mesh_high_precision(obj, mod, keep_modifier=False, op=self)
+				result = apply_deform_modifier_to_mesh_high_precision(mod, keep_modifier=False, op=self)
 				if 'FINISHED' in result:
 					modifc += 1
 				else:
@@ -246,7 +229,7 @@ class KawaApplyAllModifiersHighPrecision(_internals.KawaOperator):
 					mod_i, repr(mod_name), repr(obj)))
 			else:
 				# Другое: либо это вообще не меш, либо это простая меш без шейпкеев
-				result = modifier_apply_compat(obj, 'DATA', mod, keep_modifier=False)
+				result = modifier_apply_compat(obj, 'DATA', mod.name, keep_modifier=False)
 				if 'FINISHED' in result:
 					modifc += 1
 				else:
@@ -266,9 +249,6 @@ class KawaApplyAllModifiersHighPrecision(_internals.KawaOperator):
 			counter_objs += 1 if modifc > 0 else 0
 		self.info("Applied {0} modifiers on {1} objects!".format(counter_mods, counter_objs))
 		return {'FINISHED'} if counter_mods > 0 else {'CANCELLED'}
-	
-	def invoke(self, context: 'Context', event: 'Event'):
-		return self.execute(context)
 
 
 class KawaApplyArmatureToMeshesHighPrecision(_internals.KawaOperator):
@@ -298,7 +278,7 @@ class KawaApplyArmatureToMeshesHighPrecision(_internals.KawaOperator):
 	def execute(self, context: 'Context'):
 		selected = self.get_selected_objs(context)
 		# Отбор арматур
-		armatures = dict()  # type: Dict[Object, List[Tuple[Object, ArmatureModifier]]]
+		armatures = dict()  # type: Dict[Object, List[ArmatureModifier]]
 		for obj in selected:  # type: Object
 			if obj.type != 'ARMATURE':
 				continue
@@ -317,36 +297,34 @@ class KawaApplyArmatureToMeshesHighPrecision(_internals.KawaOperator):
 				list_ = armatures.get(modifier.object)
 				if list_ is None:
 					continue
-				list_.append((obj, modifier))
+				list_.append(modifier)
 				modifc += 1
 		if modifc < 1:
 			self.warning("No Mesh-objects bound to given Armature-objects selected!")
 			return {'CANCELLED'}
 		self.info("Applying poses from {0} armatures to {1} meshes...".format(len(armatures), modifc))
 		
-		aobjc, modifc = 0, 0
-		for aobj, modifiers in armatures.items():  # type: Object
-			for mobj, modifier in modifiers:
-				if 'FINISHED' in apply_deform_modifier_to_mesh_high_precision(mobj, modifier, keep_modifier=True, op=self):
-					modifc += 1
-			try:
-				# ctx = _bpy.context.copy()  # type: ContextOverride
-				# ctx['object'] = aobj
-				# ctx['active_object'] = aobj
-				# ctx['selected_objects'] = [aobj]
-				# ctx['edit_object'] = None
-				# FIXME контексты не работают
-				context.view_layer.objects.active = aobj
-				_bpy.ops.object.mode_set(mode='POSE', toggle=False)
-				_bpy.ops.pose.armature_apply(selected=False)
-			finally:
-				_bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-			aobjc += 1
-		self.info("Applied poses from {0} armatures to {1} meshes.".format(aobjc, modifc))
+		aobjc, modifc, i = 0, 0, 0
+		wm = _bpy.context.window_manager
+		try:
+			wm.progress_begin(0, 9999)
+			for aobj, modifiers in armatures.items():
+				for modifier in modifiers:
+					i += 1
+					wm.progress_update(i % 10000)
+					if 'FINISHED' in apply_deform_modifier_to_mesh_high_precision(modifier, keep_modifier=True, op=self):
+						modifc += 1
+				try:
+					_objects.activate(aobj)
+					_bpy.ops.object.mode_set(mode='POSE', toggle=False)
+					_bpy.ops.pose.armature_apply(selected=False)
+				finally:
+					_bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+				aobjc += 1
+			self.info("Applied poses from {0} armatures to {1} meshes.".format(aobjc, modifc))
+		finally:
+			wm.progress_end()
 		return {'FINISHED'}
-	
-	def invoke(self, context: 'Context', event: 'Event'):
-		return self.execute(context)
 
 
 classes = (
