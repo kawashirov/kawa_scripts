@@ -30,6 +30,7 @@ import bpy as _bpy
 
 from . import _internals
 from . import _doc
+from . import commons as _commons
 from . import objects as _objects
 from . import meshes as _meshes
 from ._internals import log as _log
@@ -41,6 +42,18 @@ if _typing.TYPE_CHECKING:
 	from bpy.types import Object, Mesh, ShapeKey, Key, Operator, Context
 
 
+def ensure_keys_len_match(shape_a: 'ShapeKey', shape_b: 'ShapeKey', op: 'Operator' = None):
+	"""
+	Ensure `len(shape_a.data) == len(shape_b.data)`. Helps to detect corrupted Mesh/Key datablocks.
+	"""
+	len_a = len(shape_a.data)
+	len_b = len(shape_b.data)
+	if len_a == len_b:
+		return True
+	_log.error(f"Size of {shape_a.data} ({len_a}) and size of {shape_b.data} ({len_b}) does not match!", op=op)
+	return False
+
+
 def ensure_len_match(mesh: 'Mesh', shape_key: 'ShapeKey', op: 'Operator' = None):
 	"""
 	Ensure `len(mesh.vertices) == len(shape_key.data)`. Helps to detect corrupted Mesh/Key datablocks.
@@ -49,8 +62,7 @@ def ensure_len_match(mesh: 'Mesh', shape_key: 'ShapeKey', op: 'Operator' = None)
 	len_skd = len(shape_key.data)
 	if len_vts == len_skd:
 		return True
-	_log.error("Size of {0} ({1}) and size of {2} ({3}) does not match! Is shape key corrupted?"
-		.format(repr(mesh.vertices), len_vts, repr(shape_key.data), len_skd), op=op)
+	_log.error(f"Size of {mesh.vertices} ({len_vts}) and size of {shape_key.data} ({len_skd}) does not match! Is shape key corrupted?", op=op)
 	return False
 
 
@@ -726,50 +738,106 @@ class OperatorRemoveEmpty(_internals.KawaOperator):
 		return {'FINISHED'} if removed_shapekeys > 0 else {'CANCELLED'}
 
 
-def fix_corrupted(objs: 'Iterable[Object]', op: 'Operator' = None, strict: 'Optional[bool]' = None):
-	"""
-	**Fixes corrupted Shape Keys on Mesh-objects.**
-	TODO
-	Available as operator ``
-	"""
-	objs = list(obj for obj in objs if _obj_have_shapekeys(obj, n=1, strict=strict))  # type: List[Object]
-	changed_meshes = 0
-	meshes = set()
-	
-	original_selected = list(_bpy.context.selected_objects)
-	original_active = _bpy.context.active_object
-	
-	for mobj in objs:
-		mesh = _meshes.get_mesh_safe(mobj, strict=strict)
-		if mesh in meshes:
-			continue  # Уже трогали
-		meshes.add(mesh)
+def _transfer_shape_co(key_from: 'ShapeKey', key_to: 'ShapeKey', mesh_from: 'Mesh' = None, mesh_to: 'Mesh' = None, op: 'Operator' = None):
+	if mesh_from is not None and not ensure_len_match(mesh_from, key_from, op=op):
+		return
+	if mesh_to is not None and not ensure_len_match(mesh_to, key_to, op=op):
+		return
+	if not ensure_keys_len_match(key_from, key_to, op=op):
+		return
+	for i in range(len(key_from.data)):
+		key_to.data[i].co = key_from.data[i].co
+
+
+def _transfer_shape(name: str, mesh_from: 'Mesh', mesh_to: 'Mesh', op: 'Operator' = None):
+	key_from = mesh_from.shape_keys.key_blocks[name]
+	key_to = mesh_to.shape_keys.key_blocks[name]
+	_transfer_shape_co(key_from, key_to, mesh_from, mesh_to, op=op)
+	key_to.interpolation = key_from.interpolation
+	key_to.mute = key_from.mute
+	key_to.relative_key = mesh_to.shape_keys.key_blocks[key_from.relative_key.name] if key_from.relative_key is not None else None
+	key_to.slider_max = key_from.slider_max
+	key_to.slider_min = key_from.slider_min
+	key_to.value = key_from.value
+	key_to.vertex_group = key_from.vertex_group
+
+
+def _fix_corrupted_single(obj: 'Object', op: 'Operator' = None):
+	copy_obj = None  # Временная копия
+	copy_keep = False
+	try:
+		_objects.deselect_all()
+		_objects.activate(obj, op=op)
+		_commons.ensure_op_finished(_bpy.ops.object.duplicate(linked=True), op=op)
+		assert len(_bpy.context.selected_objects) == 1
+		assert _bpy.context.selected_objects[0] == _bpy.context.active_object
+		copy_obj = _bpy.context.active_object  # type: Object
+		_commons.ensure_op_finished(_bpy.ops.object.make_single_user(type='SELECTED_OBJECTS', obdata=True), op=op)
+		assert obj.data != copy_obj.data  # Странный баг
+		assert obj.data.shape_keys != copy_obj.data.shape_keys
 		
 		_objects.deselect_all()
-		_objects.activate(mobj)
-		mobj.active_shape_key_index = 0
-		try:
-			_bpy.context.object.use_shape_key_edit_mode = False
-			_bpy.ops.object.mode_set_with_submode(mode='EDIT', toggle=False, mesh_select_mode={'VERT', 'EDGE', 'FACE'})
-			_bpy.ops.mesh.select_all(action='SELECT')
-			_bpy.ops.mesh.separate(type='SELECTED')
-			_bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-			assert len(_bpy.context.selected_objects) == 2
-			# sobjs = list(obj for obj in _bpy.context.selected_objects if obj != mobj)
-			# assert len(sobjs) == 1
-			# sobj = sobjs[0]
-			mobj.shape_key_clear()
-			# _objects.activate(sobj)
-			_objects.activate(mobj)
-			_bpy.ops.object.join()
-			assert len(_bpy.context.selected_objects) == 1
-			changed_meshes += 1
-		finally:
-			pass  # TODO
-		_objects.deselect_all()
-		_objects.select(original_selected)
-		_objects.activate(original_active)
-	return changed_meshes
+		_objects.activate(obj, op=op)
+		
+		original_mesh = _meshes.get_mesh_safe(obj)  # type: Mesh
+		copy_mesh = _meshes.get_mesh_safe(copy_obj)  # type: Mesh
+		
+		active_index = obj.active_shape_key_index
+		# Удаляем шейпы с оригинала, т.к. они коррапченые
+		corrupted_keys = original_mesh.shape_keys
+		# _commons.ensure_op_finished(_bpy.ops.object.shape_key_remove(all=True))
+		obj.shape_key_clear()
+		assert original_mesh.shape_keys is None
+		
+		# Пересоздаем новые шейпы на оригинале
+		copy_ref = copy_mesh.shape_keys.reference_key
+		new_ref = obj.shape_key_add(name=copy_ref.name)
+		# _commons.ensure_op_finished(_bpy.ops.object.shape_key_add(from_mix=False))
+		assert original_mesh.shape_keys is not None
+		assert original_mesh.shape_keys != corrupted_keys
+		assert original_mesh.shape_keys != copy_mesh.shape_keys
+		
+		# Копирование данных из копии в оригинал
+		for i in range(len(original_mesh.vertices)):
+			original_mesh.vertices[i].co = copy_mesh.vertices[i].co
+		_transfer_shape_co(copy_ref, new_ref, copy_mesh, original_mesh, op=op)
+		for copy_key in list(copy_mesh.shape_keys.key_blocks):  # type: ShapeKey
+			if copy_key != copy_ref:
+				obj.shape_key_add(name=copy_key.name)
+		for copy_key in list(copy_mesh.shape_keys.key_blocks):  # type: ShapeKey
+			if copy_key != copy_ref:
+				_transfer_shape(copy_key.name, copy_mesh, original_mesh, op=op)
+		obj.active_shape_key_index = active_index
+		original_mesh.shape_keys.name = corrupted_keys.name
+	except Exception as exc:
+		# Сохраняем копию в случае какой-то проблемы в дебаг-режиме
+		copy_keep |= _log.debug
+		raise exc
+	finally:
+		if not copy_keep:
+			copy_mesh = _meshes.get_mesh_safe(copy_obj, strict=False)
+			if copy_obj is not None:
+				_bpy.data.objects.remove(copy_obj, do_unlink=True, do_ui_user=True)
+			if copy_mesh:
+				_bpy.data.meshes.remove(copy_mesh, do_unlink=True, do_ui_user=True)
+
+
+def fix_corrupted(objs: '_objects.HandyMultiObject', op: 'Operator' = None, strict: 'Optional[bool]' = None):
+	"""
+	**Fixes corrupted Shape Keys on Mesh-objects.**
+	"""
+	meshes = set()
+	for obj in _objects.resolve_objects(objs):
+		mesh = _meshes.get_mesh_safe(obj, strict=strict)
+		if mesh is None:
+			continue  # Не меш
+		if not _obj_have_shapekeys(obj, n=1, strict=strict):
+			continue  # Меш без шейпов
+		if mesh in meshes:
+			continue  # Уже фиксили
+		meshes.add(mesh)
+		_fix_corrupted_single(obj, op=op)
+	return len(meshes)
 
 
 class OperatorFixCorrupted(_internals.KawaOperator):
@@ -779,8 +847,9 @@ class OperatorFixCorrupted(_internals.KawaOperator):
 	bl_idname = "kawa.fix_corrupted_shape_keys"
 	bl_label = "Fix Corrupted Shape Keys"
 	bl_description = "\n".join((
-		"",
-		"",
+		"Fix Corrupted Shape Keys on selected Mesh-Objects",
+		"This is done by reconstructing ShapeKey data block of the mesh.",
+		"All ShapeKeys will be removed and new will be recreated instead.",
 	))  # TODO
 	bl_options = {'REGISTER', 'UNDO'}
 	
@@ -800,9 +869,9 @@ class OperatorFixCorrupted(_internals.KawaOperator):
 
 
 OperatorApplySelectedInActiveToBasis.bl_description = \
-	"Same as {}, but only for selected vertices in edit-mode.".format(repr(OperatorApplyActiveToBasis.bl_label))
+	f"Same as {OperatorApplyActiveToBasis.bl_label!r}, but only for selected vertices in edit-mode."
 OperatorApplySelectedInActiveToAll.bl_description = \
-	"Same as {}, but only for selected vertices in edit-mode.".format(repr(OperatorApplyActiveToAll.bl_label))
+	f"Same as {OperatorApplyActiveToAll.bl_label!r}, but only for selected vertices in edit-mode."
 
 classes = (
 	# Edit-mode
