@@ -764,20 +764,12 @@ class OperatorFixCorrupted(_internals.KawaOperator):
 		return {'FINISHED'} if changed_meshes > 0 else {'CANCELLED'}
 
 
-OperatorApplySelectedInActiveToBasis.bl_description = \
-	f"Same as {OperatorApplyActiveToBasis.bl_label!r}, but only for selected vertices in edit-mode."
-OperatorApplySelectedInActiveToAll.bl_description = \
-	f"Same as {OperatorApplyActiveToAll.bl_label!r}, but only for selected vertices in edit-mode."
-
 classes = (
 	# Edit-mode
 	OperatorSelectVerticesAffectedByShapeKey,
 		#
 	OperatorRevertSelectedInActiveToBasis,
 	OperatorRevertSelectedInAllToBasis,
-		#
-	OperatorApplySelectedInActiveToBasis,
-	OperatorApplySelectedInActiveToAll,
 		#
 		# Object-mode
 	OperatorApplyActive,
