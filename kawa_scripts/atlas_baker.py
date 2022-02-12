@@ -746,6 +746,8 @@ class BaseAtlasBaker:
 		def replace_shader():
 			# Замещает оригинальный шейдер на Emission
 			bake_shader = nodes.new('ShaderNodeEmission')  # type: ShaderNode
+			bake_shader.label = '__KAWA_BAKE_SHADER'
+			bake_shader.name = bake_shader.label
 			if src_shader_link is not None:
 				node_tree.links.remove(src_shader_link)
 			node_tree.links.new(bake_shader.outputs['Emission'], surface)
