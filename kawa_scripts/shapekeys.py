@@ -40,6 +40,7 @@ import typing as _typing
 if _typing.TYPE_CHECKING:
 	from typing import *
 	from bpy.types import Object, Mesh, ShapeKey, Key, Operator, Context
+	from .objects import HandyMultiObject
 
 
 def ensure_shape_shape_len_match(shape_a: 'ShapeKey', shape_b: 'ShapeKey', op: 'Operator' = None):
@@ -476,7 +477,7 @@ class OperatorCleanupActive(_internals.KawaOperator):
 		return {'FINISHED'} if changed > 0 else {'CANCELLED'}
 
 
-def cleanup_all(objs: 'Iterable[Object]', epsilon: float, op: 'Operator' = None, strict: 'Optional[bool]' = None) -> 'Tuple[int, int, int]':
+def cleanup(objs: 'HandyMultiObject', epsilon: float, op: 'Operator' = None, strict: 'Optional[bool]' = None) -> 'Tuple[int, int, int]':
 	"""
 	**Removes micro-offsets in all Shape Keys.**
 	Same as `cleanup_active`, but for every shape key (except reference one) for every object.
@@ -485,14 +486,15 @@ def cleanup_all(objs: 'Iterable[Object]', epsilon: float, op: 'Operator' = None,
 	
 	Available as operator `OperatorCleanupAll`
 	"""
-	objs = list(obj for obj in objs if _obj_have_shapekeys(obj, n=2, strict=strict))  # type: List[Object]
 	meshes = set()
 	vertices_changed, shapekeys_changed, meshes_changed = 0, 0, 0
-	for obj in objs:
+	for obj in _objects.resolve_objects(objs):
 		mesh = _meshes.get_mesh_safe(obj, strict=strict)
 		if mesh in meshes:
 			continue  # Уже трогали
 		meshes.add(mesh)
+		if not _mesh_have_shapekeys(mesh, n=2):
+			continue
 		last_shape_key_index = obj.active_shape_key_index
 		try:
 			mesh_changed = False
@@ -546,29 +548,36 @@ class OperatorCleanupAll(_internals.KawaOperator):
 		if len(selected) < 1:
 			_log.warning("No mesh-objects with multiple shape keys selected.", op=self)
 			return {'CANCELLED'}
-		vertices_cleaned, shapekeys_cleaned, objects_cleaned = cleanup_all(selected, self.epsilon, op=self)
+		vertices_cleaned, shapekeys_cleaned, objects_cleaned = cleanup(selected, self.epsilon, op=self)
 		_log.info("Cleaned {0} Vertices in {1} Shape Keys in {2} Meshes from micro-offsets (<{3}).".format(
 			vertices_cleaned, shapekeys_cleaned, objects_cleaned, float(self.epsilon)), op=self)
 		return {'FINISHED'} if vertices_cleaned > 0 else {'CANCELLED'}
 
 
-def remove_empty(objs: 'Iterable[Object]', epsilon: float, op: 'Operator' = None, strict: 'Optional[bool]' = None) -> 'Tuple[int, int]':
+def remove_empty(objs: 'HandyMultiObject', epsilon: float,
+		allow_remove_predicate: 'Optional[Callable[[Object, Mesh, ShapeKey], bool]]' = None,
+		op: 'Operator' = None, strict: 'Optional[bool]' = None) -> 'Tuple[int, int]':
 	"""
 	**Removes empty Shape Keys from Mesh-objects.**
 	Shape Key is empty, if positions of **every** vertex differ from Reference Shape Key (Basis) for `epsilon` or less.
+	
+	`allow_remove_predicate` makes it possible to keep some shape keys.
+	Should return `True` if it is OK to remove given `ShapeKey`.
+	Should return `False` if given `ShapeKey` can be removed.
 	
 	Returns: (number of removed Shape Keys, number of meshes changed)
 	
 	Available as operator `OperatorRemoveEmpty`
 	"""
-	objs = list(obj for obj in objs if _obj_have_shapekeys(obj, n=2, strict=strict))  # type: List[Object]
 	removed_shapekeys, changed_meshes = 0, 0
 	meshes = set()
-	for obj in objs:
+	for obj in _objects.resolve_objects(objs):
 		mesh = _meshes.get_mesh_safe(obj, strict=strict)
 		if mesh in meshes:
 			continue  # Уже трогали
 		meshes.add(mesh)
+		if not _mesh_have_shapekeys(mesh, n=2):
+			continue
 		key = mesh.shape_keys  # type: Key
 		reference = key.reference_key
 		empty_keys = set()  # type: Set[str]
@@ -580,8 +589,11 @@ def remove_empty(objs: 'Iterable[Object]', epsilon: float, op: 'Operator' = None
 			if not match1 or not match2:
 				continue
 			# Имеются ли различия между шейпами?
-			if not any((shape_key.data[i].co - reference.data[i].co).magnitude > epsilon for i in range(len(mesh.vertices))):
-				empty_keys.add(shape_key.name)
+			if any((shape_key.data[i].co - reference.data[i].co).magnitude > epsilon for i in range(len(mesh.vertices))):
+				continue
+			if allow_remove_predicate is not None and not allow_remove_predicate(obj, mesh, shape_key):
+				continue
+			empty_keys.add(shape_key.name)
 		# _log.info("Found {0} empty shape keys in mesh {1}: {2}, removing...".format(len(empty_keys), repr(mesh), repr(empty_keys)), op=op)
 		if len(empty_keys) < 1:
 			continue
@@ -668,7 +680,7 @@ def _transfer_shape2shape(name: str, mesh_from: 'Mesh', mesh_to: 'Mesh', op: 'Op
 	key_to.vertex_group = key_from.vertex_group
 
 
-def fix_corrupted_single(obj: 'Object', progress_callback=None, op: 'Operator' = None):
+def _fix_corrupted_single(obj: 'Object', progress_callback=None, op: 'Operator' = None):
 	if progress_callback:
 		progress_callback()
 	copy_obj = None  # Временная копия
@@ -741,7 +753,7 @@ def fix_corrupted_single(obj: 'Object', progress_callback=None, op: 'Operator' =
 				_bpy.data.meshes.remove(copy_mesh, do_unlink=True, do_ui_user=True)
 
 
-def fix_corrupted_multi(objs: '_objects.HandyMultiObject', strict: 'Optional[bool]' = None,
+def fix_corrupted(objs: 'HandyMultiObject', strict: 'Optional[bool]' = None,
 		progress_callback=None, op: 'Operator' = None):
 	"""
 	**Fixes corrupted Shape Keys on Mesh-objects.**
@@ -759,7 +771,7 @@ def fix_corrupted_multi(objs: '_objects.HandyMultiObject', strict: 'Optional[boo
 		if mesh in meshes:
 			continue  # Уже фиксили
 		meshes.add(mesh)
-		shape_keys += fix_corrupted_single(obj, progress_callback=progress_callback, op=op)
+		shape_keys += _fix_corrupted_single(obj, progress_callback=progress_callback, op=op)
 		if progress_callback:
 			progress_callback()
 	return len(meshes), shape_keys
@@ -788,7 +800,7 @@ class OperatorFixCorrupted(_internals.KawaOperator):
 	
 	def execute(self, context: 'Context'):
 		objs = list(obj for obj in self.get_selected_objs(context) if _meshes.get_mesh_safe(obj, strict=False) is not None)
-		changed_meshes, changed_keys = fix_corrupted_multi(objs, op=self)
+		changed_meshes, changed_keys = fix_corrupted(objs, op=self)
 		_log.info(f"Recreated (fixed corrupted) {changed_keys} Shape Keys on {changed_meshes} Meshes.", op=self)
 		return {'FINISHED'} if changed_meshes > 0 else {'CANCELLED'}
 
