@@ -243,186 +243,9 @@ class OperatorRevertSelectedInAllToBasis(_internals.KawaOperator):
 		return {'FINISHED'}
 
 
-class OperatorApplySelectedInActiveToBasis(_internals.KawaOperator):
-	"""
-	Same as `OperatorApplyActiveToBasis`, but only for selected vertices in edit-mode.
-	See also: `apply_active_to_basis`.
-	"""
-	bl_idname = "kawa.apply_selected_shape_keys_in_active_to_basis"
-	bl_label = "APPLY SELECTED Vertices in ACTIVE Shape Key to Basis"
-	# bl_description at the end of file.
-	bl_options = {'REGISTER', 'UNDO'}
-	
-	@classmethod
-	def poll(cls, context: 'Context'):
-		obj = cls.get_active_obj(context)
-		if not _meshes.is_mesh_object(obj):
-			return False  # Требуется активный меш-объект
-		if not obj.active_shape_key or obj.active_shape_key_index == 0:
-			return False  # Требуется что бы был активный не первый шейпкей
-		if context.mode != 'EDIT_MESH':
-			return False  # Требуется режим  EDIT_MESH
-		return True
-	
-	def execute(self, context: 'Context'):
-		obj = self.get_active_obj(context)
-		# Рофл в том, что операции над мешью надо проводить вне эдит-мода
-		_bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-		mesh = _meshes.get_mesh_safe(obj)
-		active_key = obj.active_shape_key
-		ref_key = mesh.shape_keys.reference_key
-		
-		match_active = ensure_len_match(mesh, active_key, op=self)
-		match_ref = ensure_len_match(mesh, ref_key, op=self)
-		if not match_active or not match_ref:
-			return {'CANCELLED'}
-		
-		_mesh_selection_to_vertices(mesh)
-		
-		for i in range(len(mesh.vertices)):
-			if mesh.vertices[i].select:
-				ref_key.data[i].co = active_key.data[i].co.copy()
-		
-		_bpy.ops.object.mode_set_with_submode(mode='EDIT', toggle=False, mesh_select_mode={'VERT'})
-		
-		return {'FINISHED'}
-
-
-class OperatorApplySelectedInActiveToAll(_internals.KawaOperator):
-	"""
-	Same as `OperatorApplyActiveToAll`, but only for selected vertices in edit-mode.
-	[Video demonstration.](https://www.youtube.com/watch?v=xfKzI0hn8os)
-	See also: `apply_active_to_all`.
-	"""
-	bl_idname = "kawa.apply_selected_shape_keys_in_active_to_all"
-	bl_label = "APPLY SELECTED Vertices in ACTIVE Shape Key to ALL Others"
-	# bl_description at the end of file.
-	bl_options = {'REGISTER', 'UNDO'}
-	
-	@classmethod
-	def poll(cls, context: 'Context'):
-		obj = cls.get_active_obj(context)
-		if not obj or obj.type != 'MESH':
-			return False  # Требуется активный меш-объект
-		if not obj.active_shape_key or obj.active_shape_key_index == 0:
-			return False  # Требуется что бы был активный не первый шейпкей
-		if context.mode != 'EDIT_MESH':
-			return False  # Требуется режим  EDIT_MESH
-		return True
-	
-	def execute(self, context: 'Context'):
-		obj = self.get_active_obj(context)
-		# Рофл в том, что операции над мешью надо проводить вне эдит-мода
-		_bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-		mesh = _meshes.get_mesh_safe(obj)
-		active_key = obj.active_shape_key
-		ref_key = mesh.shape_keys.reference_key
-		
-		match_active = ensure_len_match(mesh, active_key, op=self)
-		match_ref = ensure_len_match(mesh, ref_key, op=self)
-		if not match_active or not match_ref:
-			return {'CANCELLED'}
-		
-		_mesh_selection_to_vertices(mesh)
-		
-		for other_key in mesh.shape_keys.key_blocks:
-			if other_key == active_key or other_key == ref_key:
-				continue
-			if not ensure_len_match(mesh, other_key, op=self):
-				continue
-			for i in range(len(mesh.vertices)):
-				if mesh.vertices[i].select:
-					other_offset = other_key.data[i].co - ref_key.data[i].co
-					active_offset = active_key.data[i].co - ref_key.data[i].co
-					other_key.data[i].co = ref_key.data[i].co + other_offset + active_offset
-		
-		for i in range(len(mesh.vertices)):
-			if mesh.vertices[i].select:
-				ref_key.data[i].co = active_key.data[i].co.copy()
-		
-		_bpy.ops.object.mode_set_with_submode(mode='EDIT', toggle=False, mesh_select_mode={'VERT'})
-		
-		return {'FINISHED'}
-
-
-#
-# Object-mode operators
-
-
-def apply_active_to_basis(obj: 'Object', keep_reverted=True, op: 'Operator' = None):
-	"""
-	**Applies positions of active Shape Key to Reference ShapeKey (Basis).**
-	Positions (shapes) will be transferred from active Shape Key to Reference ShapeKey (Basis).
-	Other Shape Keys keep their positions (shapes).
-	If `keep_reverted` then old positions from Reference ShapeKey (Basis) will be transferred to active Shape Key,
-	so active Shape Key act as reverted. ` (Reverted)` will be added to it's name.
-	If not `keep_reverted` then active Shape Key will be deleted.
-	
-	Returns: True if succeeded, False otherwise.
-	
-	Available as operator `OperatorApplyActiveToBasis`.
-	See also: `apply_active_to_all`, `OperatorApplySelectedInActiveToBasis`.
-	"""
-	# No context control
-	mesh = _meshes.get_mesh_safe(obj)
-	active_key = obj.active_shape_key
-	ref_key = mesh.shape_keys.reference_key
-	
-	match_active = ensure_len_match(mesh, active_key, op=op)
-	match_ref = ensure_len_match(mesh, ref_key, op=op)
-	if not match_active or not match_ref:
-		return False
-	
-	for i in range(len(mesh.vertices)):
-		v = ref_key.data[i].co.copy()
-		ref_key.data[i].co = active_key.data[i].co.copy()
-		active_key.data[i].co = v
-	
-	if keep_reverted:
-		active_key.name += ' (Reverted)'
-	else:
-		obj.active_shape_key_index = 0
-		obj.shape_key_remove(active_key)
-	return True
-
-
-class OperatorApplyActiveToBasis(_internals.KawaOperator):
-	"""
-	Operator of `apply_active_to_basis`.
-	See also: `OperatorApplySelectedInActiveToBasis`.
-	"""
-	bl_idname = "kawa.apply_active_shape_keys_to_basis"
-	bl_label = "APPLY ACTIVE Shape Key to Basis"
-	bl_description = "\n".join((
-		"Positions (shapes) will be transferred from active Shape Key to Reference ShapeKey (Basis).",
-		"Other Shape Keys keep their positions (shapes).",
-	))
-	bl_options = {'REGISTER', 'UNDO'}
-	
-	keep_reverted: _bpy.props.BoolProperty(
-		name="Keep Reverted Shape Key",
-		default=True,
-	)
-	
-	@classmethod
-	def poll(cls, context: 'Context'):
-		obj = cls.get_active_obj(context)
-		if not obj or obj.type != 'MESH':
-			return False  # Требуется активный меш-объект
-		if not obj.active_shape_key or obj.active_shape_key_index == 0:
-			return False  # Требуется что бы был активный не первый шейпкей
-		if context.mode != 'OBJECT':
-			return False  # Требуется режим OBJECT
-		return True
-	
-	def invoke(self, context: 'Context', event):
-		return context.window_manager.invoke_props_dialog(self)
-	
-	def execute(self, context: 'Context'):
-		return {'FINISHED'} if apply_active_to_basis(self.get_active_obj(context), keep_reverted=self.keep_reverted, op=self) else {'CANCELLED'}
-
-
-def apply_active_to_all(obj: 'Object', keep_reverted=False, op: 'Operator' = None):
+def apply_active(obj: 'Object', apply_to: 'str',
+		only_selected=False, keep_reverted=False, value: 'Optional[float]' = None,
+		progress_callback=None, op: 'Operator' = None):
 	"""
 	**Applies offsets of active Shape Key to every other shape key.**
 	Same as `apply_active_to_basis`, but other Shape Keys will be also edited.
@@ -436,30 +259,54 @@ def apply_active_to_all(obj: 'Object', keep_reverted=False, op: 'Operator' = Non
 	Available as operator `OperatorApplyActiveToAll`.
 	See also: `OperatorApplySelectedInActiveToAll`.
 	"""
+	
+	if apply_to not in ('ALL', 'BASIS'):
+		raise ValueError(f"apply_to={apply_to}")
+	
 	# No context control
 	mesh = _meshes.get_mesh_safe(obj)
 	active_key = obj.active_shape_key
 	ref_key = mesh.shape_keys.reference_key
+	
+	if value is None:
+		value = active_key.value
+	value = float(value)
+	if value == 0.0:
+		return False
 	
 	match_active = ensure_mesh_shape_len_match(mesh, active_key, op=op)
 	match_ref = ensure_mesh_shape_len_match(mesh, ref_key, op=op)
 	if not match_active or not match_ref:
 		return False
 	
-	for other_key in mesh.shape_keys.key_blocks:
-		if other_key == active_key or other_key == ref_key:
-			continue
-		if not ensure_mesh_shape_len_match(mesh, other_key, op=op):
-			continue
-		for i in range(len(mesh.vertices)):
-			other_offset = other_key.data[i].co - ref_key.data[i].co
-			active_offset = active_key.data[i].co - ref_key.data[i].co
-			other_key.data[i].co = ref_key.data[i].co + other_offset + active_offset
+	if progress_callback:
+		progress_callback()
+	
+	if apply_to == 'ALL':
+		for other_key in mesh.shape_keys.key_blocks:
+			if other_key == active_key or other_key == ref_key:
+				continue
+			if not ensure_mesh_shape_len_match(mesh, other_key, op=op):
+				continue
+			for i in range(len(mesh.vertices)):
+				if only_selected and not mesh.vertices[i].select:
+					continue
+				active_offset = active_key.data[i].co - ref_key.data[i].co
+				other_key.data[i].co = other_key.data[i].co + active_offset * value
+			if progress_callback:
+				progress_callback()
 	
 	for i in range(len(mesh.vertices)):
-		v = ref_key.data[i].co.copy()
-		ref_key.data[i].co = active_key.data[i].co.copy()
-		active_key.data[i].co = v
+		if only_selected and not mesh.vertices[i].select:
+			continue
+		ref_co = ref_key.data[i].co
+		active_co = active_key.data[i].co
+		ref_key.data[i].co = active_co * value + ref_co * (1.0 - value)
+		active_key.data[i].co = ref_co * value + active_co * (1.0 - value)
+		mesh.vertices[i].co = ref_key.data[i].co.copy()
+	
+	if progress_callback:
+		progress_callback()
 	
 	if keep_reverted:
 		active_key.name += ' (Reverted)'
@@ -469,38 +316,87 @@ def apply_active_to_all(obj: 'Object', keep_reverted=False, op: 'Operator' = Non
 	return True
 
 
-class OperatorApplyActiveToAll(_internals.KawaOperator):
+class OperatorApplyActive(_internals.KawaOperator):
 	"""
-	Operator of `apply_active_to_all`.
-	See also: `OperatorApplySelectedInActiveToAll`.
+	Operator of `apply_active`.
+	[Video demonstration.](https://www.youtube.com/watch?v=xfKzI0hn8os)
 	"""
-	bl_idname = "kawa.apply_active_shape_keys_to_all"
-	bl_label = "APPLY ACTIVE Shape Key to ALL Others"
-	bl_description = "Same as {}, but other Shape Keys will be also edited.".format(
-		repr(OperatorApplyActiveToBasis.bl_label))
+	bl_idname = "kawa.apply_active_shape_key"
+	bl_label = "Apply Active Shape Key"
+	bl_description = \
+		"Apply positions of active Shape Key to Reference Shape Key (Basis) or to All other Shape Keys."
 	bl_options = {'REGISTER', 'UNDO'}
+	
+	apply_to_items = [
+		("ALL", "All", "Apply to all other Shape Keys", "SHAPEKEY_DATA", 1),
+		("BASIS", "Basis", "Apply to Basis (Reference) Shape Key", "SHAPEKEY_DATA", 2),
+	]
+	
+	apply_to: _bpy.props.EnumProperty(
+		items=apply_to_items,
+		default='ALL',
+		name="Apply to",
+		description="Apply Shape Key to all other Keys or only to Basis (reference) Key",
+	)
+	
+	only_selected: _bpy.props.BoolProperty(
+		name="Only selected vertices",
+		description="Only apply changes to selected vertices",
+		default=False,
+	)
 	
 	keep_reverted: _bpy.props.BoolProperty(
 		name="Keep Reverted Shape Key",
+		description="Keep Reverted Shape Key",
 		default=False,
+	)
+	
+	use_custom_value: _bpy.props.BoolProperty(
+		name="Use own value of Shape Key",
+		description="Use explicit custom value of Shape Key scale",
+		default=True,
+	)
+	
+	custom_value: _bpy.props.FloatProperty(
+		name="Custom value of Shape Key",
+		description="Explicit custom value of Shape Key scale",
+		default=1.0,
+		soft_min=0,
+		soft_max=1,
+		subtype='FACTOR',
 	)
 	
 	@classmethod
 	def poll(cls, context: 'Context'):
 		obj = cls.get_active_obj(context)
-		if not obj or obj.type != 'MESH':
+		if not _meshes.is_mesh_object(obj):
 			return False  # Требуется активный меш-объект
 		if not obj.active_shape_key or obj.active_shape_key_index == 0:
 			return False  # Требуется что бы был активный не первый шейпкей
-		if context.mode != 'OBJECT':
-			return False  # Требуется режим OBJECT
+		if context.mode != 'OBJECT' and context.mode != 'EDIT_MESH':
+			return False  # Требуется режим OBJECT или EDIT_MESH
 		return True
 	
 	def invoke(self, context: 'Context', event):
 		return context.window_manager.invoke_props_dialog(self)
 	
 	def execute(self, context: 'Context'):
-		return {'FINISHED'} if apply_active_to_all(self.get_active_obj(context), keep_reverted=self.keep_reverted, op=self) else {'CANCELLED'}
+		self.progress_begin()
+		
+		original_mode = context.mode
+		if original_mode == 'EDIT_MESH':
+			# Рофл в том, что операции над мешью надо проводить вне эдит-мода
+			_bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+		
+		value = self.custom_value if self.use_custom_value else None
+		result = apply_active(self.get_active_obj(context), self.apply_to,
+			only_selected=self.only_selected, keep_reverted=self.keep_reverted, value=value,
+			progress_callback=self.progress_next, op=self)
+		
+		if original_mode == 'EDIT_MESH':
+			_bpy.ops.object.mode_set(mode='EDIT', toggle=False)
+		
+		return {'FINISHED'} if result else {'CANCELLED'}
 
 
 def cleanup_active(obj: 'Object', epsilon: 'float', op: 'Operator' = None, strict: 'Optional[bool]' = None) -> 'int':
@@ -884,8 +780,7 @@ classes = (
 	OperatorApplySelectedInActiveToAll,
 		#
 		# Object-mode
-	OperatorApplyActiveToBasis,
-	OperatorApplyActiveToAll,
+	OperatorApplyActive,
 		#
 	OperatorCleanupActive,
 	OperatorCleanupAll,
