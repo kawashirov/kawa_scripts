@@ -634,7 +634,17 @@ class OperatorRemoveEmpty(_internals.KawaOperator):
 		return {'FINISHED'} if removed_shapekeys > 0 else {'CANCELLED'}
 
 
-def _transfer_shape_co(key_from: 'ShapeKey', key_to: 'ShapeKey', mesh_from: 'Mesh' = None, mesh_to: 'Mesh' = None, op: 'Operator' = None):
+def _transfer_shape2mesh_co(key_from: 'ShapeKey', mesh_to: 'Mesh', mesh_from: 'Mesh' = None, op: 'Operator' = None):
+	if mesh_from is not None and not ensure_mesh_shape_len_match(mesh_from, key_from, op=op):
+		return
+	if not ensure_mesh_shape_len_match(mesh_to, key_from, op=op):
+		return
+	for i in range(len(key_from.data)):
+		mesh_to.vertices[i].co = key_from.data[i].co
+
+
+def _transfer_shape2shape_co(key_from: 'ShapeKey', key_to: 'ShapeKey', mesh_from: 'Mesh' = None, mesh_to: 'Mesh' = None,
+		op: 'Operator' = None):
 	if mesh_from is not None and not ensure_mesh_shape_len_match(mesh_from, key_from, op=op):
 		return
 	if mesh_to is not None and not ensure_mesh_shape_len_match(mesh_to, key_to, op=op):
@@ -645,10 +655,10 @@ def _transfer_shape_co(key_from: 'ShapeKey', key_to: 'ShapeKey', mesh_from: 'Mes
 		key_to.data[i].co = key_from.data[i].co
 
 
-def _transfer_shape(name: str, mesh_from: 'Mesh', mesh_to: 'Mesh', op: 'Operator' = None):
+def _transfer_shape2shape(name: str, mesh_from: 'Mesh', mesh_to: 'Mesh', op: 'Operator' = None):
 	key_from = mesh_from.shape_keys.key_blocks[name]
 	key_to = mesh_to.shape_keys.key_blocks[name]
-	_transfer_shape_co(key_from, key_to, mesh_from, mesh_to, op=op)
+	_transfer_shape2shape_co(key_from, key_to, mesh_from=mesh_from, mesh_to=mesh_to, op=op)
 	key_to.interpolation = key_from.interpolation
 	key_to.mute = key_from.mute
 	key_to.relative_key = mesh_to.shape_keys.key_blocks[key_from.relative_key.name] if key_from.relative_key is not None else None
@@ -658,7 +668,9 @@ def _transfer_shape(name: str, mesh_from: 'Mesh', mesh_to: 'Mesh', op: 'Operator
 	key_to.vertex_group = key_from.vertex_group
 
 
-def _fix_corrupted_single(obj: 'Object', op: 'Operator' = None):
+def fix_corrupted_single(obj: 'Object', progress_callback=None, op: 'Operator' = None):
+	if progress_callback:
+		progress_callback()
 	copy_obj = None  # Временная копия
 	copy_keep = False
 	try:
@@ -681,12 +693,19 @@ def _fix_corrupted_single(obj: 'Object', op: 'Operator' = None):
 		active_index = obj.active_shape_key_index
 		# Удаляем шейпы с оригинала, т.к. они коррапченые
 		corrupted_keys = original_mesh.shape_keys
+		# Берем имя заранее, т.к. shape_key_clear позже удалит блок
+		corrupted_keys_name = corrupted_keys.name
 		# _commons.ensure_op_finished(_bpy.ops.object.shape_key_remove(all=True))
 		obj.shape_key_clear()
 		assert original_mesh.shape_keys is None
 		
-		# Пересоздаем новые шейпы на оригинале
+		if progress_callback:
+			progress_callback()
+		
 		copy_ref = copy_mesh.shape_keys.reference_key
+		_transfer_shape2mesh_co(copy_ref, original_mesh, mesh_from=copy_mesh, op=op)
+		
+		# Пересоздаем новые шейпы на оригинале
 		new_ref = obj.shape_key_add(name=copy_ref.name)
 		# _commons.ensure_op_finished(_bpy.ops.object.shape_key_add(from_mix=False))
 		assert original_mesh.shape_keys is not None
@@ -694,20 +713,24 @@ def _fix_corrupted_single(obj: 'Object', op: 'Operator' = None):
 		assert original_mesh.shape_keys != copy_mesh.shape_keys
 		
 		# Копирование данных из копии в оригинал
-		for i in range(len(original_mesh.vertices)):
-			original_mesh.vertices[i].co = copy_mesh.vertices[i].co
-		_transfer_shape_co(copy_ref, new_ref, copy_mesh, original_mesh, op=op)
+		_transfer_shape2shape_co(copy_ref, new_ref, copy_mesh, original_mesh, op=op)
 		for copy_key in list(copy_mesh.shape_keys.key_blocks):  # type: ShapeKey
 			if copy_key != copy_ref:
 				obj.shape_key_add(name=copy_key.name)
 		for copy_key in list(copy_mesh.shape_keys.key_blocks):  # type: ShapeKey
 			if copy_key != copy_ref:
-				_transfer_shape(copy_key.name, copy_mesh, original_mesh, op=op)
+				if progress_callback:
+					progress_callback()
+				_transfer_shape2shape(copy_key.name, copy_mesh, original_mesh, op=op)
 		obj.active_shape_key_index = active_index
-		original_mesh.shape_keys.name = corrupted_keys.name
+		original_mesh.shape_keys.name = corrupted_keys_name
+		if progress_callback:
+			progress_callback()
+		return len(original_mesh.shape_keys.key_blocks)
 	except Exception as exc:
 		# Сохраняем копию в случае какой-то проблемы в дебаг-режиме
 		copy_keep |= _log.debug
+		_log.error(f"Error fixing corrupted shape keys on {obj!r}: {exc!r}", op=op)
 		raise exc
 	finally:
 		if not copy_keep:
@@ -718,10 +741,14 @@ def _fix_corrupted_single(obj: 'Object', op: 'Operator' = None):
 				_bpy.data.meshes.remove(copy_mesh, do_unlink=True, do_ui_user=True)
 
 
-def fix_corrupted(objs: '_objects.HandyMultiObject', op: 'Operator' = None, strict: 'Optional[bool]' = None):
+def fix_corrupted_multi(objs: '_objects.HandyMultiObject', strict: 'Optional[bool]' = None,
+		progress_callback=None, op: 'Operator' = None):
 	"""
 	**Fixes corrupted Shape Keys on Mesh-objects.**
 	"""
+	if progress_callback:
+		progress_callback()
+	shape_keys = 0
 	meshes = set()
 	for obj in _objects.resolve_objects(objs):
 		mesh = _meshes.get_mesh_safe(obj, strict=strict)
@@ -732,8 +759,10 @@ def fix_corrupted(objs: '_objects.HandyMultiObject', op: 'Operator' = None, stri
 		if mesh in meshes:
 			continue  # Уже фиксили
 		meshes.add(mesh)
-		_fix_corrupted_single(obj, op=op)
-	return len(meshes)
+		shape_keys += fix_corrupted_single(obj, progress_callback=progress_callback, op=op)
+		if progress_callback:
+			progress_callback()
+	return len(meshes), shape_keys
 
 
 class OperatorFixCorrupted(_internals.KawaOperator):
@@ -744,8 +773,8 @@ class OperatorFixCorrupted(_internals.KawaOperator):
 	bl_label = "Fix Corrupted Shape Keys"
 	bl_description = "\n".join((
 		"Fix Corrupted Shape Keys on selected Mesh-Objects",
-		"This is done by reconstructing ShapeKey data block of the mesh.",
-		"All ShapeKeys will be removed and new will be recreated instead.",
+		"This is done by reconstructing Shape Key data block of the mesh.",
+		"All Shape Keys will be removed and new will be recreated instead.",
 	))  # TODO
 	bl_options = {'REGISTER', 'UNDO'}
 	
@@ -759,8 +788,8 @@ class OperatorFixCorrupted(_internals.KawaOperator):
 	
 	def execute(self, context: 'Context'):
 		objs = list(obj for obj in self.get_selected_objs(context) if _meshes.get_mesh_safe(obj, strict=False) is not None)
-		changed_meshes = fix_corrupted(objs, op=self)
-		_log.info(f"Fixed corrupted shape keys on {changed_meshes} Meshes.", op=self)
+		changed_meshes, changed_keys = fix_corrupted_multi(objs, op=self)
+		_log.info(f"Recreated (fixed corrupted) {changed_keys} Shape Keys on {changed_meshes} Meshes.", op=self)
 		return {'FINISHED'} if changed_meshes > 0 else {'CANCELLED'}
 
 
