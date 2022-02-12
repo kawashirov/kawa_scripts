@@ -42,7 +42,7 @@ if _typing.TYPE_CHECKING:
 	from bpy.types import Object, Mesh, ShapeKey, Key, Operator, Context
 
 
-def ensure_keys_len_match(shape_a: 'ShapeKey', shape_b: 'ShapeKey', op: 'Operator' = None):
+def ensure_shape_shape_len_match(shape_a: 'ShapeKey', shape_b: 'ShapeKey', op: 'Operator' = None):
 	"""
 	Ensure `len(shape_a.data) == len(shape_b.data)`. Helps to detect corrupted Mesh/Key datablocks.
 	"""
@@ -54,7 +54,7 @@ def ensure_keys_len_match(shape_a: 'ShapeKey', shape_b: 'ShapeKey', op: 'Operato
 	return False
 
 
-def ensure_len_match(mesh: 'Mesh', shape_key: 'ShapeKey', op: 'Operator' = None):
+def ensure_mesh_shape_len_match(mesh: 'Mesh', shape_key: 'ShapeKey', op: 'Operator' = None):
 	"""
 	Ensure `len(mesh.vertices) == len(shape_key.data)`. Helps to detect corrupted Mesh/Key datablocks.
 	"""
@@ -131,8 +131,8 @@ class OperatorSelectVerticesAffectedByShapeKey(_internals.KawaOperator):
 		shape_key = obj.active_shape_key
 		reference = mesh.shape_keys.reference_key
 		
-		match_skd = ensure_len_match(mesh, shape_key, op=self)
-		match_ref = ensure_len_match(mesh, reference, op=self)
+		match_skd = ensure_mesh_shape_len_match(mesh, shape_key, op=self)
+		match_ref = ensure_mesh_shape_len_match(mesh, reference, op=self)
 		if not match_skd or not match_ref:
 			return {'CANCELLED'}
 		
@@ -180,8 +180,8 @@ class OperatorRevertSelectedInActiveToBasis(_internals.KawaOperator):
 		shape_key = obj.active_shape_key
 		reference = mesh.shape_keys.reference_key
 		
-		match_skd = ensure_len_match(mesh, shape_key, op=self)
-		match_ref = ensure_len_match(mesh, reference, op=self)
+		match_skd = ensure_mesh_shape_len_match(mesh, shape_key, op=self)
+		match_ref = ensure_mesh_shape_len_match(mesh, reference, op=self)
 		if not match_skd or not match_ref:
 			return {'CANCELLED'}
 		
@@ -224,7 +224,7 @@ class OperatorRevertSelectedInAllToBasis(_internals.KawaOperator):
 		mesh = _meshes.get_mesh_safe(obj)
 		reference = mesh.shape_keys.reference_key
 		
-		if not ensure_len_match(mesh, reference, op=self):
+		if not ensure_mesh_shape_len_match(mesh, reference, op=self):
 			return {'CANCELLED'}
 		
 		_mesh_selection_to_vertices(mesh)
@@ -232,7 +232,7 @@ class OperatorRevertSelectedInAllToBasis(_internals.KawaOperator):
 		for shape_key in mesh.shape_keys.key_blocks:
 			if shape_key == reference:
 				continue
-			if not ensure_len_match(mesh, shape_key, op=self):
+			if not ensure_mesh_shape_len_match(mesh, shape_key, op=self):
 				continue
 			for i in range(len(mesh.vertices)):
 				if mesh.vertices[i].select:
@@ -441,15 +441,15 @@ def apply_active_to_all(obj: 'Object', keep_reverted=False, op: 'Operator' = Non
 	active_key = obj.active_shape_key
 	ref_key = mesh.shape_keys.reference_key
 	
-	match_active = ensure_len_match(mesh, active_key, op=op)
-	match_ref = ensure_len_match(mesh, ref_key, op=op)
+	match_active = ensure_mesh_shape_len_match(mesh, active_key, op=op)
+	match_ref = ensure_mesh_shape_len_match(mesh, ref_key, op=op)
 	if not match_active or not match_ref:
 		return False
 	
 	for other_key in mesh.shape_keys.key_blocks:
 		if other_key == active_key or other_key == ref_key:
 			continue
-		if not ensure_len_match(mesh, other_key, op=op):
+		if not ensure_mesh_shape_len_match(mesh, other_key, op=op):
 			continue
 		for i in range(len(mesh.vertices)):
 			other_offset = other_key.data[i].co - ref_key.data[i].co
@@ -524,8 +524,8 @@ def cleanup_active(obj: 'Object', epsilon: 'float', op: 'Operator' = None, stric
 	if active_key == ref_key:
 		return 0
 	
-	match_active = ensure_len_match(mesh, active_key, op=op)
-	match_ref = ensure_len_match(mesh, ref_key, op=op)
+	match_active = ensure_mesh_shape_len_match(mesh, active_key, op=op)
+	match_ref = ensure_mesh_shape_len_match(mesh, ref_key, op=op)
 	if not match_active or not match_ref:
 		return 0
 	
@@ -679,8 +679,8 @@ def remove_empty(objs: 'Iterable[Object]', epsilon: float, op: 'Operator' = None
 		for shape_key in key.key_blocks:
 			if shape_key == reference:
 				continue  # Базис не удаялется
-			match1 = ensure_len_match(mesh, reference, op=op)
-			match2 = ensure_len_match(mesh, shape_key, op=op)
+			match1 = ensure_mesh_shape_len_match(mesh, reference, op=op)
+			match2 = ensure_mesh_shape_len_match(mesh, shape_key, op=op)
 			if not match1 or not match2:
 				continue
 			# Имеются ли различия между шейпами?
@@ -739,11 +739,11 @@ class OperatorRemoveEmpty(_internals.KawaOperator):
 
 
 def _transfer_shape_co(key_from: 'ShapeKey', key_to: 'ShapeKey', mesh_from: 'Mesh' = None, mesh_to: 'Mesh' = None, op: 'Operator' = None):
-	if mesh_from is not None and not ensure_len_match(mesh_from, key_from, op=op):
+	if mesh_from is not None and not ensure_mesh_shape_len_match(mesh_from, key_from, op=op):
 		return
-	if mesh_to is not None and not ensure_len_match(mesh_to, key_to, op=op):
+	if mesh_to is not None and not ensure_mesh_shape_len_match(mesh_to, key_to, op=op):
 		return
-	if not ensure_keys_len_match(key_from, key_to, op=op):
+	if not ensure_shape_shape_len_match(key_from, key_to, op=op):
 		return
 	for i in range(len(key_from.data)):
 		key_to.data[i].co = key_from.data[i].co
