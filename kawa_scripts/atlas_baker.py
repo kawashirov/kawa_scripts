@@ -766,14 +766,14 @@ class BaseAtlasBaker:
 			copy_input(from_in_socket, to_in_socket)
 		
 		def copy_input_value(from_in_socket: 'NodeSocketFloat', to_in_socket: 'NodeSocketColor'):
-			v = from_in_socket.default_value
+			v = float(from_in_socket.default_value)
 			to_in_socket.default_value[:] = (v, v, v, 1.0)
 			copy_input(from_in_socket, to_in_socket)
 		
 		if bake_type == 'ALPHA':
 			bake_shader, bake_color = replace_shader()
-			src_alpha = _snodes.get_node_input_safe(src_shader, 'Alpha')
-			if src_alpha is not None:  # TODO RGB <-> value
+			src_alpha = src_shader.inputs.get('Alpha')
+			if src_alpha is not None:
 				copy_input_value(src_alpha, bake_color)
 			else:
 				# По умолчанию непрозрачность
