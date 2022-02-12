@@ -18,6 +18,8 @@ import bmesh as _bmesh
 from . import _internals
 from . import _doc
 from ._internals import log as _log
+from . import objects as _objects
+from . import meshes as _meshes
 
 import typing as _typing
 
@@ -44,11 +46,45 @@ def get_weight_safe(group: 'VertexGroup', index: 'int', default=0.0):
 		return default
 
 
-def halfbone_apply_weight(obj: 'Object', ctrl_a: 'Union[str, int]', ctrl_b: 'Union[str, int]', half_name: 'Union[str, int]'):
+def halfbone_apply_armature(objs: '_objects.HandyMultiObject'):
+	armature_obj = list(obj for obj in _objects.resolve_objects(objs) if obj.type == 'ARMATURE' and isinstance(obj.data, _bpy.types.Armature))
+	if len(armature_obj) != 1:
+		raise RuntimeError(f"There is no single Armature-Object provided ({len(armature_obj)})")
+	armature_obj = armature_obj[0]  # type: Union[Object, List[Object]]
+	
+	armature_data = armature_obj.data  # type: _bpy.types.Armature
+	
+	if armature_data.bones.active is None:
+		raise RuntimeError(f"There is no active bone in Armature-Object provided ({armature_obj})")
+	half_name = armature_data.bones.active.name
+	
+	selected = list(bone.name for bone in armature_data.bones if armature_data.bones.active != bone and bone.select)
+	if len(selected) != 2:
+		raise RuntimeError(f"There is no two selected control bones in Armature-Object provided ({len(selected)})")
+	ctrl_a, ctrl_b = selected
+	
+	meshes = list(obj for obj in _objects.resolve_objects(objs) if _meshes.is_mesh_object(obj))
+	if len(meshes) < 1:
+		raise RuntimeError(f"There is no Mesh-Objects provided ({len(meshes)})")
+	
+	halfbone_apply_weight(meshes, ctrl_a, ctrl_b, half_name)
+
+
+def halfbone_apply_weight(objs: '_objects.HandyMultiObject', ctrl_a: 'Union[str, int]', ctrl_b: 'Union[str, int]',
+		half_name: 'Union[str, int]'):
+	for obj in _objects.resolve_objects(objs):
+		halfbone_apply_weight_single(obj, ctrl_a, ctrl_b, half_name)
+
+
+def halfbone_apply_weight_single(obj: 'Object', ctrl_a: 'Union[str, int]', ctrl_b: 'Union[str, int]', half_name: 'Union[str, int]'):
 	mesh = obj.data  # type: Mesh
 	a_group = obj.vertex_groups.get(ctrl_a)
 	b_group = obj.vertex_groups.get(ctrl_b)
+	if a_group is None or b_group is None:
+		return
 	half_group = obj.vertex_groups.get(half_name)
+	if half_group is None:
+		half_group = obj.vertex_groups.new(name=half_name)
 	index_list = [0]
 	for v in mesh.vertices:  # type: MeshVertex
 		a_w = get_weight_safe(a_group, v.index)
