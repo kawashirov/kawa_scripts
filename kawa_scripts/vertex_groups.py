@@ -190,6 +190,8 @@ def merge_weights(objs: 'HandyMultiObject', mapping: 'Dict[str, Dict[str, float]
 			if mesh in meshes:
 				continue
 			meshes.add(mesh)
+		if not _objects.ensure_in_mode(obj, 'OBJECT', strict=strict):
+			continue
 		if len(obj.vertex_groups) < 1:
 			# Если на меши нет групп вообще, то и объединять нечего.
 			continue
@@ -307,10 +309,9 @@ def remove_empty(objs: 'HandyMultiObject', limit: 'float' = 0.0, ignore_locked: 
 			if mesh in meshes:
 				continue
 			meshes.add(mesh)
-		if obj.vertex_groups is None or len(obj.vertex_groups) < 1:
+		if not _objects.ensure_in_mode(obj, 'OBJECT', strict=strict):
 			continue
-		if obj.mode != 'OBJECT':
-			_log.warning('{0} is in {1} mode, ignored.'.format(repr(obj), repr(obj.mode)), op=op)
+		if obj.vertex_groups is None or len(obj.vertex_groups) < 1:
 			continue
 		removed = 0
 		for group in list(obj.vertex_groups.values()):

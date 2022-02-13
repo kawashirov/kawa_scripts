@@ -265,6 +265,8 @@ def apply_active(obj: 'Object', apply_to: 'str',
 		raise ValueError(f"apply_to={apply_to}")
 	
 	# No context control
+	if not _objects.ensure_in_mode(obj, 'OBJECT', strict=True):
+		return False
 	mesh = _meshes.get_mesh_safe(obj)
 	active_key = obj.active_shape_key
 	ref_key = mesh.shape_keys.reference_key
@@ -413,6 +415,8 @@ def cleanup_active(obj: 'Object', epsilon: 'float', op: 'Operator' = None, stric
 	mesh = _meshes.get_mesh_safe(obj, strict=strict)
 	if mesh is None:
 		return 0
+	if not _objects.ensure_in_mode(obj, 'OBJECT', strict=strict):
+		return 0
 	if not _mesh_have_shapekeys(mesh, n=2):
 		return 0
 	
@@ -493,6 +497,8 @@ def cleanup(objs: 'HandyMultiObject', epsilon: float, op: 'Operator' = None, str
 		if mesh in meshes:
 			continue  # Уже трогали
 		meshes.add(mesh)
+		if not _objects.ensure_in_mode(obj, 'OBJECT', strict=strict):
+			continue
 		if not _mesh_have_shapekeys(mesh, n=2):
 			continue
 		last_shape_key_index = obj.active_shape_key_index
@@ -576,6 +582,8 @@ def remove_empty(objs: 'HandyMultiObject', epsilon: float,
 		if mesh in meshes:
 			continue  # Уже трогали
 		meshes.add(mesh)
+		if not _objects.ensure_in_mode(obj, 'OBJECT', strict=strict):
+			continue
 		if not _mesh_have_shapekeys(mesh, n=2):
 			continue
 		key = mesh.shape_keys  # type: Key
@@ -766,6 +774,8 @@ def fix_corrupted(objs: 'HandyMultiObject', strict: 'Optional[bool]' = None,
 		mesh = _meshes.get_mesh_safe(obj, strict=strict)
 		if mesh is None:
 			continue  # Не меш
+		if not _objects.ensure_in_mode(obj, 'OBJECT', strict=strict):
+			continue
 		if not _obj_have_shapekeys(obj, n=1, strict=strict):
 			continue  # Меш без шейпов
 		if mesh in meshes:
