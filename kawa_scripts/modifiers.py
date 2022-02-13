@@ -141,9 +141,9 @@ def apply_deform_modifier_to_mesh_high_precision(modifier: 'Modifier', keep_modi
 		for key in list(mobj.data.shape_keys.key_blocks):  # type: ShapeKey
 			if _log.is_debug():
 				_log.info(f"Transforming {key!r} on original {mobj!r} and copy {cobj!r}", op=op)
-			if not _shapekeys.ensure_len_match(mobj_mesh, key, op=op):
+			if not _shapekeys.ensure_mesh_shape_len_match(mobj_mesh, key, op=op):
 				continue
-			if not _shapekeys.ensure_len_match(cobj_mesh, key, op=op):
+			if not _shapekeys.ensure_mesh_shape_len_match(cobj_mesh, key, op=op):
 				continue
 			# Копирование данных шейпкея в копию
 			for i in range(len(key.data)):
