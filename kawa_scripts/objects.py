@@ -79,7 +79,22 @@ def deselect_all(view_layer: 'ViewLayer' = None):
 	while len(view_layer.objects.selected) > 0:
 		view_layer.objects.selected[0].select_set(False, view_layer=view_layer)
 	view_layer.objects.active = None
-	
+
+
+def ensure_in_mode(obj: 'Object', mode: 'str', strict: 'Optional[bool]' = None, op: 'Operator' = None):
+	if strict is None:
+		strict = True
+	if obj is None:
+		if strict:
+			_log.raise_error(ValueError, 'No Object provided: obj is None', op=op)
+		return False
+	if obj.mode == mode:
+		if strict:
+			msg = f'Object {obj.name!r} not in required mode {mode!r}, actual mode {obj.mode!r}. Please check object modes!'
+			_log.raise_error(RuntimeError, msg, op=op)
+		return False
+	return True
+
 
 def mode_set(mode: 'str', context: 'Context' = None, op: 'Operator' = None):
 	context = context or _bpy.context
