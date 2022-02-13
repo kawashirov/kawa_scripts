@@ -14,6 +14,7 @@ from math import sqrt as _sqrt
 
 import bpy as _bpy
 import bmesh as _bmesh
+import bpy.app
 
 from . import _internals
 from . import _doc
@@ -24,7 +25,8 @@ from . import meshes as _meshes
 import typing as _typing
 
 if _typing.TYPE_CHECKING:
-	from typing import Union, Iterable, Tuple, Dict, List
+	from .objects import HandyMultiObject
+	from typing import Union, Tuple, Dict, List, Optional
 	from bpy.types import Object, Mesh, VertexGroup, Context, MeshVertex, Operator
 	from bmesh.types import BMLayerItem, BMDeformVert
 
@@ -46,8 +48,9 @@ def get_weight_safe(group: 'VertexGroup', index: 'int', default=0.0):
 		return default
 
 
-def halfbone_apply_armature(objs: '_objects.HandyMultiObject'):
-	armature_obj = list(obj for obj in _objects.resolve_objects(objs) if obj.type == 'ARMATURE' and isinstance(obj.data, _bpy.types.Armature))
+def halfbone_apply_armature(objs: 'HandyMultiObject'):
+	objs = list(_objects.resolve_objects(objs))
+	armature_obj = list(obj for obj in objs if obj.type == 'ARMATURE' and isinstance(obj.data, _bpy.types.Armature))
 	if len(armature_obj) != 1:
 		raise RuntimeError(f"There is no single Armature-Object provided ({len(armature_obj)})")
 	armature_obj = armature_obj[0]  # type: Union[Object, List[Object]]
@@ -63,11 +66,11 @@ def halfbone_apply_armature(objs: '_objects.HandyMultiObject'):
 		raise RuntimeError(f"There is no two selected control bones in Armature-Object provided ({len(selected)})")
 	ctrl_a, ctrl_b = selected
 	
-	meshes = list(obj for obj in _objects.resolve_objects(objs) if _meshes.is_mesh_object(obj))
-	if len(meshes) < 1:
-		raise RuntimeError(f"There is no Mesh-Objects provided ({len(meshes)})")
+	mesh_objs = list(obj for obj in objs if _meshes.is_mesh_object(obj))
+	if len(mesh_objs) < 1:
+		raise RuntimeError(f"There is no Mesh-Objects provided ({len(mesh_objs)})")
 	
-	halfbone_apply_weight(meshes, ctrl_a, ctrl_b, half_name)
+	halfbone_apply_weight(mesh_objs, ctrl_a, ctrl_b, half_name)
 
 
 def halfbone_apply_weight(objs: '_objects.HandyMultiObject', ctrl_a: 'Union[str, int]', ctrl_b: 'Union[str, int]',
@@ -144,7 +147,8 @@ def halfbone_apply_weight_single(obj: 'Object', ctrl_a: 'Union[str, int]', ctrl_
 # 	return vert_count
 
 
-def merge_weights(objs: 'Iterable[Object]', mapping: 'Dict[str, Dict[str, float]]') -> 'Tuple[int, int, int]':
+def merge_weights(objs: 'HandyMultiObject', mapping: 'Dict[str, Dict[str, float]]',
+		strict: 'Optional[bool]' = None) -> 'Tuple[int, int, int]':
 	"""
 	Merges vertex groups weights on given Mesh-objects, using given mapping of weights.
 	Mapping should contain names of groups that should be merged as keys and list of tuple-pairs as values.
@@ -175,14 +179,22 @@ def merge_weights(objs: 'Iterable[Object]', mapping: 'Dict[str, Dict[str, float]
 	verts_modified, groups_removed, meshes_modified = 0, 0, 0
 	new_weights = dict()  # type: Dict[int, float]  # временный
 	remap = list()  # type: List[Union[None, List[float]]]  # также временный
-	for obj in objs:
-		object_modified = False
-		if obj.type != 'MESH' or obj.data is None:
+	
+	# In Blender 3.0+ vertex weight data fully stored in Mesh, not Object, so we can skip repeating meshes.
+	meshes = set() if bpy.app.version[0] >= 3 else None
+	for obj in _objects.resolve_objects(objs):
+		mesh = _meshes.get_mesh_safe(obj, strict=strict)
+		if mesh is None:
 			continue
+		if meshes is not None:
+			if mesh in meshes:
+				continue
+			meshes.add(mesh)
 		if len(obj.vertex_groups) < 1:
 			# Если на меши нет групп вообще, то и объединять нечего.
 			continue
 		# досоздаём необходимые группы на объекте
+		object_modified = False
 		any_to_merge = False
 		for src_bone, targets in mapping.items():
 			if src_bone in obj.vertex_groups:
@@ -259,7 +271,8 @@ def merge_weights(objs: 'Iterable[Object]', mapping: 'Dict[str, Dict[str, float]
 	return verts_modified, groups_removed, meshes_modified
 
 
-def remove_empty(objs: 'Iterable[Object]', limit: 'float' = 0.0, ignore_locked: 'bool' = False, op: 'Operator' = None) -> 'Tuple[int, int]':
+def remove_empty(objs: 'HandyMultiObject', limit: 'float' = 0.0, ignore_locked: 'bool' = False,
+		strict: 'Optional[bool]' = None, op: 'Operator' = None) -> 'Tuple[int, int]':
 	"""
 	**Removes empty Vertex Groups from given objects.**
 	
@@ -284,15 +297,21 @@ def remove_empty(objs: 'Iterable[Object]', limit: 'float' = 0.0, ignore_locked: 
 	Available as operator `OperatorRemoveEmpty`.
 	"""
 	removed_groups, removed_objects = 0, 0
-	for obj in objs:
-		if obj.type != 'MESH':
+	# In Blender 3.0+ vertex weight data fully stored in Mesh, not Object, so we can skip repeating meshes.
+	meshes = set() if _bpy.app.version[0] >= 3 else None
+	for obj in _objects.resolve_objects(objs):
+		mesh = _meshes.get_mesh_safe(obj, strict=strict)
+		if mesh is None:
 			continue
+		if meshes is not None:
+			if mesh in meshes:
+				continue
+			meshes.add(mesh)
 		if obj.vertex_groups is None or len(obj.vertex_groups) < 1:
 			continue
 		if obj.mode != 'OBJECT':
 			_log.warning('{0} is in {1} mode, ignored.'.format(repr(obj), repr(obj.mode)), op=op)
 			continue
-		mesh = obj.data  # type: Mesh
 		removed = 0
 		for group in list(obj.vertex_groups.values()):
 			if ignore_locked and group.lock_weight:
@@ -330,7 +349,7 @@ class OperatorRemoveEmpty(_internals.KawaOperator):
 		precision=6,
 		subtype='FACTOR',
 	)
-
+	
 	ignore_locked: _bpy.props.BoolProperty(
 		name="Ignore Locked",
 		description="Do not remove locked (with flag lock_weight) groups.",
