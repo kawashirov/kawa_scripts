@@ -2,9 +2,9 @@
 <module type="PYTHON_MODULE" version="4">
   <component name="NewModuleRootManager">
     <content url="file://$MODULE_DIR$">
-      <sourceFolder url="file://$MODULE_DIR$/blender_autocomplete/2.83" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/kawa_scripts" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/pdoc/pdoc" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/blender_autocomplete/3.0" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/blender_autocomplete/2.90" />
       <excludeFolder url="file://$MODULE_DIR$/blender_autocomplete/2.91" />
       <excludeFolder url="file://$MODULE_DIR$/blender_autocomplete/2.92" />
@@ -15,7 +15,7 @@
       <excludeFolder url="file://$MODULE_DIR$/blender_autocomplete/2.82" />
       <excludeFolder url="file://$MODULE_DIR$/pdoc/.github" />
       <excludeFolder url="file://$MODULE_DIR$/pdoc/doc" />
-    </content>
+      <excludeFolder url="file://$MODULE_DIR$/blender_autocomplete/2.83" />    </content>
     <orderEntry type="jdk" jdkName="Python 3.7" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>

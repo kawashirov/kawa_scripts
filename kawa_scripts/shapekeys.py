@@ -72,7 +72,7 @@ def _mesh_have_shapekeys(mesh: 'Mesh', n: int = 1):
 
 
 def _obj_have_shapekeys(obj: 'Object', n: int = 1, strict: 'Optional[bool]' = None):
-	mesh = _meshes.get_mesh_safe(obj, strict=strict)
+	mesh = _meshes.get_safe(obj, strict=strict)
 	return mesh is not None and _mesh_have_shapekeys(mesh, n=n)
 
 
@@ -128,7 +128,7 @@ class OperatorSelectVerticesAffectedByShapeKey(_internals.KawaOperator):
 		_bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 		
 		obj = self.get_active_obj(context)
-		mesh = _meshes.get_mesh_safe(obj)
+		mesh = _meshes.get_safe(obj)
 		shape_key = obj.active_shape_key
 		reference = mesh.shape_keys.reference_key
 		
@@ -177,7 +177,7 @@ class OperatorRevertSelectedInActiveToBasis(_internals.KawaOperator):
 		obj = self.get_active_obj(context)
 		# Рофл в том, что операции над мешью надо проводить вне эдит-мода
 		_bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-		mesh = _meshes.get_mesh_safe(obj)
+		mesh = _meshes.get_safe(obj)
 		shape_key = obj.active_shape_key
 		reference = mesh.shape_keys.reference_key
 		
@@ -209,7 +209,7 @@ class OperatorRevertSelectedInAllToBasis(_internals.KawaOperator):
 	@classmethod
 	def poll(cls, context: 'Context'):
 		obj = cls.get_active_obj(context)
-		mesh = _meshes.get_mesh_safe(obj, strict=False)
+		mesh = _meshes.get_safe(obj, strict=False)
 		if mesh is None:
 			return False  # Требуется активный меш-объект
 		if mesh.shape_keys is None or len(mesh.shape_keys.key_blocks) < 2:
@@ -222,7 +222,7 @@ class OperatorRevertSelectedInAllToBasis(_internals.KawaOperator):
 		obj = self.get_active_obj(context)
 		# Рофл в том, что операции над мешью надо проводить вне эдит-мода
 		_bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
-		mesh = _meshes.get_mesh_safe(obj)
+		mesh = _meshes.get_safe(obj)
 		reference = mesh.shape_keys.reference_key
 		
 		if not ensure_mesh_shape_len_match(mesh, reference, op=self):
@@ -267,7 +267,7 @@ def apply_active(obj: 'Object', apply_to: 'str',
 	# No context control
 	if not _objects.ensure_in_mode(obj, 'OBJECT', strict=True):
 		return False
-	mesh = _meshes.get_mesh_safe(obj)
+	mesh = _meshes.get_safe(obj)
 	active_key = obj.active_shape_key
 	ref_key = mesh.shape_keys.reference_key
 	
@@ -412,7 +412,7 @@ def cleanup_active(obj: 'Object', epsilon: 'float', op: 'Operator' = None, stric
 	
 	Available as operator `OperatorCleanupActive`
 	"""
-	mesh = _meshes.get_mesh_safe(obj, strict=strict)
+	mesh = _meshes.get_safe(obj, strict=strict)
 	if mesh is None:
 		return 0
 	if not _objects.ensure_in_mode(obj, 'OBJECT', strict=strict):
@@ -493,7 +493,7 @@ def cleanup(objs: 'HandyMultiObject', epsilon: float, op: 'Operator' = None, str
 	meshes = set()
 	vertices_changed, shapekeys_changed, meshes_changed = 0, 0, 0
 	for obj in _objects.resolve_objects(objs):
-		mesh = _meshes.get_mesh_safe(obj, strict=strict)
+		mesh = _meshes.get_safe(obj, strict=strict)
 		if mesh in meshes:
 			continue  # Уже трогали
 		meshes.add(mesh)
@@ -578,7 +578,7 @@ def remove_empty(objs: 'HandyMultiObject', epsilon: float,
 	removed_shapekeys, changed_meshes = 0, 0
 	meshes = set()
 	for obj in _objects.resolve_objects(objs):
-		mesh = _meshes.get_mesh_safe(obj, strict=strict)
+		mesh = _meshes.get_safe(obj, strict=strict)
 		if mesh in meshes:
 			continue  # Уже трогали
 		meshes.add(mesh)
@@ -707,8 +707,8 @@ def _fix_corrupted_single(obj: 'Object', progress_callback=None, op: 'Operator' 
 		_objects.deselect_all()
 		_objects.activate(obj, op=op)
 		
-		original_mesh = _meshes.get_mesh_safe(obj)  # type: Mesh
-		copy_mesh = _meshes.get_mesh_safe(copy_obj)  # type: Mesh
+		original_mesh = _meshes.get_safe(obj)  # type: Mesh
+		copy_mesh = _meshes.get_safe(copy_obj)  # type: Mesh
 		
 		active_index = obj.active_shape_key_index
 		# Удаляем шейпы с оригинала, т.к. они коррапченые
@@ -754,7 +754,7 @@ def _fix_corrupted_single(obj: 'Object', progress_callback=None, op: 'Operator' 
 		raise exc
 	finally:
 		if not copy_keep:
-			copy_mesh = _meshes.get_mesh_safe(copy_obj, strict=False)
+			copy_mesh = _meshes.get_safe(copy_obj, strict=False)
 			if copy_obj is not None:
 				_bpy.data.objects.remove(copy_obj, do_unlink=True, do_ui_user=True)
 			if copy_mesh:
@@ -771,7 +771,7 @@ def fix_corrupted(objs: 'HandyMultiObject', strict: 'Optional[bool]' = None,
 	shape_keys = 0
 	meshes = set()
 	for obj in _objects.resolve_objects(objs):
-		mesh = _meshes.get_mesh_safe(obj, strict=strict)
+		mesh = _meshes.get_safe(obj, strict=strict)
 		if mesh is None:
 			continue  # Не меш
 		if not _objects.ensure_in_mode(obj, 'OBJECT', strict=strict):
@@ -809,7 +809,7 @@ class OperatorFixCorrupted(_internals.KawaOperator):
 		return True
 	
 	def execute(self, context: 'Context'):
-		objs = list(obj for obj in self.get_selected_objs(context) if _meshes.get_mesh_safe(obj, strict=False) is not None)
+		objs = list(obj for obj in self.get_selected_objs(context) if _meshes.get_safe(obj, strict=False) is not None)
 		changed_meshes, changed_keys = fix_corrupted(objs, op=self)
 		_log.info(f"Recreated (fixed corrupted) {changed_keys} Shape Keys on {changed_meshes} Meshes.", op=self)
 		return {'FINISHED'} if changed_meshes > 0 else {'CANCELLED'}

@@ -108,7 +108,7 @@ def remove_all_uv_layers(obj: 'Object', strict: 'Optional[bool]' = None):
 	"""
 	Remove all UV Layers from Mesh-Object.
 	"""
-	mesh = _meshes.get_mesh_safe(obj, strict=strict)
+	mesh = _meshes.get_safe(obj, strict=strict)
 	while len(mesh.uv_layers) > 0:
 		mesh.uv_layers.remove(mesh.uv_layers[0])
 

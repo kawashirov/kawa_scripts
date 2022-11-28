@@ -428,7 +428,7 @@ class BaseAtlasBaker:
 			merges = sum(x.merges for x in self._islands.values())
 			_log.info("Searching UV islands: Objects={0}/{1}, Materials={2}/{3}, Islands={4}, Merges={5}, Time={6:.1f} sec, ETA={7:.1f} sec..."
 				.format(obj_i, len(self._copies), mat_i, len(self._groups), islands, merges, t, r.get_eta(1.0 * obj_i / len(self._copies))))
-			
+		
 		reporter = _reporter.LambdaReporter(self.report_time)
 		reporter.func = do_report
 		
@@ -441,7 +441,7 @@ class BaseAtlasBaker:
 			for obj in group:
 				bm, mesh = None, None
 				try:
-					mesh = _meshes.get_mesh_safe(obj)
+					mesh = _meshes.get_safe(obj)
 					bm = _bmesh.new()
 					bm.from_mesh(mesh)
 					self._find_islands_obj(obj, mesh, bm, mat, builder, mat_size)
@@ -898,7 +898,7 @@ class BaseAtlasBaker:
 		_objects.deselect_all()
 		_objects.activate(self._bake_obj)
 		# Настраиваем UV слои под рендер
-		for layer in _meshes.get_mesh_safe(self._bake_obj).uv_layers:  # type: MeshUVLoopLayer
+		for layer in _meshes.get_safe(self._bake_obj).uv_layers:  # type: MeshUVLoopLayer
 			layer.active = layer.name == self._UV_ATLAS
 			layer.active_render = layer.name == self._UV_ORIGINAL
 			layer.active_clone = False
@@ -949,7 +949,7 @@ class BaseAtlasBaker:
 		for obj in self.objects:
 			bm = None
 			try:
-				mesh = _meshes.get_mesh_safe(obj)
+				mesh = _meshes.get_safe(obj)
 				bm = _bmesh.new()
 				bm.from_mesh(mesh)
 				self._apply_baked_materials_bmesh(obj, mesh, bm)

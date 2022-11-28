@@ -25,8 +25,8 @@ from ._internals import log as _log
 import typing as _typing
 
 if _typing.TYPE_CHECKING:
-	from typing import List, Iterable, Dict, Tuple, Container, Deque, Set
-	from bpy.types import Context, Object, Bone, EditBone, PoseBone, Operator
+	from typing import List, Iterable, Dict, Tuple, Container, Deque, Set, Optional
+	from bpy.types import Context, Object, Bone, EditBone, PoseBone, Operator, Armature
 
 
 class _KawaBoneModeOperator(_internals.KawaOperator):
@@ -43,25 +43,24 @@ class _KawaBoneModeOperator(_internals.KawaOperator):
 			return list(pb.bone for pb in pbs)
 
 
-def _is_valid_armature(arm_obj: 'Object'):
-	return arm_obj is not None and arm_obj.type == 'ARMATURE' or arm_obj.data is not None
+def is_armature_object(obj: 'Object'):
+	return obj is not None and obj.type == 'ARMATURE' and isinstance(obj.data, _bpy.types.Armature)
 
 
-def _ensure_valid_armature(arm_obj: 'Object'):
-	if not _is_valid_armature(arm_obj):
-		_log.raise_error(ValueError, '{!r} is not valid armature-object!'.format(arm_obj))
+def get_safe(obj: 'Object', strict: 'bool' = None, op: 'Operator' = None) -> 'Optional[Armature]':
+	return _internals.get_data_safe(obj, is_armature_object, 'Armature', strict=strict, op=op)
 
 
 def remove_bones(arm_obj: 'Object', bones_to_remove: 'Container[str]'):
 	bones_removed = 0
-	_ensure_valid_armature(arm_obj)
+	arm_data = get_safe(arm_obj, strict=True)
 	_objects.deselect_all()
 	_objects.activate(arm_obj)
 	try:
 		_objects.mode_set('EDIT')
-		for edit_bone in list(arm_obj.data.edit_bones):  # type: EditBone
+		for edit_bone in list(arm_data.edit_bones):  # type: EditBone
 			if edit_bone.name in bones_to_remove:
-				arm_obj.data.edit_bones.remove(edit_bone)
+				arm_data.edit_bones.remove(edit_bone)
 				bones_removed += 1
 	finally:
 		_objects.mode_set('OBJECT')
@@ -69,9 +68,10 @@ def remove_bones(arm_obj: 'Object', bones_to_remove: 'Container[str]'):
 	return bones_removed
 
 
-def merge_bones(arm_obj: 'Object', mapping: 'Dict[str, Dict[str, float]]', meshes_objs: 'List[Object]' = None) -> 'Tuple[int, int, int, int]':
+def merge_bones(arm_obj: 'Object', mapping: 'Dict[str, Dict[str, float]]',
+		meshes_objs: 'List[Object]' = None) -> 'Tuple[int, int, int, int]':
 	verts_modified, groups_removed, meshes_modified, bones_removed = 0, 0, 0, 0
-	_ensure_valid_armature(arm_obj)
+	get_safe(arm_obj, strict=True)
 	meshes_objs = _meshes.find_meshes_affected_by_armatue(arm_obj, where=meshes_objs)
 	if len(meshes_objs) < 1:
 		return verts_modified, groups_removed, meshes_modified, bones_removed
@@ -96,7 +96,7 @@ class OperatorMergeActiveUniformly(_internals.KawaOperator):
 	@classmethod
 	def poll(cls, context: 'Context'):
 		active = cls.get_active_obj(context)
-		if active is None or active.type != 'ARMATURE':
+		if not is_armature_object(active):
 			return False  # Должна быть активная арматура
 		if context.mode == 'EDIT_ARMATURE':
 			if context.active_bone is None:
@@ -125,7 +125,7 @@ class OperatorMergeActiveUniformly(_internals.KawaOperator):
 		other_bones = list(eb for eb in context.selected_bones if eb != active_bone)  # type: List[EditBone]
 		if len(other_bones) < 1:
 			return {'CANCELLED'}
-		meshes_objs = _meshes.find_meshes_affected_by_armatue(arm_obj)
+		meshes_objs = _meshes.find_meshes_affected_by_armatue(arm_obj, strict=False, op=self)
 		if len(meshes_objs) < 1:
 			self.warning("There is no meshes affected by {}, so there is no point to run this complex merge. ".format(
 				repr(arm_obj)) + "Operation CANCELLED. Why not just delete active bone?")
@@ -235,13 +235,13 @@ def merge_to_hierarchy(
 		meshes_objs: 'List[Object]' = None, to_parents=True, to_children=True, allow_cancelled=False,
 		op: 'Operator' = None
 ) -> 'Tuple[int, int, int, int, List[str]]':
-	_ensure_valid_armature(arm_obj)
+	arm_data = get_safe(arm_obj, strict=True)
 	_objects.deselect_all()
 	_objects.activate(arm_obj)
 	mapping, cancelled = None, None
 	try:
 		_objects.mode_set('EDIT', op=op)
-		merge_ebones = list(eb for eb in arm_obj.data.edit_bones if eb.name in bones)
+		merge_ebones = list(eb for eb in arm_data.edit_bones if eb.name in bones)
 		mapping, cancelled = _find_hierarchy_mapping(merge_ebones, merge_ebones, to_parents=to_parents, to_children=to_children)
 		cancelled = list(eb.name for eb in cancelled)
 	finally:
@@ -249,7 +249,7 @@ def merge_to_hierarchy(
 	if not allow_cancelled and len(cancelled) > 0:
 		msg = 'Can not merge bones: {!r}'.format(cancelled)
 		_log.raise_error(ValueError, msg, op=op)
-		
+	
 	result = merge_bones(arm_obj, mapping, meshes_objs=meshes_objs)
 	return (*result, cancelled)
 

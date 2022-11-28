@@ -21,6 +21,7 @@ import typing as _typing
 if _typing.TYPE_CHECKING:
 	from typing import Union, Iterable, List, Optional, Container, Set, Deque, Generator
 	from bpy.types import Object, Context, Operator, Scene, ViewLayer
+	
 	HandyObject = Union[str, Object]
 	HandyMultiObject = Union[HandyObject, Iterable['HandyObject']]
 
@@ -88,7 +89,7 @@ def ensure_in_mode(obj: 'Object', mode: 'str', strict: 'Optional[bool]' = None, 
 		if strict:
 			_log.raise_error(ValueError, 'No Object provided: obj is None', op=op)
 		return False
-	if obj.mode == mode:
+	if obj.mode != mode:
 		if strict:
 			msg = f'Object {obj.name!r} not in required mode {mode!r}, actual mode {obj.mode!r}. Please check object modes!'
 			_log.raise_error(RuntimeError, msg, op=op)
@@ -305,4 +306,3 @@ def join(obj_from: 'HandyMultiObject', obj_to: 'HandyObject'):
 classes = (
 	KawaApplyParentInverseMatrices,
 )
-

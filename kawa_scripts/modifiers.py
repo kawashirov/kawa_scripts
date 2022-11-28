@@ -136,8 +136,8 @@ def apply_deform_modifier_to_mesh_high_precision(modifier: 'Modifier', keep_modi
 			for cobj_modifier in list(m.name for m in cobj.modifiers if m.name != modifier.name):
 				_commons.ensure_op_finished(_bpy.ops.object.modifier_remove(modifier=cobj_modifier), op=op)
 		# Пересчет шейпкеев на копии
-		mobj_mesh = _meshes.get_mesh_safe(mobj)  # type: Mesh
-		cobj_mesh = _meshes.get_mesh_safe(cobj)  # type: Mesh
+		mobj_mesh = _meshes.get_safe(mobj)  # type: Mesh
+		cobj_mesh = _meshes.get_safe(cobj)  # type: Mesh
 		for key in list(mobj.data.shape_keys.key_blocks):  # type: ShapeKey
 			if _log.is_debug():
 				_log.info(f"Transforming {key!r} on original {mobj!r} and copy {cobj!r}", op=op)
@@ -154,7 +154,7 @@ def apply_deform_modifier_to_mesh_high_precision(modifier: 'Modifier', keep_modi
 			for i in range(len(key.data)):
 				key.data[i].co = cobj_mesh.vertices[i].co
 	finally:
-		cmesh = _meshes.get_mesh_safe(cobj, strict=False)
+		cmesh = _meshes.get_safe(cobj, strict=False)
 		if cobj:
 			_bpy.data.objects.remove(cobj, do_unlink=True, do_ui_user=True)
 		if cmesh:

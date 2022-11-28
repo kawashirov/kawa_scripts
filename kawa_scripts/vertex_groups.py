@@ -183,7 +183,7 @@ def merge_weights(objs: 'HandyMultiObject', mapping: 'Dict[str, Dict[str, float]
 	# In Blender 3.0+ vertex weight data fully stored in Mesh, not Object, so we can skip repeating meshes.
 	meshes = set() if bpy.app.version[0] >= 3 else None
 	for obj in _objects.resolve_objects(objs):
-		mesh = _meshes.get_mesh_safe(obj, strict=strict)
+		mesh = _meshes.get_safe(obj, strict=strict)
 		if mesh is None:
 			continue
 		if meshes is not None:
@@ -302,7 +302,7 @@ def remove_empty(objs: 'HandyMultiObject', limit: 'float' = 0.0, ignore_locked: 
 	# In Blender 3.0+ vertex weight data fully stored in Mesh, not Object, so we can skip repeating meshes.
 	meshes = set() if _bpy.app.version[0] >= 3 else None
 	for obj in _objects.resolve_objects(objs):
-		mesh = _meshes.get_mesh_safe(obj, strict=strict)
+		mesh = _meshes.get_safe(obj, strict=strict)
 		if mesh is None:
 			continue
 		if meshes is not None:

@@ -38,9 +38,11 @@ if _typing.TYPE_CHECKING:
 	from . import _ui
 	from . import armature
 	from . import atlas_baker
+	from . import attributes
 	from . import combiner
 	from . import commons
 	from . import instantiator
+	from . import materials
 	from . import meshes
 	from . import modifiers
 	from . import objects
@@ -82,9 +84,11 @@ _modules = [
 	"_ui",
 	"armature",
 	"atlas_baker",
+	"attributes",
 	"combiner",
 	"commons",
 	"instantiator",
+	"materials",
 	"meshes",
 	"modifiers",
 	"objects",
