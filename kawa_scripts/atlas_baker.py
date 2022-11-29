@@ -126,7 +126,7 @@ class AOV:
 			if len(_default) != 3:
 				raise ValueError(f"Invalid length of default value of AOV {_name!r}: {len(_default)}, must be 3 (RGB).")
 			for i in range(3):
-				if not isinstance(_default, (int, float)):
+				if not isinstance(_default[i], (int, float)):
 					raise ValueError(f"Invalid default[{i}] value of AOV {_name!r}: {type(_default[i])!r} {_default[i]!r}")
 		else:
 			raise ValueError(f"Invalid default value of AOV {_name!r}: {type(_default)!r} {_default!r}")
@@ -909,7 +909,7 @@ class BaseAtlasBaker:
 				if aov is not None:
 					self._edit_mat_for_aov(mat, aov)
 				else:
-					self._edit_mat_for_bake(mat, bake_type, aov)
+					self._edit_mat_for_bake(mat, bake_type)
 			except Exception as exc:
 				msg = 'Error editing material {0} (#{1}) for {2} bake object {3}' \
 					.format(mat, slot_idx, bake_type, bake_obj)
