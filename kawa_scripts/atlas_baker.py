@@ -11,7 +11,7 @@
 Tool for baking a lots of PBR materials on a lots of Objects into single texture atlas.
 See `kawa_scripts.atlas_baker.BaseAtlasBaker`.
 """
-
+from collections.abc import Sequence as _abc_Sequence
 from sys import maxsize as _int_maxsize
 from gc import collect as _gc_collect
 from time import perf_counter as _perf_counter
@@ -35,7 +35,7 @@ import typing as _typing
 if _typing.TYPE_CHECKING:
 	from typing import Optional, Union, Tuple, List, Set, Dict, Generator
 	from bpy.types import Object, Material, MaterialSlot, Image, Mesh, MeshUVLoop, MeshUVLoopLayer
-	from bpy.types import ShaderNode, NodeSocket, NodeLink, NodeSocketColor, NodeSocketFloat
+	from bpy.types import ShaderNode, NodeSocket, NodeLink, NodeSocketColor, NodeSocketFloat, Node
 	from bmesh.types import BMesh, BMLayerItem
 	from mathutils import Vector
 
@@ -98,6 +98,77 @@ class UVTransform:
 		yield 3, (pd.x, pd.y + pd.w), (pk.x, pk.y + pk.w)  # vert 2: right, up
 
 
+class AOV:
+	"""
+	Configuration of named AOV (Arbitrary Output Variable) pass.
+	Must not be mutated.
+	
+	- `_name` must be any name for AOV variable.
+	`BaseAtlasBaker` will look for "AOV Output" nodes with given name and use it as source.
+	This name also will be passed to `BaseAtlasBaker.get_target_image` as `bake_type`.
+	- `_type` must be `'VALUE'` or `'COLOR'`
+	- `_default` must be number (or tuple of 3 (RGB) numbers for color-type).
+	This value will be used as default for materials with no "AOV Output" node.
+	If "AOV Output" exist, but have no inputs connected,
+	values of 'Color' or 'Value' input sockets will be used, same as in shaders.
+	"""
+	__slots__ = ('_name', '_type', '_default')
+	
+	def __init__(self, _name: 'str', _type: 'str', _default: 'float|tuple[float,float,float]' = 0):
+		self._name = _name
+		
+		if _type not in ('VALUE', 'COLOR'):
+			raise ValueError(f"Invalid type of AOV {_name!r}: {_type!r}")
+		
+		if isinstance(_default, (int, float)):
+			pass
+		elif isinstance(_default, tuple):
+			if len(_default) != 3:
+				raise ValueError(f"Invalid length of default value of AOV {_name!r}: {len(_default)}, must be 3 (RGB).")
+			for i in range(3):
+				if not isinstance(_default, (int, float)):
+					raise ValueError(f"Invalid default[{i}] value of AOV {_name!r}: {type(_default[i])!r} {_default[i]!r}")
+		else:
+			raise ValueError(f"Invalid default value of AOV {_name!r}: {type(_default)!r} {_default!r}")
+		
+		self._type = _type
+		self._default = _default
+	
+	@property
+	def name(self):
+		return self._name
+	
+	@property
+	def type(self):
+		return self._type
+	
+	@property
+	def is_value(self):
+		return self._type == 'VALUE'
+	
+	@property
+	def is_color(self):
+		return self._type == 'COLOR'
+	
+	@property
+	def default(self):
+		return self._default
+	
+	@property
+	def default_rgb(self) -> 'tuple[float, float, float]':
+		if isinstance(self._default, (int, float)):
+			return self._default, self._default, self._default
+		if isinstance(self._default, tuple):
+			return self._default
+	
+	@property
+	def default_rgba(self) -> 'tuple[float, float, float, float]':
+		if isinstance(self._default, (int, float)):
+			return self._default, self._default, self._default, 1.0
+		if isinstance(self._default, tuple):
+			return (*self._default, 1.0)
+
+
 class BaseAtlasBaker:
 	"""
 	Base class for Atlas Baking.
@@ -156,6 +227,7 @@ class BaseAtlasBaker:
 		self._materials = dict()  # type: Dict[Tuple[Object, Material], Material]
 		self._matsizes = dict()  # type: Dict[Material, Tuple[float, float]]
 		self._bake_types = list()  # type: List[Tuple[str, Image]]
+		self._aovs = dict()  # type: Dict[str, AOV]
 		# Объекты, скопированные для операций по поиску UV развёрток
 		self._copies = set()  # type: Set[Object]
 		# Группы объектов по материалам из ._copies
@@ -201,7 +273,8 @@ class BaseAtlasBaker:
 		Must return target Image for given bake type.
 		Atlas Baker will bake atlas onto this Image.
 		If Image is not provided (None or False) this bake type will not be baked.
-		See `BAKE_TYPES` for available bake types.
+		`bake_type` maybe one of common bake types (See `BAKE_TYPES` for available bake types)
+		or maybe name of some AOV (Arbitrary Output Variables).
 		"""
 		raise NotImplementedError('get_target_image')
 	
@@ -241,6 +314,12 @@ class BaseAtlasBaker:
 		You can post-process something here, for example, save baked Image.
 		"""
 		pass
+	
+	def add_aov(self, _name: 'str', _type: 'str', _default: 'float|tuple[float,float,float]' = 0):
+		"""
+		See `AOV`.
+		"""
+		self._aovs[_name] = AOV(_name, _type, _default)
 	
 	def _get_source_object(self, copy_obj: 'Object'):
 		name = copy_obj.get(self._PROP_ORIGIN_OBJECT)
@@ -313,7 +392,11 @@ class BaseAtlasBaker:
 			target_image = self._get_bake_image_safe(bake_type)
 			if target_image is None or target_image is False:
 				continue
-			self._bake_types.append((bake_type, target_image))
+		for aov_name in self._aovs.keys():
+			target_image = self._get_bake_image_safe(aov_name)
+			if target_image is None or target_image is False:
+				continue
+			self._bake_types.append((aov_name, target_image))
 	
 	def _prepare_materials(self):
 		for obj in self.objects:
@@ -427,7 +510,7 @@ class BaseAtlasBaker:
 			islands = sum(len(x.bboxes) for x in self._islands.values())
 			merges = sum(x.merges for x in self._islands.values())
 			_log.info("Searching UV islands: Objects={0}/{1}, Materials={2}/{3}, Islands={4}, Merges={5}, Time={6:.1f} sec, ETA={7:.1f} sec..."
-				.format(obj_i, len(self._copies), mat_i, len(self._groups), islands, merges, t, r.get_eta(1.0 * obj_i / len(self._copies))))
+			.format(obj_i, len(self._copies), mat_i, len(self._groups), islands, merges, t, r.get_eta(1.0 * obj_i / len(self._copies))))
 		
 		reporter = _reporter.LambdaReporter(self.report_time)
 		reporter.func = do_report
@@ -666,14 +749,19 @@ class BaseAtlasBaker:
 			# if len(groups) > 0:
 			# 	# Нужно убедиться, что node editor доступен.
 			# 	self._get_node_editor_override()
-			out = _snodes.get_material_output(mat)
-			surface = out.inputs['Surface']  # type: NodeSocket
-			src_shader_link = surface.links[0] if len(surface.links) == 1 else None  # type: NodeLink
-			src_shader = src_shader_link.from_node  # type: ShaderNode
+			surface_link = _snodes.get_link_surface(mat)
+			src_shader = surface_link.from_node  # type: ShaderNode
 			if src_shader is None:
-				raise RuntimeError('no shader found')
+				# TODO deeper check
+				raise RuntimeError(f"No main shader found in material {mat.name!r}")
+			
+			for aov_name, aov in self._aovs.items():
+				aov_socket = _snodes.get_socket_aov(mat, aov_name, aov.type)
+				# TODO deeper check
+				pass
+		
 		except Exception as exc:
-			msg = "Material {0} is invalid!".format(mat.name)
+			msg = f"Material {mat.name!r} is invalid: {exc}"
 			_log.info(msg)
 			raise RuntimeError(msg, mat, node_tree, out, surface, src_shader_s, src_shader) from exc
 	
@@ -732,6 +820,43 @@ class BaseAtlasBaker:
 		except Exception as exc:
 			raise RuntimeError('_ungroup_nodes_for_bake', mat, override, count, mat.node_tree.nodes.active) from exc
 	
+	def _edit_mat_replace_shader(self, mat: 'Material'):
+		# Замещает оригинальный шейдер на Emission
+		# Возвращает: оригинальный шейдер, новый шейдер, сокет нового шейдера, в который подрубать выводы для рендера
+		
+		link_surface = _snodes.get_link_surface(mat, target='CYCLES')
+		src_shader = link_surface.from_node
+		
+		bake_shader = mat.node_tree.nodes.new('ShaderNodeEmission')  # type: ShaderNode|Node
+		bake_shader.label = '__KAWA_BAKE_SHADER'
+		bake_shader.name = bake_shader.label
+		bake_color = bake_shader.inputs['Color']  # type: NodeSocket|NodeSocketColor
+		
+		# mat.node_tree.links.remove(link_surface)
+		mat.node_tree.links.new(bake_shader.outputs['Emission'], link_surface.to_socket)
+		
+		return src_shader, bake_shader, bake_color
+	
+	def _edit_mat_for_aov(self, mat: 'Material', aov: 'AOV|None'):
+		_, bake_shader, bake_color = self._edit_mat_replace_shader(mat)
+		aov_socket = _snodes.get_socket_aov(mat, aov.name, aov.type)
+		
+		if aov_socket is None:
+			# Если AOV сокет не найден, то просто создаем новую ноду с нужными дэфолтами.
+			bake_color.default_value[:] = aov.default_rgba
+			return
+		
+		if aov_socket.is_linked:
+			# Если AOV сокет есть, то нужно проверить подключение
+			mat.node_tree.links.new(aov_socket.links[0].from_socket, bake_color)
+		elif aov.is_value:
+			for i in range(3):
+				bake_color.default_value[i] = float(aov_socket.default_value)
+			bake_color.default_value[3] = 1.0
+		elif aov.is_color:
+			bake_color.default_value = aov_socket.default_value
+			bake_color.default_value[3] = 1.0
+	
 	def _edit_mat_for_bake(self, mat: 'Material', bake_type: 'str'):
 		# Подключает alpha-emission шейдер на выход материала
 		# Если не найден выход, DEFAULT или ALPHA, срёт ошибками
@@ -739,71 +864,40 @@ class BaseAtlasBaker:
 		node_tree = mat.node_tree
 		nodes = node_tree.nodes
 		
-		surface = _snodes.get_material_output(mat).inputs['Surface']  # type: NodeSocket
-		src_shader_link = surface.links[0]  # type: NodeLink
-		src_shader = src_shader_link.from_node  # type: ShaderNode
-		
-		def replace_shader():
-			# Замещает оригинальный шейдер на Emission
-			bake_shader = nodes.new('ShaderNodeEmission')  # type: ShaderNode
-			bake_shader.label = '__KAWA_BAKE_SHADER'
-			bake_shader.name = bake_shader.label
-			if src_shader_link is not None:
-				node_tree.links.remove(src_shader_link)
-			node_tree.links.new(bake_shader.outputs['Emission'], surface)
-			# log.info("Replacing shader %s -> %s on %s", src_shader, bake_shader, mat)
-			bake_color = bake_shader.inputs['Color']  # type: NodeSocketColor
-			return bake_shader, bake_color
-		
-		def copy_input(from_in_socket: 'NodeSocket', to_in_socket: 'NodeSocket'):
-			links = from_in_socket.links
-			if len(links) > 0:
-				link = links[0]  # type: NodeLink
-				node_tree.links.new(link.from_socket, to_in_socket)
-		
-		def copy_input_color(from_in_socket: 'NodeSocketColor', to_in_socket: 'NodeSocketColor'):
-			to_in_socket.default_value[:] = from_in_socket.default_value[:]
-			copy_input(from_in_socket, to_in_socket)
-		
-		def copy_input_value(from_in_socket: 'NodeSocketFloat', to_in_socket: 'NodeSocketColor'):
-			v = float(from_in_socket.default_value)
-			to_in_socket.default_value[:] = (v, v, v, 1.0)
-			copy_input(from_in_socket, to_in_socket)
-		
 		if bake_type == 'ALPHA':
-			bake_shader, bake_color = replace_shader()
+			src_shader, bake_shader, bake_color = self._edit_mat_replace_shader(mat)
 			src_alpha = src_shader.inputs.get('Alpha')
 			if src_alpha is not None:
-				copy_input_value(src_alpha, bake_color)
+				_snodes.socket_copy_input(src_alpha, bake_color)
 			else:
 				# По умолчанию непрозрачность
 				bake_color.default_value[:] = (1, 1, 1, 1.0)
 		elif bake_type == 'DIFFUSE':
-			bake_shader, bake_color = replace_shader()
+			src_shader, bake_shader, bake_color = self._edit_mat_replace_shader(mat)
 			src_shader_color = src_shader.inputs.get('Base Color') or src_shader.inputs.get('Color')  # type: NodeSocket
 			if src_shader_color is not None:
-				copy_input_color(src_shader_color, bake_color)
+				_snodes.socket_copy_input(src_shader_color, bake_color)
 			else:
 				# По умолчанию 75% отражаемости
 				bake_color.default_value[:] = (0.75, 0.75, 0.75, 1.0)
 		elif bake_type == 'METALLIC':
-			bake_shader, bake_color = replace_shader()
+			src_shader, bake_shader, bake_color = self._edit_mat_replace_shader(mat)
 			src_metallic = src_shader.inputs.get('Metallic')  # or src_shader.inputs.get('Specular')  # type: NodeSocket
 			if src_metallic is not None:  # TODO RGB <-> value
-				copy_input_value(src_metallic, bake_color)
+				_snodes.socket_copy_input(src_metallic, bake_color)
 			else:
 				# По умолчанию 10% металличности
 				bake_color.default_value[:] = (0.1, 0.1, 0.1, 1.0)
 		elif bake_type == 'ROUGHNESS':
-			bake_shader, bake_color = replace_shader()
+			src_shader, bake_shader, bake_color = self._edit_mat_replace_shader(mat)
 			src_roughness = src_shader.inputs.get('Roughness')  # type: NodeSocket
 			if src_roughness is not None:  # TODO RGB <-> value
-				copy_input_value(src_roughness, bake_color)
+				_snodes.socket_copy_input(src_roughness, bake_color)
 			else:
 				# По умолчанию 90% шершавости
 				bake_color.default_value[:] = (0.9, 0.9, 0.9, 1.0)
 	
-	def _edit_mats_for_bake(self, bake_obj: 'Object', bake_type: 'str'):
+	def _edit_mats_for_bake(self, bake_obj: 'Object', bake_type: 'str', aov: 'AOV|None'):
 		_objects.deselect_all()
 		_objects.activate(bake_obj)
 		for slot_idx in range(len(bake_obj.material_slots)):
@@ -811,25 +905,33 @@ class BaseAtlasBaker:
 			mat = bake_obj.material_slots[slot_idx].material
 			try:
 				self._ungroup_nodes_for_bake(mat)
-				self._edit_mat_for_bake(mat, bake_type)
+				if aov is not None:
+					self._edit_mat_for_aov(mat, aov)
+				else:
+					self._edit_mat_for_bake(mat, bake_type, aov)
 			except Exception as exc:
 				msg = 'Error editing material {0} (#{1}) for {2} bake object {3}' \
 					.format(mat, slot_idx, bake_type, bake_obj)
 				raise RuntimeError(msg, mat, slot_idx, bake_type, bake_obj) from exc
 	
-	def _try_edit_mats_for_bake(self, bake_obj: 'Object', bake_type: 'str'):
+	def _try_edit_mats_for_bake(self, bake_obj: 'Object', bake_type: 'str', aov: 'AOV|None'):
 		try:
-			self._edit_mats_for_bake(bake_obj, bake_type)
+			self._edit_mats_for_bake(bake_obj, bake_type, aov)
 		except Exception as exc:
 			raise RuntimeError("_edit_mats_for_bake", bake_obj, bake_type) from exc
 	
 	def _bake_image(self, bake_type: 'str', target_image: 'Image'):
-		_log.info("Preparing for bake atlas Image={0} type={1} size={2}...".format(
-			repr(target_image.name), bake_type, tuple(target_image.size)))
+		aov = self._aovs.get(bake_type)
+		target_size = tuple(target_image.size)
+		_log.info(f"Preparing for bake atlas Image={target_image.name!r} type={bake_type!r} aov={aov!r} size={target_size}...")
 		
 		# Поскольку cycles - ссанина, нам проще сделать копию ._bake_obj
 		# Сделать копии материалов на ._bake_obj
 		# Кастомизировать материалы, вывести всё через EMIT
+		
+		emit_types = ('EMIT', 'ALPHA', 'DIFFUSE', 'METALLIC', 'ROUGHNESS')
+		use_emit = (aov is not None) or (bake_type in emit_types)
+		cycles_bake_type = 'EMIT' if use_emit else bake_type
 		
 		_objects.deselect_all()
 		_objects.activate(self._bake_obj)
@@ -842,11 +944,11 @@ class BaseAtlasBaker:
 			object=True, obdata=True, material=True, animation=False,
 		), name='bpy.ops.object.make_single_user')
 		
-		if bake_type in ('ALPHA', 'DIFFUSE', 'METALLIC', 'ROUGHNESS'):
-			self._try_edit_mats_for_bake(local_bake_obj, bake_type)
+		if use_emit:
+			self._try_edit_mats_for_bake(local_bake_obj, bake_type, aov)
 		
 		for slot in local_bake_obj.material_slots:  # type: MaterialSlot
-			n_bake = _snodes.prepare_and_get_node_for_baking(slot.material)
+			n_bake = _snodes.prepare_node_for_baking(slot.material)
 			n_bake.image = target_image
 		
 		_bpy.context.scene.render.engine = 'CYCLES'
@@ -855,14 +957,11 @@ class BaseAtlasBaker:
 		_bpy.context.scene.cycles.use_adaptive_sampling = True
 		_bpy.context.scene.cycles.adaptive_threshold = 0
 		_bpy.context.scene.cycles.adaptive_min_samples = 0
-		
-		emit_types = ('EMIT', 'ALPHA', 'DIFFUSE', 'METALLIC', 'ROUGHNESS')
-		cycles_bake_type = 'EMIT' if bake_type in emit_types else bake_type
 		_bpy.context.scene.cycles.bake_type = cycles_bake_type
 		_bpy.context.scene.render.bake.use_pass_direct = False
 		_bpy.context.scene.render.bake.use_pass_indirect = False
 		_bpy.context.scene.render.bake.use_pass_color = False
-		_bpy.context.scene.render.bake.use_pass_emit = bake_type in emit_types
+		_bpy.context.scene.render.bake.use_pass_emit = use_emit
 		_bpy.context.scene.render.bake.normal_space = 'TANGENT'
 		_bpy.context.scene.render.bake.margin = 64
 		_bpy.context.scene.render.bake.use_clear = True
@@ -871,8 +970,7 @@ class BaseAtlasBaker:
 		
 		self._call_before_bake_safe(bake_type, target_image)
 		
-		_log.info("Trying to bake atlas Image={0} type={1}/{2} size={3}...".format(
-			repr(target_image.name), bake_type, cycles_bake_type, tuple(target_image.size)))
+		_log.info(f"Trying to bake atlas Image={target_image.name!r} type={bake_type!r}/{cycles_bake_type!r} aov={aov!r} size={target_size}...")
 		_objects.deselect_all()
 		_objects.activate(local_bake_obj)
 		_gc_collect()  # Подчищаем память прямо перед печкой т.к. оно моного жрёт.
@@ -881,7 +979,7 @@ class BaseAtlasBaker:
 		_commons.ensure_op_finished(_bpy.ops.object.bake(type=cycles_bake_type, use_clear=True), name='bpy.ops.object.bake')
 		bake_time = _perf_counter() - bake_start
 		_bpy.ops.wm.memory_statistics()
-		_log.info("Baked atlas Image={0} type={1}, time spent: {2:.1f} sec.".format(repr(target_image.name), bake_type, bake_time))
+		_log.info(f"Baked atlas Image={target_image.name!r} type={bake_type!r} aov={aov!r}, time spent: {bake_time:.1f} sec.")
 		
 		garbage_materials = set(slot.material for slot in local_bake_obj.material_slots)
 		mesh = local_bake_obj.data
@@ -905,7 +1003,7 @@ class BaseAtlasBaker:
 		for bake_type, target_image in self._bake_types:
 			for _, image in self._bake_types:
 				# Для экономии памяти выгружаем целевые картинки если они прогружены
-				if image is target_image and not image.has_data:
+				if image is target_image and image.has_data:
 					target_image.gl_free()
 					target_image.buffers_free()
 			self._bake_image(bake_type, target_image)
