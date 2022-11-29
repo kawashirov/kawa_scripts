@@ -392,6 +392,7 @@ class BaseAtlasBaker:
 			target_image = self._get_bake_image_safe(bake_type)
 			if target_image is None or target_image is False:
 				continue
+			self._bake_types.append((bake_type, target_image))
 		for aov_name in self._aovs.keys():
 			target_image = self._get_bake_image_safe(aov_name)
 			if target_image is None or target_image is False:
