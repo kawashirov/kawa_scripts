@@ -36,6 +36,7 @@ if _typing.TYPE_CHECKING:
 	# Эти итак заимпортированы через __import__ но PyCharm их не видит
 	from . import _internals
 	from . import _ui
+	
 	from . import armature
 	from . import atlas_baker
 	from . import attributes
@@ -52,6 +53,8 @@ if _typing.TYPE_CHECKING:
 	from . import tex_size_finder
 	from . import uv
 	from . import vertex_groups
+	
+	from . import imagemagick
 
 bl_info = {
 	"name": "Kawashirov's Scripts",
@@ -80,8 +83,10 @@ if "bpy" in locals() and "_modules_loaded" in locals():
 	print("Reloaded Kawashirov's Scripts!")
 
 _modules = [
+	# internals
 	"_internals",
 	"_ui",
+	# main modules
 	"armature",
 	"atlas_baker",
 	"attributes",
@@ -98,6 +103,8 @@ _modules = [
 	"tex_size_finder",
 	"uv",
 	"vertex_groups",
+	# sub packeges
+	"instantiator",
 ]
 
 import bpy

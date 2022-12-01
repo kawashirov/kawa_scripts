@@ -32,6 +32,15 @@ def is_deform_modifier(modifier: 'Modifier'):
 	return modifier.type in MODIFIER_TYPES_DEFORM
 
 
+def as_armature(modifier: 'Modifier', strict=False) -> 'ArmatureModifier|None':
+	if isinstance(modifier, _bpy.types.ArmatureModifier):
+		return modifier
+	elif strict:
+		raise ValueError(f"{type(modifier)!r} {modifier!r} is not ArmatureModifier!")
+	else:
+		return None
+
+
 def _get_modifier_index(obj: 'Object', modifier: 'Modifier') -> int:
 	for idx in range(len(obj.modifiers)):
 		if obj.modifiers[idx] == modifier:
@@ -95,9 +104,12 @@ def apply_all_modifiers(obj: 'Object', op: 'Operator' = None) -> 'int':
 	return modifc
 
 
-def apply_deform_modifier_to_mesh_high_precision(modifier: 'Modifier', keep_modifier=False, ignore_other_modifies=True, op: 'Operator' = None):
+def apply_deform_modifier_to_mesh_high_precision(modifier: 'Modifier', keep_modifier=False, ignore_other_modifies=True,
+		op: 'Operator' = None):
 	if _log.is_debug():
-		_log.info(f"Applying Modifier {modifier} on Object {modifier.id_data} with keep_modifier={keep_modifier}, ignore_other_modifies={ignore_other_modifies}", op=op)
+		_log.info(
+			f"Applying Modifier {modifier} on Object {modifier.id_data} with keep_modifier={keep_modifier}, ignore_other_modifies={ignore_other_modifies}",
+			op=op)
 	if not modifier:
 		_log.raise_error(ValueError, f"Modifier is None", op=op)
 	mobj = modifier.id_data
