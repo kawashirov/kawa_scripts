@@ -13,11 +13,11 @@
 made by Kawashirov.
 It's designed to use mostly form Python interactive console or from Python scripts.
 
-Basically this addon provides powerful tool for making fully-automated script
+Basically, this addon provides a powerful tool for making a fully-automated script
 for preparing, finalizing and baking lots of raw parts (Objects, Meshes, Modifiers, Materials)
 into few export-ready assets.
 
-Besides internal API for building, there is a few useful operators,
+Besides internal API for building, there are a few useful operators,
 especially for editing Shape Keys (see `shapekeys`) and applying Modifiers (see `modifiers`).
 
 **Documentation is not yet finished, sorry.**
@@ -26,35 +26,31 @@ especially for editing Shape Keys (see `shapekeys`) and applying Modifiers (see 
 .. include:: ./documentation.md
 """
 
-from collections import OrderedDict as _OrderedDict
+# Internals
+from . import _internals
+from . import _ui
 
-import typing as _typing
+# Modules
+from . import armature
+from . import atlas_baker
+from . import attributes
+from . import combiner
+from . import commons
+from . import instantiator
+from . import materials
+from . import meshes
+from . import modifiers
+from . import objects
+from . import reporter
+from . import shader_nodes
+from . import shapekeys
+from . import tex_size_finder
+from . import uv
+from . import vertex_groups
 
-if _typing.TYPE_CHECKING:
-	from types import ModuleType
-	from typing import Dict
-	# Эти итак заимпортированы через __import__ но PyCharm их не видит
-	from . import _internals
-	from . import _ui
-	
-	from . import armature
-	from . import atlas_baker
-	from . import attributes
-	from . import combiner
-	from . import commons
-	from . import instantiator
-	from . import materials
-	from . import meshes
-	from . import modifiers
-	from . import objects
-	from . import reporter
-	from . import shader_nodes
-	from . import shapekeys
-	from . import tex_size_finder
-	from . import uv
-	from . import vertex_groups
-	
-	from . import imagemagick
+# Packages
+from . import building
+from . import imagemagick
 
 bl_info = {
 	"name": "Kawashirov's Scripts",
@@ -63,105 +59,83 @@ bl_info = {
 	"location": "There is no UI. Use it from scripts or console by `import kawa_scripts` (or whatever)",
 	"wiki_url": "https://kawashirov.github.io/kawa_scripts/",
 	"doc_url": "https://kawashirov.github.io/kawa_scripts/",
-	"version": (2021, 8, 19),
-	"blender": (2, 83, 0),
+	"version": (2022, 12, 1),
+	"blender": (2, 93, 0),
 	"category": "Object",
 }
 addon_name = __name__
 
-if "bpy" in locals() and "_modules_loaded" in locals():
-	from importlib import reload
-	
-	print("Reloading Kawashirov's Scripts...")
-	for key, mod in list(_modules_loaded.items()):
-		if mod is None:
-			print("Skip {0}...".format(repr(key)))
+log = _internals.log
+log.init_handler_interactive()
+log.init_handler_file()
+
+
+def reload_modules():
+	global log
+	log.info(f"Reloading {__name__!r}...")
+	import types, importlib, collections, bpy
+	queue = collections.deque()
+	queue.extendleft(globals().values())
+	already_reloaded = set()
+	is_enabled = __name__ in bpy.context.preferences.addons.keys()
+	if is_enabled:
+		# Если не отгрузить классы из блендера, то может закораптить весь блендер
+		bpy.ops.preferences.addon_disable(module=__name__)
+	while len(queue) > 0:
+		module = queue.pop()
+		if not isinstance(module, types.ModuleType) or module in already_reloaded:
 			continue
-		print("Reloading {0}...".format(repr(mod)))
-		_modules_loaded[key] = reload(mod)
-	del reload
-	print("Reloaded Kawashirov's Scripts!")
+		if module in already_reloaded or not module.__name__.startswith(__name__ + '.'):
+			continue
+		log.info(f"Reloading {module.__name__!r}...")
+		importlib.reload(module)
+		already_reloaded.add(module)
+		queue.extend(getattr(module, attr, None) for attr in dir(module))
+	log.info(f"Reloaded {len(already_reloaded)} modules.")
+	if is_enabled:
+		bpy.ops.preferences.addon_enable(module=__name__)
+	log.info(f"Reloaded {__name__!r}!")
 
-_modules = [
-	# internals
-	"_internals",
-	"_ui",
-	# main modules
-	"armature",
-	"atlas_baker",
-	"attributes",
-	"combiner",
-	"commons",
-	"instantiator",
-	"materials",
-	"meshes",
-	"modifiers",
-	"objects",
-	"reporter",
-	"shader_nodes",
-	"shapekeys",
-	"tex_size_finder",
-	"uv",
-	"vertex_groups",
-	# sub packeges
-	"instantiator",
-]
 
-import bpy
-
-__import__(name=__name__, fromlist=_modules)
-_namespace = globals()
-_modules_loaded = _OrderedDict()  # type: Dict[str, ModuleType]
-for _mod_name in _modules:
-	_modules_loaded[_mod_name] = _namespace.get(_mod_name)
-del _namespace
-
-from ._internals import log
+_registered = list()
 
 
 def register():
-	print("Hello from {0}!".format(__name__))
-	import logging
-	from datetime import datetime
-	
-	log.py_log.setLevel(logging.DEBUG)
-	if len(log.py_log.handlers) < 1:
-		import tempfile
-		print("Updating kawa_scripts log handler!")
-		log_file = tempfile.gettempdir() + '/' + datetime.now().strftime("%Y-%m-%d-%H-%M-%S") + '-kawa.log'
-		log_formatter = logging.Formatter(fmt='[%(asctime)s][%(levelname)s] %(message)s')
-		log_handler = logging.FileHandler(log_file, mode='w', encoding='utf-8', delay=False)
-		log_handler.setFormatter(log_formatter)
-		log.py_log.addHandler(log_handler)
-		log.info("Log handler updated!")
-	
-	from bpy.utils import register_class
-	for mod in _modules_loaded.values():
+	global log
+	log.info(f"Hello from {__name__!r}!")
+	import types, bpy
+	_registered.clear()
+	for mod in globals().values():
+		if not isinstance(mod, types.ModuleType):
+			continue
 		if mod is _ui:
 			continue
 		if mod and hasattr(mod, 'classes'):
 			for cls in mod.classes:
-				register_class(cls)
+				bpy.utils.register_class(cls)
+				_registered.append(cls)
 	
 	_ui.register()
 	
-	log.info("Hello from {0} once again!".format(__name__))
+	log.info(f"Registered {__name__!r}. Hello once again!")
 
 
 def unregister():
-	from bpy.utils import unregister_class
+	global log
+	import bpy
 	
 	_ui.unregister()
 	
-	for mod in reversed(_modules_loaded.values()):
+	for mod in reversed(_registered):
 		if mod is _ui:
 			continue
 		if hasattr(mod, 'classes'):
 			for cls in reversed(mod.classes):
 				if cls.is_registered:
-					unregister_class(cls)
+					bpy.utils.unregister_class(cls)
+	_registered.clear()
 	
-	log.info("Goodbye from {0}...".format(__name__))
+	log.info(f"Unregistered {__name__!r}. Goodbye...")
 
 
 __pdoc__ = dict()

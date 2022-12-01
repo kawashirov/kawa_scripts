@@ -1,4 +1,6 @@
 import logging as _logging
+import sys
+import io
 
 import bpy as _bpy
 
@@ -18,10 +20,23 @@ def _op_report(op: 'Operator', t: 'Set[str]', message: str):
 		op.report(t, message)
 
 
+class InteractiveHandler(_logging.StreamHandler):
+	""" Handler for embedded Python Interactive Console inside Blender. """
+	
+	def emit(self, record):
+		if not isinstance(sys.stdout, io.StringIO):
+			return  # StringIO when in interactive console
+		if _bpy.context.active_operator is not None:
+			return  # Blender writes own log messages from operators
+		self.stream = sys.stderr if record.levelno >= _logging.WARNING else sys.stdout
+		super().emit(record)
+
+
 class KawaLogger:
 	def __init__(self):
 		self.debug = False
 		self.py_log = _logging.getLogger('kawashirov')
+		self.py_log.setLevel(_logging.DEBUG)
 	
 	def is_debug(self):
 		return _bpy.app.debug or _bpy.app.debug_python or self.debug
@@ -57,6 +72,29 @@ class KawaLogger:
 		self.py_log.error(message)
 		_op_report(op, {'ERROR'}, message)
 		raise exc_type(message)
+	
+	def init_handler_file(self):
+		if not any(isinstance(h, _logging.FileHandler) for h in self.py_log.handlers):
+			import tempfile, datetime
+			print("Updating kawa_scripts log handler!")
+			stamp = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+			log_file = f'{tempfile.gettempdir()}/{stamp}-kawa.log'
+			log_formatter = _logging.Formatter(fmt='[%(asctime)s][%(levelname)s] %(message)s')
+			log_handler = _logging.FileHandler(log_file, mode='w', encoding='utf-8', delay=False)
+			log_handler.setFormatter(log_formatter)
+			log.py_log.addHandler(log_handler)
+			log.info("Log handler updated!")
+	
+	def init_handler_interactive(self):
+		if not any(isinstance(h, InteractiveHandler) for h in self.py_log.handlers):
+			log_formatter = _logging.Formatter(fmt='[%(levelname)s] %(message)s')
+			log_handler = InteractiveHandler()
+			log_handler.setFormatter(log_formatter)
+			log.py_log.addHandler(log_handler)
+	
+	def drop_handlers(self):
+		for h in list(self.py_log.handlers):
+			self.py_log.removeHandler(h)
 
 
 log = KawaLogger()
