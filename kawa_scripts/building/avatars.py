@@ -8,36 +8,30 @@
 #
 #
 import typing
+from abc import ABC
 from collections import deque
 
 import bpy
-from bpy.types import Scene, Object
+from bpy.types import Scene, Object, Mesh, ShapeKey, Attribute
 
 from .._internals import log
 from .. import objects, armature, meshes
 from . import common as b_common
 
 
-class CommonAvatarBuilder(b_common.CommonBuilder):
-	def __init__(self):
-		super().__init__()
-		self.roots = set()  # type: set[Object]
-		self._root_aramture = None  # type: Object|None
-	
-	def _merge_submeshes(self):
-		pass
-	
+class CommonAvatarBuilder(b_common.CommonBuilder, ABC):
 	def _find_root_armature(self):
 		arms = list(obj for obj in self.ensure_processing_scene().objects if armature.is_armature_object(obj))
 		if len(arms) < 1:
 			raise RuntimeError("Armatures not found!")
 		if len(arms) > 1:
 			raise RuntimeError(f"Multiple armatures not found: {arms!r}")
-		self._root_aramture = arms[0]
+		return arms[0]
 	
 	def _join_submeshes(self):
 		joins = list()
-		for mesh in self._root_aramture.children:  # type: Object
+		_root_aramture = self._find_root_armature()
+		for mesh in _root_aramture.children:  # type: Object
 			if mesh.name.startswith('_'):
 				continue
 			if not meshes.is_mesh_object(mesh):
@@ -48,7 +42,7 @@ class CommonAvatarBuilder(b_common.CommonBuilder):
 		for submeshes, mesh in joins:
 			objects.join(submeshes, mesh)
 	
-	def build_objects(self):
+	def build_avatar(self):
 		self.clear_processing_scene()
 		
 		self._instantiate()
@@ -59,7 +53,7 @@ class CommonAvatarBuilder(b_common.CommonBuilder):
 		self._merge_weights()
 		self._process_shapekeys()
 		self._process_attributes()
-		self._remove_nonopaque_if_necessary()
+		self._remove_by_material_if_necessary()
 		self._remove_unused_materials_slots()
 		self._remove_empty_vertexgroups()
 		self._finalize_geometry()
@@ -69,4 +63,89 @@ class CommonAvatarBuilder(b_common.CommonBuilder):
 		self._join_submeshes()
 
 
-__all__ = ['CommonAvatarBuilder']
+class VariantAvatarBuilder(CommonAvatarBuilder, ABC):
+	def get_variant(self) -> 'str':
+		raise NotImplementedError()
+	
+	def is_mobile(self) -> 'bool':
+		return False
+	
+	def is_fallback(self) -> 'bool':
+		return False
+	
+	def _parse_special_name(self, any_name) -> 'tuple[str, dict[str, set[str]]]':
+		# 'base_name:foo:bar=baz,qux' -> 'base_name', {'foo': {}, 'bar': {'baz', 'qux'}}
+		parts = (str(any_name).strip()).split(':')
+		base_name = parts[0].strip()
+		options = dict()
+		for option in parts[1:]:
+			split = option.strip().split('=', 1)
+			key = split[0].strip()
+			if not key:
+				continue
+			values = set()
+			options[key] = values
+			if len(split) < 2:
+				continue
+			for value in split[1].split(','):
+				value = value.strip()
+				if value:
+					values.add(value)
+		return base_name, options
+
+	def match_variant_options(self, options: 'dict[str, set[str]]'):
+		if self.is_mobile():
+			if 'Desktop' in options.keys():
+				return False
+			if (mobile_variants := options.get('Mobile')) and self.get_variant() not in mobile_variants:
+				return False
+		else:
+			if 'Mobile' in options.keys():
+				return False
+			if (desktop_variants := options.get('Desktop')) and self.get_variant() not in desktop_variants:
+				return False
+		if self.is_fallback():
+			if 'Full' in options.keys():
+				return False
+			if (fallback_variants := options.get('Fallback')) and self.get_variant() not in fallback_variants:
+				return False
+		else:
+			if 'Fallback' in options.keys():
+				return False
+			if (full_variants := options.get('Full')) and self.get_variant() not in full_variants:
+				return False
+		return True
+
+	def shapekey_action(self, obj: 'Object', mesh: 'Mesh', key: 'ShapeKey'):
+		if key.name.startswith('_'):
+			return key.value
+		base_name, options = self._parse_special_name(key.name)
+		if not self.match_variant_options(options):
+			return key.value
+		return None
+
+	def shapekey_new_name(self, obj: 'Object', mesh: 'Mesh', key: 'ShapeKey') -> 'str|None':
+		base_name, options = self._parse_special_name(key.name)
+		return base_name
+
+	def attribute_action(self, obj: 'Object', mesh: 'Mesh', attribute: 'Attribute') -> 'str|None':
+		if attribute.name.startswith('_'):
+			return None
+		base_name, options = self._parse_special_name(attribute.name)
+		if not self.match_variant_options(options):
+			return None
+		if base_name.startswith('DeleteVerts'):
+			return 'DELETE_VERTS'
+		if base_name.startswith('DissolveEdges'):
+			return 'DISSOLVE_EDGES'
+		if base_name.startswith('CollapseEdges'):
+			return 'COLLAPSE_EDGES'
+		return None
+
+
+class VRChatAvatarBuilder(CommonAvatarBuilder, ABC):
+	def allow_remove_shapekey(self, obj, mesh, key):
+		return not key.name.startswith('vrc')
+
+
+__all__ = ['CommonAvatarBuilder', 'VariantAvatarBuilder', 'VRChatAvatarBuilder']

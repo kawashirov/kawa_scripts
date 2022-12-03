@@ -9,13 +9,19 @@
 #
 import collections
 import re
+from abc import ABC
+from pathlib import Path
 
 import bpy
 import bmesh
-from bpy.types import Scene, Object, Armature, Bone, EditBone, Mesh, VertexGroup, ShapeKey, Attribute, Collection, Material
+from bpy.types import Scene, Collection, Object
+from bpy.types import Armature, Bone, EditBone
+from bpy.types import Mesh, VertexGroup, ShapeKey, Attribute, MaterialSlot, Material
 
 from .._internals import log
-from .. import commons, data, objects, armature, meshes, vertex_groups, shapekeys, attributes, instantiator, modifiers
+from .. import commons, objects, data
+from .. import armature, meshes, vertex_groups, shapekeys, attributes, instantiator, modifiers
+from .. import instantiator, atlas_baker
 
 RE_NAME = re.compile(r'^(_+)?([^%]*%)?(.+)$')
 
@@ -35,10 +41,11 @@ def conversations_rename(original_name: 'str') -> 'str':
 	So basicly, if you want to get pretty names like 'Body' on export,
 	you should have names like '%Body' on an original scene.
 	"""
-	under, prefix, new_name = RE_NAME.match(original_name)
+	under, prefix, new_name = RE_NAME.match(original_name).groups()
 	if prefix is None:
 		new_name = 'B-' + new_name
-	new_name = under + new_name
+	if under:
+		new_name = under + new_name
 	return new_name
 
 
@@ -54,70 +61,91 @@ class NamingConversationInstantiator(instantiator.BaseInstantiator):
 		return conversations_rename(original_name)
 
 
-class CommonBuilder:
-	def __init__(self):
-		self.originals = set()  # type: set[Object]
-		
-		self.remove_nonopaque = False
-		self.instantiator = None  # type: type|None
-		
-		self._source_scene = None  # type: Scene|None
-		self._source_collection = None  # type: Collection|None
-		
-		self._processing_scene = None  # type: Scene|None
+class CommonBuilder(ABC):
+	def __init__(self, **kwargs):
+		# not crash because of kwargs
+		super().__init__()
 	
-	def set_source_scene(self, name: 'str') -> 'Scene':
-		self._source_scene = bpy.data.scenes[name]
-		return self._source_scene
-	
-	def get_source_scene(self) -> 'Scene|None':
-		return self._source_scene
+	def get_source_scene(self) -> 'Scene':
+		raise NotImplementedError()
 	
 	def ensure_source_scene(self) -> 'Scene':
-		data.ensure_valid(self._source_scene)
-		return self._source_scene
-	
-	def set_source_collection(self, name: 'str') -> 'Collection':
-		self._source_collection = bpy.data.collections[name]
-		return self._source_collection
+		_source_scene = self.get_source_scene()
+		data.ensure_valid(_source_scene)
+		return _source_scene
 	
 	def get_source_collection(self) -> 'Collection|None':
-		return self._source_collection
+		return None
 	
-	def set_processing_scene(self, name: 'str', create=True) -> 'Scene':
-		if create:
-			self._processing_scene = bpy.data.scenes[name]
-		else:
-			self._processing_scene = bpy.data.scenes.get(name) or bpy.data.scenes.new(name)
-		return self._processing_scene
+	def ensure_source_collection(self) -> 'Collection|None':
+		collection = self.get_source_collection()
+		if collection is None:
+			return None
+		if not isinstance(collection, bpy.types.Collection):
+			raise TypeError()
+		data.ensure_valid(collection)
+		return collection
 	
-	def get_processing_scene(self) -> 'Scene|None':
-		return self._processing_scene
+	def get_processing_scene(self) -> 'Scene|str':
+		raise NotImplementedError()
 	
 	def ensure_processing_scene(self) -> 'Scene':
-		data.ensure_valid(self._processing_scene)
-		return self._processing_scene
+		_processing_scene = self.get_processing_scene()
+		if isinstance(_processing_scene, bpy.types.Scene):
+			data.ensure_valid(_processing_scene)
+			return _processing_scene
+		elif isinstance(_processing_scene, str):
+			_processing_scene = bpy.data.scenes.get(_processing_scene) or bpy.data.scenes.new(_processing_scene)
+			return _processing_scene
+		else:
+			raise TypeError()
 	
-	def add_original(self, name: 'str', children=True):
-		obj = bpy.data.objects[name]
-		source_scene = self.ensure_source_scene()
-		source_collection = self.get_source_collection()
-		if obj not in source_scene.objects:
-			raise RuntimeError(f"Object {obj!r} does not belong to Scene {source_scene!r}!")
-		if source_collection and obj not in source_collection.objects:
-			raise RuntimeError(f"Object {obj!r} does not belong to Collection {source_collection!r}!")
-		queue = collections.deque()
-		queue.append(obj)
-		while len(queue) > 0:
-			obj = queue.popleft()
-			if obj not in source_scene.objects:
-				continue
-			if source_collection and obj not in source_collection.objects:
-				continue
-			self.originals.add(obj)
-			if children:
-				# TODO optimize O(len(bpy.data.objects))
-				queue.extend(obj.children)
+	def get_export_dir(self) -> 'Path|str':
+		raise NotImplementedError()
+	
+	def ensure_export_dir(self) -> 'Path':
+		path = self.get_export_dir()
+		if isinstance(path, str):
+			path = Path(path)
+		elif not isinstance(path, Path):
+			raise TypeError()
+		if not path.exists():
+			path.mkdir(parents=True, exist_ok=True)
+		return path
+	
+	def get_originals(self) -> 'list[Object]':
+		_source_scene = self.ensure_source_scene()
+		_source_collection = self.ensure_source_collection()
+		_originals = list()
+		if _source_collection is not None:
+			for obj in _source_collection.objects:
+				if obj.name in _source_scene.objects:
+					_originals.append(obj)
+		else:
+			for obj in _source_scene.objects:
+				_originals.append(obj)
+		return _originals
+	
+	# def add_original(self, name: 'str', children=True):
+	# 	obj = bpy.data.objects[name]
+	# 	source_scene = self.ensure_source_scene()
+	# 	source_collection = self.get_source_collection()
+	# 	if obj not in source_scene.objects:
+	# 		raise RuntimeError(f"Object {obj!r} does not belong to Scene {source_scene!r}!")
+	# 	if source_collection and obj not in source_collection.objects:
+	# 		raise RuntimeError(f"Object {obj!r} does not belong to Collection {source_collection!r}!")
+	# 	queue = collections.deque()
+	# 	queue.append(obj)
+	# 	while len(queue) > 0:
+	# 		obj = queue.popleft()
+	# 		if obj not in source_scene.objects:
+	# 			continue
+	# 		if source_collection and obj not in source_collection.objects:
+	# 			continue
+	# 		self.originals.add(obj)
+	# 		if children:
+	# 			# TODO optimize O(len(bpy.data.objects))
+	# 			queue.extend(obj.children)
 	
 	def clear_processing_scene(self):
 		scene = self.ensure_processing_scene()
@@ -128,15 +156,16 @@ class CommonBuilder:
 		data.orphans_purge_iter()
 		log.info(f'Removed everything ({len(objs)} objects) from processing scene.')
 	
+	def get_instantiator(self):
+		return NamingConversationInstantiator()
+	
 	def _instantiate(self):
-		if self.instantiator is None:
-			self.instantiator = NamingConversationInstantiator
-		inst = self.instantiator()
+		inst = self.get_instantiator()
 		inst.instantiate_collections = False
 		inst.original_scene = self.ensure_source_scene()
 		inst.working_scene = self.ensure_processing_scene()
 		inst.apply_modifiers = False
-		inst.originals = self.originals
+		inst.originals = self.get_originals()
 		inst.run()
 		data.orphans_purge_iter()
 	
@@ -156,24 +185,23 @@ class CommonBuilder:
 		"""
 		for obj in self.ensure_processing_scene().objects:
 			mesh = meshes.get_safe(obj, strict=False)
-			self._reveal_hidden_single(obj, mesh)
+			if mesh is not None:
+				self._reveal_hidden_single(obj, mesh)
 	
 	def _find_armature_links(self) -> 'dict[Object, set[Object]]':
 		links = dict()  # type: dict[Object, set[Object]]
-		for obj in self.ensure_source_scene().objects:
+		for obj in self.ensure_processing_scene().objects:
 			mesh = meshes.get_safe(obj, strict=False)
 			if mesh is None:
 				continue
 			for modifier in obj.modifiers:
 				arm_m = modifiers.as_armature(modifier, strict=False)
 				if arm_m and arm_m.object:
-					link = links.get(arm_m.object)
-					if link is None:
-						links[arm_m.object] = link = set()
+					link = commons.dict_get_or_add(links, arm_m.object, set)
 					link.add(obj)
 		return links
 	
-	def _merge_weights_action(self, arm_obj: 'Object', mesh_obj: 'Object') -> 'dict[str, dict[str, float]]|None':
+	def merge_weights_action(self, arm_obj: 'Object', mesh_obj: 'Object') -> 'dict[str, dict[str, float]]|None':
 		"""
 		Action for merging bone weights on given Mesh-type Object for it's given deforming Armature-type Object.
 		Must return mapping rule for vertex_groups.merge_weights or None if no any merging is needed.
@@ -185,11 +213,11 @@ class CommonBuilder:
 		links = self._find_armature_links()
 		for arm_obj, mesh_objs in links.items():
 			for mesh_obj in mesh_objs:
-				action = self._merge_weights_action(arm_obj, mesh_obj)
+				action = self.merge_weights_action(arm_obj, mesh_obj)
 				if action is not None:
 					vertex_groups.merge_weights(mesh_obj, mapping=action, strict=True)
 	
-	def _shapekey_action(self, obj: 'Object', mesh: 'Mesh', key: 'ShapeKey') -> 'float|None':
+	def shapekey_action(self, obj: 'Object', mesh: 'Mesh', key: 'ShapeKey') -> 'float|None':
 		"""
 		Action for applying/removing Shape Key, must return:
 		- float 0.0 to remove Shape Key.
@@ -204,14 +232,14 @@ class CommonBuilder:
 	
 	def _apply_shapekeys(self, obj: 'Object', mesh: 'Mesh', key_blocks: 'list[ShapeKey]'):
 		"""
-		Applies or removes Shape Keys according to _shapekey_action rule.
+		Applies or removes Shape Keys according to shapekey_action rule.
 		"""
 		obj.active_shape_key_index = 0
 		obj.use_shape_key_edit_mode = False
 		
 		actions = dict()  # type: dict[str, float|None]
 		for key in key_blocks:
-			actions[key.name] = self._shapekey_action(obj, mesh, key)
+			actions[key.name] = self.shapekey_action(obj, mesh, key)
 		
 		objects.deselect_all()
 		for key_name, key_action in actions.items():
@@ -227,7 +255,7 @@ class CommonBuilder:
 				log.info(f"Removing shapekey from {obj.name!r}, name={key_name!r}...")
 				bpy.ops.object.shape_key_remove(all=False)
 	
-	def _shapekey_new_name(self, obj: 'Object', mesh: 'Mesh', key: 'ShapeKey') -> 'str|None':
+	def shapekey_new_name(self, obj: 'Object', mesh: 'Mesh', key: 'ShapeKey') -> 'str|None':
 		"""
 		Suggest renaming given Shape Key. Can be overriden to provide custom names.
 		Must return a new name or None if no rename needed.
@@ -238,11 +266,11 @@ class CommonBuilder:
 	
 	def _rename_shapekeys(self, obj: 'Object', mesh: 'Mesh', key_blocks: 'list[ShapeKey]'):
 		"""
-		Rename Shape Keys according to _shapekey_new_name rule.
+		Rename Shape Keys according to shapekey_new_name rule.
 		"""
 		for key in key_blocks:
 			old_name = key.name
-			new_name = self._shapekey_new_name(obj, mesh, key)
+			new_name = self.shapekey_new_name(obj, mesh, key)
 			if not new_name:
 				continue
 			new_name = new_name.strip()
@@ -252,7 +280,7 @@ class CommonBuilder:
 			if key.name != new_name:
 				log.warning(f"Renaming shape key failed: {obj.name=!r}, {key.name!r} -> {new_name}")
 	
-	def _allow_remove_shapekey(self, obj: 'Object', mesh: 'Mesh', key: 'ShapeKey') -> 'bool':
+	def allow_remove_shapekey(self, obj: 'Object', mesh: 'Mesh', key: 'ShapeKey') -> 'bool':
 		"""
 		Allow removal of given empty (contains no deformation data) Shape Key.
 		By default, all empty shapekeys are removed, but can be customized conditionally here.
@@ -267,11 +295,11 @@ class CommonBuilder:
 			key_blocks = mesh.shape_keys.key_blocks if (mesh.shape_keys is not None) else None
 			if key_blocks is None:
 				continue
-			shapekeys.remove_empty(obj, epsilon=0.1 / 1000, allow_remove_predicate=self._allow_remove_shapekey, strict=True)
+			shapekeys.remove_empty(obj, epsilon=0.1 / 1000, allow_remove_predicate=self.allow_remove_shapekey, strict=True)
 			self._apply_shapekeys(obj, mesh, key_blocks)
 			self._rename_shapekeys(obj, mesh, key_blocks)
 	
-	def _attribute_action(self, obj: 'Object', mesh: 'Mesh', attribute: 'Attribute') -> 'str|None':
+	def attribute_action(self, obj: 'Object', mesh: 'Mesh', attribute: 'Attribute') -> 'str|None':
 		"""
 		Action for applying Attribute:
 		- 'DELETE_VERTS' to apply bpy.ops.mesh.delete(type='VERT')
@@ -308,80 +336,92 @@ class CommonBuilder:
 		bpy.ops.mesh.select_all(action='DESELECT')
 		bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 	
-	def _process_attributes_delete_verts(self, obj: 'Object', mesh: 'Mesh', attribute: 'Attribute'):
-		if attribute.domain != 'POINT':
-			raise ValueError(f"{obj.name=!r}, {attribute.name=!r}: Can't delete verts using {attribute.domain=!r} domain!")
+	def _process_attributes_delete_verts(self, obj: 'Object', mesh: 'Mesh', attribute_name: 'str'):
+		if (domain := mesh.attributes[attribute_name].domain) != 'POINT':
+			log.raise_error(ValueError, f"Can't delete verts using {domain!r} domain!")
 		self._process_attributes_prepare(obj)
 		attributes.load_selection_from_attribute_mesh(
-			mesh, attribute=attribute.name, mode='SET', only_visible=False, strict=True)
+			mesh, attribute=attribute_name, mode='SET', only_visible=False, strict=True)
 		bpy.ops.object.mode_set_with_submode(mode='EDIT', toggle=False, mesh_select_mode={'VERT'})
 		bpy.ops.mesh.delete(type='VERT')
 		bpy.ops.mesh.select_all(action='DESELECT')
 		bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 	
-	def _process_attributes_dissolve_edges(self, obj: 'Object', mesh: 'Mesh', attribute: 'Attribute'):
-		if attribute.domain != 'EDGE':
-			raise ValueError(f"{obj.name=!r}, {attribute.name=!r}: Can't dissolve edges using {attribute.domain=!r} domain!")
+	def _process_attributes_dissolve_edges(self, obj: 'Object', mesh: 'Mesh', attribute_name: 'str'):
+		if (domain := mesh.attributes[attribute_name].domain) != 'EDGE':
+			log.raise_error(ValueError, f"Can't dissolve edges using {domain!r} domain!")
 		self._process_attributes_prepare(obj)
 		attributes.load_selection_from_attribute_mesh(
-			mesh, attribute=attribute.name, mode='SET', only_visible=False, strict=True)
+			mesh, attribute=attribute_name, mode='SET', only_visible=False, strict=True)
 		bpy.ops.object.mode_set_with_submode(mode='EDIT', toggle=False, mesh_select_mode={'EDGE'})
 		bpy.ops.mesh.dissolve_edges(use_verts=True, use_face_split=True)
 		bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 	
-	def _process_attributes_collapse_edges(self, obj: 'Object', mesh: 'Mesh', attribute: 'Attribute'):
-		if attribute.domain != 'EDGE':
-			raise ValueError(f"{obj.name=!r}, {attribute.name=!r}: Can't collapse edges using {attribute.domain=!r} domain!")
+	def _process_attributes_collapse_edges(self, obj: 'Object', mesh: 'Mesh', attribute_name: 'str'):
+		if (domain := mesh.attributes[attribute_name].domain) != 'EDGE':
+			log.raise_error(ValueError, f"Can't collapse edges using {domain!r} domain!")
 		self._process_attributes_prepare(obj)
 		attributes.load_selection_from_attribute_mesh(
-			mesh, attribute=attribute.name, mode='SET', only_visible=False, strict=True)
+			mesh, attribute=attribute_name, mode='SET', only_visible=False, strict=True)
 		bpy.ops.object.mode_set_with_submode(mode='EDIT', toggle=False, mesh_select_mode={'EDGE'})
 		bpy.ops.mesh.merge(type='COLLAPSE', uvs=True)
 		bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 	
-	def _process_attributes_single(self, obj: 'Object', mesh: 'Mesh', attribute: 'Attribute'):
-		action = self._attribute_action(obj, mesh, attribute)
-		if action is None:
+	def _process_attributes_single(self, obj: 'Object', mesh: 'Mesh', name: 'str'):
+		# Attribute умирает после смены режима объекта, по этому не храним его далее и работаем по имени.
+		if (action := self.attribute_action(obj, mesh, mesh.attributes[name])) is None:
 			return
-		log.info(f"Processing attribute: {obj.name=!r}, {attribute.name=!r}, {attribute.domain=!r}, {action!r}")
-		if action == 'DELETE_VERTS':
-			self._process_attributes_delete_verts(obj, mesh, attribute)
-		elif action == 'DISSOLVE_EDGES':
-			self._process_attributes_dissolve_edges(obj, mesh, attribute)
-		elif action == 'COLLAPSE_EDGES':
-			self._process_attributes_collapse_edges(obj, mesh, attribute)
-		else:
-			raise RuntimeError(f"{obj.name=!r}, {attribute.name=!r}, {attribute.domain=!r}: Unknown action: {action!r}!")
-		log.info(f"Processed attribute: {obj.name=!r}, {attribute.name=!r}, {attribute.domain=!r}, {action!r}")
+		domain = mesh.attributes[name].domain
+		try:
+			log.info(f"Processing attribute: {obj.name=!r}, {mesh.name=!r}, {name=!r}, {domain=!r}, {action=!r}")
+			if action == 'DELETE_VERTS':
+				self._process_attributes_delete_verts(obj, mesh, name)
+			elif action == 'DISSOLVE_EDGES':
+				self._process_attributes_dissolve_edges(obj, mesh, name)
+			elif action == 'COLLAPSE_EDGES':
+				self._process_attributes_collapse_edges(obj, mesh, name)
+			else:
+				log.raise_error(RuntimeError, f"Unknown action: {action!r}!")
+		except Exception as exc:
+			msg_c = f"{obj.name=!r}, {mesh.name=!r}, {name=!r}, {domain=!r}, {action=!r}"
+			log.error(f"Failed to process attribute {msg_c}: {exc}", exc_info=exc)
+			raise exc
+		log.info(f"Processed attribute: {obj.name=!r}, {mesh.name=!r}, {name=!r}, {domain=!r}, {action!r}")
 	
 	def _process_attributes(self):
 		for obj in self.ensure_processing_scene().objects:
-			obj.active_shape_key_index = 0
-			obj.use_shape_key_edit_mode = False
 			mesh = meshes.get_safe(obj, strict=False)
 			if mesh is None:
 				continue
-			attribute_names = list(a.name for a in mesh.attributes)
-			for a_name in attribute_names:
-				attribute = mesh.attributes[a_name]
-				self._process_attributes_single(obj, mesh, attribute)
+			bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+			objects.deselect_all()
+			objects.activate(obj)
+			obj.active_shape_key_index = 0
+			obj.use_shape_key_edit_mode = False
+			for a_name in list(a.name for a in mesh.attributes):
+				self._process_attributes_single(obj, mesh, a_name)
 	
-	def _is_nonopaque(self, mat: 'Material'):
+	def should_remove_by_material(self, obj: 'Object', mesh: 'Mesh', idx: 'int', slot: 'MaterialSlot'):
 		"""
-		Used to check what materials are Non-Opaque when remove_nonopaque is True
+		Action for removing geometry by material.
+		May be useful for removing different geometry for different asset variants.
+		For example, it's possible to remove non-opaque geometry or details for mobile platforms.
+		By default, removes slots with no materials assigned.
 		"""
-		return mat is None or mat.blend_method != 'OPAQUE'
+		return slot.material is None
 	
-	def _remove_nonopaque_single(self, obj: 'Object') -> 'int':
-		mesh = meshes.get_safe(obj, strict=False)
-		if mesh is None:
-			return 0
+	def _remove_by_material_if_necessary_single(self, obj: 'Object', mesh: 'Mesh') -> 'int':
 		objects.deselect_all()
 		objects.activate(obj)
-		mat_ids = set(i for i in range(len(obj.material_slots)) if self._is_nonopaque(obj.material_slots[i].material))
-		log.info(f"Removing {mat_ids!r} materials from {obj.name!r}...")
+		mat_ids = set()
+		for idx in range(len(obj.material_slots)):
+			slot = obj.material_slots[idx]
+			if self.should_remove_by_material(obj, mesh, idx, slot):
+				mat_ids.add(idx)
 		if len(mat_ids) < 1:
 			return 0
+		
+		log.info(f"Removing {mat_ids!r} materials from {obj.name!r}...")
 		bm = bmesh.new()
 		removed = 0
 		try:
@@ -395,19 +435,17 @@ class CommonBuilder:
 				bm.to_mesh(mesh)
 		finally:
 			bm.free()
-		log.info(f"Removed {removed!r} non-opaque faces from {obj.name!r}!")
+		log.info(f"Removed {removed!r} faces from {obj.name!r}!")
 		return removed
 	
-	def _remove_nonopaque_if_necessary(self):
+	def _remove_by_material_if_necessary(self):
 		"""
-		Remove non-opaque geometry, using _is_nonopaque rule if remove_nonopaque is True.
-		Useful for building asset variants for platforms with limited or expensive transparency support,
-		like Android, Meta Quest, Pico, ...
+		Remove geometry, using should_remove_by_material rule.
 		"""
-		if not self.remove_nonopaque:
-			return
 		for obj in self.ensure_processing_scene().objects:
-			self._remove_nonopaque_single(obj)
+			mesh = meshes.get_safe(obj, strict=False)
+			if mesh is not None:
+				self._remove_by_material_if_necessary_single(obj, mesh)
 	
 	def _remove_unused_materials_slots(self):
 		objects.deselect_all()
@@ -453,24 +491,22 @@ class CommonBuilder:
 			if mesh is not None:
 				self._finalize_geometry_single(obj, mesh)
 	
-	def _is_bone_used(self, arm_obj: 'Object', arm: 'Armature', bone: 'Bone', mesh_obj: 'Object', mesh: 'Mesh'):
+	def is_bone_used(self, arm_obj: 'Object', arm: 'Armature', bone: 'Bone', mesh_obj: 'Object', mesh: 'Mesh'):
 		return bone.name in mesh_obj.vertex_groups.keys()
 	
 	def _remove_unused_bones_single(self, arm_obj: 'Object', mesh_objs: 'set[Object]') -> 'int':
 		arm = armature.get_safe(arm_obj, strict=True)
 		used_bones = set()  # type: set[str]
-		unused_bones = set()  # type: set[str]
 		for mesh_obj in mesh_objs:
 			mesh = meshes.get_safe(mesh_obj, strict=True)
 			for bone in arm.bones:  # type: Bone
-				if self._is_bone_used(arm_obj, arm, bone, mesh_obj, mesh):
+				if self.is_bone_used(arm_obj, arm, bone, mesh_obj, mesh):
 					used_bones.add(bone.name)
-				else:
-					unused_bones.add(bone.name)
 		
 		if len(used_bones) < 1:
-			log.warning(f"No used bones detected in Object {arm_obj!r}, Armature {arm!r}! All bones will be deleted!")
-		if len(unused_bones) < 1:
+			log.warning(f"No used bones detected in Object {arm_obj.name!r}, Armature {arm.name!r}! All bones will be deleted!")
+		if len(used_bones) >= len(arm.bones):
+			log.info(f"No unused bones detected in Object {arm_obj.name!r}, Armature {arm.name!r}. All bones will be preserved!")
 			return 0
 		
 		bones_before = len(arm.bones)
@@ -483,17 +519,20 @@ class CommonBuilder:
 		
 		while True:
 			for bone in arm.edit_bones:  # type: EditBone
-				bone.select = (len(bone.children) < 1) and (bone.name in unused_bones)
+				bone.select = (len(bone.children) < 1) and (bone.name not in used_bones)
 			if len(bpy.context.selected_bones) < 1:
 				break
 			s = list(bone.name for bone in arm.edit_bones)
-			log.info(f"Removing bones {s!r} form {arm_obj!r}, {arm!r}...")
+			log.info(f"Removing {len(s)!r} bones {s!r} form {arm_obj!r}, {arm!r}...")
 			commons.ensure_op_finished(bpy.ops.armature.delete())
 		
 		commons.ensure_op_finished(bpy.ops.object.mode_set(mode='OBJECT', toggle=False))
 		objects.deselect_all()
 		
-		return len(arm.bones) - bones_before
+		removed = len(arm.bones) - bones_before
+		if removed > 0:
+			log.info(f"Removed {removed} bones from Object {arm_obj.name!r}, Armature {arm.name!r}.")
+		return removed
 	
 	def _remove_unused_bones(self):
 		links = self._find_armature_links()

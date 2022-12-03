@@ -25,6 +25,7 @@ especially for editing Shape Keys (see `shapekeys`) and applying Modifiers (see 
 
 .. include:: ./documentation.md
 """
+import sys
 
 # Internals
 from . import _internals
@@ -36,6 +37,7 @@ from . import atlas_baker
 from . import attributes
 from . import combiner
 from . import commons
+from . import data
 from . import instantiator
 from . import materials
 from . import meshes
@@ -44,7 +46,6 @@ from . import objects
 from . import reporter
 from . import shader_nodes
 from . import shapekeys
-from . import tex_size_finder
 from . import uv
 from . import vertex_groups
 
@@ -75,6 +76,8 @@ def reload_modules():
 	log.info(f"Reloading {__name__!r}...")
 	import types, importlib, collections, bpy
 	queue = collections.deque()
+	if root_module := sys.modules.get(reload_modules.__module__):
+		queue.append(root_module)
 	queue.extendleft(globals().values())
 	already_reloaded = set()
 	is_enabled = __name__ in bpy.context.preferences.addons.keys()
@@ -88,8 +91,15 @@ def reload_modules():
 		if module in already_reloaded or not module.__name__.startswith(__name__ + '.'):
 			continue
 		log.info(f"Reloading {module.__name__!r}...")
+		if log.__module__ in module.__name__:
+			# Логгер ломается если им пользоваться, пока пере-импортируется модуль.
+			log.drop_handlers()
 		importlib.reload(module)
 		already_reloaded.add(module)
+		if log.__module__ in module.__name__:
+			log = _internals.log
+			log.init_handler_file()
+			log.init_handler_interactive()
 		queue.extend(getattr(module, attr, None) for attr in dir(module))
 	log.info(f"Reloaded {len(already_reloaded)} modules.")
 	if is_enabled:

@@ -58,18 +58,21 @@ class KawaLogger:
 		self.py_log.warning(message)
 		_op_report(op, {'WARNING'}, message)
 	
-	def error(self, message: str, error_type: str = None, op: 'Operator' = None):
+	def error(self, message: str, error_type: str = None, op: 'Operator' = None, exc_info: 'BaseException' = None):
 		""" error_type can be 'ERROR', 'ERROR_INVALID_INPUT', 'ERROR_INVALID_CONTEXT', 'ERROR_OUT_OF_MEMORY' """
 		if error_type is None:
 			error_type = 'ERROR'
 		error_type = str(error_type)
 		message = str(message)
-		self.py_log.error(message)
+		self.py_log.error(message, exc_info=exc_info)
 		_op_report(op, {error_type}, message)
 	
-	def raise_error(self, exc_type: 'Type', message: str, op: 'Operator' = None):
+	def raise_error(self, exc_type: 'Type', message: str, op: 'Operator' = None, cause: 'BaseException' = None):
 		message = str(message)
-		self.py_log.error(message)
+		exc_instance = exc_type(message)  # type: BaseException
+		if cause is not None:
+			exc_instance.__cause__ = cause
+		self.py_log.error(message, exc_info=exc_instance)
 		_op_report(op, {'ERROR'}, message)
 		raise exc_type(message)
 	
@@ -94,7 +97,8 @@ class KawaLogger:
 	
 	def drop_handlers(self):
 		for h in list(self.py_log.handlers):
-			self.py_log.removeHandler(h)
+			if not isinstance(h, _logging.FileHandler):
+				self.py_log.removeHandler(h)
 
 
 log = KawaLogger()

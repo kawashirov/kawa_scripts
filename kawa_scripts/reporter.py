@@ -7,8 +7,8 @@ if _typing.TYPE_CHECKING:
 
 
 class AbstractReporter:
-	def __init__(self, report_time=5.0):
-		self.report_time = report_time
+	def __init__(self, **kwargs):
+		self.report_time = kwargs.get('report_time')
 		self.time_begin = _perf_counter()
 		self.time_progress = _perf_counter()
 	
@@ -29,10 +29,9 @@ class AbstractReporter:
 
 
 class LambdaReporter(AbstractReporter):
-	def __init__(self, *args, **kwargs):
-		super().__init__(*args, **kwargs)
-		self.func = None  # type: Callable[[LambdaReporter, float], None]
+	def __init__(self, **kwargs):
+		super().__init__(**kwargs)
+		self.func = kwargs.get('func')  # type: Callable[[LambdaReporter, float], None]
 	
 	def do_report(self, time_passed):
 		self.func(self, time_passed)
-

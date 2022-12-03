@@ -6,167 +6,36 @@
 # You should have received a copy of the license along with this
 # work.  If not, see <http://creativecommons.org/licenses/by-nc-sa/3.0/>.
 #
-#
+
 """
 Tool for baking a lots of PBR materials on a lots of Objects into single texture atlas.
 See `kawa_scripts.atlas_baker.BaseAtlasBaker`.
 """
-from collections.abc import Sequence as _abc_Sequence
-from sys import maxsize as _int_maxsize
-from gc import collect as _gc_collect
-from time import perf_counter as _perf_counter
-from random import shuffle as _shuffle
 
-import bpy as _bpy
-import bmesh as _bmesh
-import mathutils as _mu
+import gc
+import sys
+from random import shuffle
+from time import perf_counter
 
-from . import commons as _commons
-from . import objects as _objects
-from . import meshes as _meshes
-from . import uv as _uv
-from . import shader_nodes as _snodes
-from . import reporter as _reporter
-from . import _internals
-from ._internals import log as _log
+import bmesh
+import bpy
+import mathutils
+from bmesh.types import BMesh, BMLayerItem
+from bpy.types import Object, Material, MaterialSlot, Image, Mesh, MeshUVLoop, MeshUVLoopLayer
+from bpy.types import ShaderNode, NodeSocket, NodeSocketColor, Node
+from mathutils import Vector
 
-import typing as _typing
+from .._internals import log
+from .. import data
+from .. import commons
+from .. import meshes
+from .. import objects
+from .. import reporter
+from .. import shader_nodes
+from .. import uv
 
-if _typing.TYPE_CHECKING:
-	from typing import Optional, Union, Tuple, List, Set, Dict, Generator
-	from bpy.types import Object, Material, MaterialSlot, Image, Mesh, MeshUVLoop, MeshUVLoopLayer
-	from bpy.types import ShaderNode, NodeSocket, NodeLink, NodeSocketColor, NodeSocketFloat, Node
-	from bmesh.types import BMesh, BMLayerItem
-	from mathutils import Vector
-
-
-class UVTransform:
-	"""
-	Internal class used by `BaseAtlasBaker` as mapping between UV areas on original Materials and UV areas on atlas.
-	"""
-	__slots__ = ('material', 'origin_norm', 'padded_norm', 'packed_norm')
-	
-	def __init__(self):
-		# Хранить множество вариантов координат затратно по памяти,
-		# но удобно в отладке и избавляет от велосипедов
-		self.material = None  # type: Material
-		# Оригинальная uv в нормальных координатах и в пикселях текстуры
-		self.origin_norm = None  # type: Vector # len == 4
-		# self.origin_tex = None  # type: Vector # len == 4
-		# Оригинальная uv c отступами в нормальных и в пикселях текстуры
-		self.padded_norm = None  # type: Vector # len == 4
-		# self.padded_tex = None  # type: Vector # len == 4
-		# packed использует промежуточные координаты во время упаковки,
-		# использует нормализованные координаты после упаковки
-		self.packed_norm = None  # type: Vector # len == 4
-	
-	def __str__(self) -> str: return _internals.common_str_slots(self, self.__slots__)
-	
-	def __repr__(self) -> str: return _internals.common_str_slots(self, self.__slots__)
-	
-	def is_match(self, vec2_norm: 'Vector', epsilon_x: 'float' = 0, epsilon_y: 'float' = 0):
-		v = self.origin_norm
-		x1, x2 = v.x - epsilon_x, v.x + v.z + epsilon_x
-		y1, y2 = v.y - epsilon_y, v.y + v.w + epsilon_y
-		return x1 <= vec2_norm.x <= x2 and y1 <= vec2_norm.y <= y2
-	
-	@staticmethod
-	def _in_box(v2: 'Vector', box: 'Vector'):
-		# Координаты vec2 внутри box как 0..1
-		v2.x = (v2.x - box.x) / box.z
-		v2.y = (v2.y - box.y) / box.w
-	
-	@staticmethod
-	def _out_box(v2: 'Vector', box: 'Vector'):
-		# Координаты 0..1 внутри box вне его
-		v2.x = v2.x * box.z + box.x
-		v2.y = v2.y * box.w + box.y
-	
-	def apply(self, vec2_norm: 'Vector') -> 'Vector':
-		# Преобразование padded_norm -> packed_norm
-		uv = vec2_norm.xy  # копирование
-		self._in_box(uv, self.padded_norm)
-		self._out_box(uv, self.packed_norm)
-		return uv
-	
-	def iterate_corners(self) -> 'Generator[Tuple[int, Tuple[float, float]]]':
-		# Обходу углов: #, оригинальная UV, атласная UV
-		pd, pk = self.padded_norm, self.packed_norm
-		yield 0, (pd.x, pd.y), (pk.x, pk.y)  # vert 0: left, bottom
-		yield 1, (pd.x + pd.z, pd.y), (pk.x + pk.z, pk.y)  # vert 1: right, bottom
-		yield 2, (pd.x + pd.z, pd.y + pd.w), (pk.x + pk.z, pk.y + pk.w)  # vert 2: right, up
-		yield 3, (pd.x, pd.y + pd.w), (pk.x, pk.y + pk.w)  # vert 2: right, up
-
-
-class AOV:
-	"""
-	Configuration of named AOV (Arbitrary Output Variable) pass.
-	Must not be mutated.
-	
-	- `_name` must be any name for AOV variable.
-	`BaseAtlasBaker` will look for "AOV Output" nodes with given name and use it as source.
-	This name also will be passed to `BaseAtlasBaker.get_target_image` as `bake_type`.
-	- `_type` must be `'VALUE'` or `'COLOR'`
-	- `_default` must be number (or tuple of 3 (RGB) numbers for color-type).
-	This value will be used as default for materials with no "AOV Output" node.
-	If "AOV Output" exist, but have no inputs connected,
-	values of 'Color' or 'Value' input sockets will be used, same as in shaders.
-	"""
-	__slots__ = ('_name', '_type', '_default')
-	
-	def __init__(self, _name: 'str', _type: 'str', _default: 'float|tuple[float,float,float]' = 0):
-		self._name = _name
-		
-		if _type not in ('VALUE', 'COLOR'):
-			raise ValueError(f"Invalid type of AOV {_name!r}: {_type!r}")
-		
-		if isinstance(_default, (int, float)):
-			pass
-		elif isinstance(_default, tuple):
-			if len(_default) != 3:
-				raise ValueError(f"Invalid length of default value of AOV {_name!r}: {len(_default)}, must be 3 (RGB).")
-			for i in range(3):
-				if not isinstance(_default[i], (int, float)):
-					raise ValueError(f"Invalid default[{i}] value of AOV {_name!r}: {type(_default[i])!r} {_default[i]!r}")
-		else:
-			raise ValueError(f"Invalid default value of AOV {_name!r}: {type(_default)!r} {_default!r}")
-		
-		self._type = _type
-		self._default = _default
-	
-	@property
-	def name(self):
-		return self._name
-	
-	@property
-	def type(self):
-		return self._type
-	
-	@property
-	def is_value(self):
-		return self._type == 'VALUE'
-	
-	@property
-	def is_color(self):
-		return self._type == 'COLOR'
-	
-	@property
-	def default(self):
-		return self._default
-	
-	@property
-	def default_rgb(self) -> 'tuple[float, float, float]':
-		if isinstance(self._default, (int, float)):
-			return self._default, self._default, self._default
-		if isinstance(self._default, tuple):
-			return self._default
-	
-	@property
-	def default_rgba(self) -> 'tuple[float, float, float, float]':
-		if isinstance(self._default, (int, float)):
-			return self._default, self._default, self._default, 1.0
-		if isinstance(self._default, tuple):
-			return (*self._default, 1.0)
+from .aov import AOV
+from .uv_transform import UVTransform
 
 
 class BaseAtlasBaker:
@@ -179,12 +48,12 @@ class BaseAtlasBaker:
 	ISLAND_TYPES = ('POLYGON', 'OBJECT')
 	"""
 	Available types of UV-Islands Searching for reference.
-	Set per-Object and per-Material, see `get_island_mode`.
-	
+	set per-Object and per-Material, see `get_island_mode`.
+
 	- `'POLYGON'` will try to use every polygon provided to find rectangular UV areas of Material.
 	Allows to detect separated UV parts from same material and put it separately and more efficient on atlas.
 	Slower, but can result dense and efficient packing.
-	
+
 	- `'OBJECT'` will count each Material on each Object as single united island.
 	Fast, but can pick large unused areas of Materials for atlasing and final atlas may be packed inefficient.
 	"""
@@ -207,10 +76,10 @@ class BaseAtlasBaker:
 	_PROC_NAME = "__AtlasBaker_Processing_"
 	
 	def __init__(self):
-		self.objects = set()  # type: Set[Object]
+		self.objects = set()  # type: set[Object]
 		""" Mesh-Objects that will be atlassed. """
 		
-		self.target_size = (1, 1)  # type: Tuple[int, int]
+		self.target_size = (1, 1)  # type: tuple[int, int]
 		"""
 		Size of atlas. Actually used only as aspect ratio.
 		Your target images (See `get_target_image`) must match this ratio.
@@ -224,24 +93,24 @@ class BaseAtlasBaker:
 		
 		# # # Внутренее # # #
 		
-		self._materials = dict()  # type: Dict[Tuple[Object, Material], Material]
-		self._matsizes = dict()  # type: Dict[Material, Tuple[float, float]]
-		self._bake_types = list()  # type: List[Tuple[str, Image]]
-		self._aovs = dict()  # type: Dict[str, AOV]
+		self._materials = dict()  # type: dict[tuple[Object, Material], Material]
+		self._matsizes = dict()  # type: dict[Material, tuple[float, float]]
+		self._bake_types = list()  # type: list[tuple[str, Image]]
+		self._aovs = dict()  # type: dict[str, AOV]
 		# Объекты, скопированные для операций по поиску UV развёрток
-		self._copies = set()  # type: Set[Object]
+		self._copies = set()  # type: set[Object]
 		# Группы объектов по материалам из ._copies
-		self._groups = dict()  # type: Dict[Material, Set[Object]]
+		self._groups = dict()  # type: dict[Material, set[Object]]
 		# Острова UV найденые на материалах из ._groups
-		self._islands = dict()  # type: Dict[Material, _uv.IslandsBuilder]
+		self._islands = dict()  # type: dict[Material, uv.IslandsBuilder]
 		# Преобразования, необходимые для получения нового UV для атласса
-		self._transforms = dict()  # type: Dict[Material, List[UVTransform]]
+		self._transforms = dict()  # type: dict[Material, list[UVTransform]]
 		# Вспомогательный объект, необходимый для запекания атласа
-		self._bake_obj = None  # type: Optional[Object]
+		self._bake_obj = None  # type: Object|None
 		self._node_editor_override = False
 		# Для _apply_baked_materials_bmesh
 		# Используем общий, что бы не пересоздовать его каждый раз
-		self._bmesh_loops_mem = set()  # type: Set[int]
+		self._bmesh_loops_mem = set()  # type: set[int]
 		self._bmesh_loops_mem_hits = 0
 		# Для _find_islands_obj
 		# Используем общий, что бы не пересоздовать его каждый раз
@@ -249,36 +118,36 @@ class BaseAtlasBaker:
 	
 	# # # Переопределяемые методы # # #
 	
-	def get_material_size(self, src_mat: 'Material') -> 'Optional[Tuple[float, float]]':
+	def get_material_size(self, src_mat: 'Material') -> 'tuple[float, float]|None':
 		"""
 		Must return size of material.
 		This is relative compared with other Materials to figure out final area of Material on atlas.
 		The real size of material will be different anyways.
-		
+
 		You can use `kawa_scripts.tex_size_finder.TexSizeFinder` here.
 		"""
 		raise NotImplementedError('get_material_size')
 	
-	def get_target_material(self, origin: 'Object', src_mat: 'Material') -> 'Material':
+	def get_target_material(self, origin: 'Object', src_mat: 'Material') -> 'Material|None':
 		"""
 		Must return target Material for source Material.
 		Ths source Material on this Object will be replaced with target Material after baking.
-		Atlas Baker does not create final Materials by it's own.
+		Atlas Baker does not create final Materials by its own.
 		You should prepare target materials (with target images) and provide it here, so Atlas Baker can use and assign it.
 		"""
 		raise NotImplementedError('get_target_material')
 	
-	def get_target_image(self, bake_type: str) -> 'Optional[Image]':
+	def get_target_image(self, bake_type: str) -> 'Image|None':
 		"""
-		Must return target Image for given bake type.
+		Must return target Image for a given bake type.
 		Atlas Baker will bake atlas onto this Image.
-		If Image is not provided (None or False) this bake type will not be baked.
+		If the Image is not provided (None or False) this bake type will not be baked.
 		`bake_type` maybe one of common bake types (See `BAKE_TYPES` for available bake types)
 		or maybe name of some AOV (Arbitrary Output Variables).
 		"""
 		raise NotImplementedError('get_target_image')
 	
-	def get_uv_name(self, obj: 'Object', mat: 'Material') -> 'Optional[str]':
+	def get_uv_name(self, obj: 'Object', mat: 'Material') -> 'str|int|None':
 		"""
 		Should return the name of UV Layer of given Object and Material that will be used for baking.
 		If not implemented (or returns None or False) first UV layer will be used.
@@ -292,25 +161,25 @@ class BaseAtlasBaker:
 		"""
 		return 'POLYGON'
 	
-	def get_epsilon(self, obj: 'Object', mat: 'Material') -> 'Optional[float]':
+	def get_epsilon(self, obj: 'Object', mat: 'Material') -> 'float|None':
 		"""
 		Should return precision value in pixel-space for given Object and Material.
-		Note, size obtained from `get_material_size` is used for pixel-space.
+		Note, the size obtained from `get_material_size` is used for pixel-space.
 		"""
 		return None
 	
 	def before_bake(self, bake_type: str, target_image: 'Image'):
 		"""
-		This method is called before baking given type and Image.
-		Note, Image obtained from 'get_target_image' is used for `target_image`.
+		This method is called before baking a given type and Image.
+		Note, the Image obtained from 'get_target_image' is used for `target_image`.
 		You can prepare something here, for example, adjust Blender's baking settings.
 		"""
 		pass
 	
 	def after_bake(self, bake_type: str, target_image: 'Image'):
 		"""
-		This method is called after baking given type and Image.
-		Note, Image obtained from 'get_target_image' is used for `target_image`.
+		This method is called after baking a given type and Image.
+		Note, the Image obtained from 'get_target_image' is used for `target_image`.
 		You can post-process something here, for example, save baked Image.
 		"""
 		pass
@@ -323,10 +192,10 @@ class BaseAtlasBaker:
 	
 	def _get_source_object(self, copy_obj: 'Object'):
 		name = copy_obj.get(self._PROP_ORIGIN_OBJECT)
-		origin_obj = _bpy.data.objects.get(name)
+		origin_obj = bpy.data.objects.get(name)
 		return origin_obj
 	
-	def _get_matsize_safe(self, mat: 'Material') -> 'Tuple[float, float]':
+	def _get_matsize_safe(self, mat: 'Material') -> 'tuple[float, float]':
 		default_size = (16, 16)
 		size = None
 		try:
@@ -335,15 +204,15 @@ class BaseAtlasBaker:
 			if not size:
 				size = default_size
 			if not isinstance(size, tuple) or len(size) != 2 or not isinstance(size[0], (int, float)) or not isinstance(size[1], (int, float)):
-				_log.warning("Material {0} have invalid material size: {1}".format(mat, repr(size)))
+				log.warning(f"Material {mat} have invalid material size: {size!r}")
 				size = default_size
 			if size[0] <= 0 or size[1] <= 0:
-				_log.warning("Material {0} have invalid material size: {1}".format(mat, repr(size)))
+				log.warning(f"Material {mat} have invalid material size: {size!r}")
 				size = default_size
 			return size
 		except Exception as exc:
-			msg = 'Can not get size of material {0}.'.format(mat)
-			_log.error(msg)
+			msg = f'Can not get size of material {mat!r}.'
+			log.error(msg)
 			raise RuntimeError(msg, mat, size) from exc
 	
 	def _get_epsilon_safe(self, obj: 'Object', mat: 'Material'):
@@ -352,19 +221,17 @@ class BaseAtlasBaker:
 			epsilon = self.get_epsilon(obj, mat) or 1
 			return epsilon
 		except Exception as exc:
-			msg = 'Can not get epsilon for {0} and {1}.'.format(obj, mat)
-			_log.error(msg)
+			msg = f'Can not get epsilon for {obj!r} and {mat!r}.'
+			log.error(msg)
 			raise RuntimeError(msg, obj, mat, epsilon) from exc
 	
 	def _get_uv_data_safe(self, obj: 'Object', mat: 'Material', mesh: 'Mesh'):
 		uv_name = None
 		try:
 			uv_name = self.get_uv_name(obj, mat) or 0
-			uv_data = mesh.uv_layers[uv_name].data  # type: List[MeshUVLoop]
+			uv_data = mesh.uv_layers[uv_name].data  # type: list[MeshUVLoop]
 		except Exception as exc:
-			msg = 'Can not get uv_layers[{2}] data for {0} and {1}.'.format(obj, mat, uv_name)
-			_log.error(msg)
-			raise RuntimeError(msg, obj, mat, mesh, uv_name) from exc
+			log.raise_error(RuntimeError, f'Can not get uv_layers[{uv_name!r}] data for {obj!r} and {mat!r}.', cause=exc)
 		return uv_data
 	
 	def _get_bake_image_safe(self, bake_type: str):
@@ -374,18 +241,16 @@ class BaseAtlasBaker:
 			# ...
 			return image
 		except Exception as exc:
-			msg = 'Can not get image for bake type {0}.'.format(bake_type)
-			_log.error(msg)
-			raise RuntimeError(msg, bake_type, image) from exc
+			log.raise_error(RuntimeError, f'Can not get image for bake type {bake_type!r}.', cause=exc)
 	
 	def _prepare_objects(self):
-		objects = set()
+		objs = set()
 		for obj in self.objects:
-			if not isinstance(obj.data, _bpy.types.Mesh):
-				_log.warning("{0} is not a valid mesh-object!".format(obj))
+			if not meshes.is_mesh_object(obj):
+				log.warning(f"{obj!r} is not a valid mesh-object!")
 				continue
-			objects.add(obj)
-		self.objects = objects
+			objs.add(obj)
+		self.objects = objs
 	
 	def _prepare_target_images(self):
 		for bake_type in self.BAKE_TYPES:
@@ -400,65 +265,73 @@ class BaseAtlasBaker:
 			self._bake_types.append((aov_name, target_image))
 	
 	def _prepare_materials(self):
+		if len(self.objects) < 1:
+			log.raise_error(RuntimeError, f"No source objects? {self.objects!r}")
 		for obj in self.objects:
 			for slot in obj.material_slots:  # type: MaterialSlot
 				if slot is None or slot.material is None:
-					_log.warning("Empty material slot detected: {0}".format(obj))
+					log.warning(f"Empty material slot detected: {obj}")
 					continue
 				tmat = self._get_target_material_safe(obj, slot.material)
-				if isinstance(tmat, _bpy.types.Material):
+				if isinstance(tmat, bpy.types.Material):
 					self._materials[(obj, slot.material)] = tmat
 		mats = set(x[1] for x in self._materials.keys())
-		_log.info("Validating {0} source materials...".format(len(mats)))
+		log.info(f"Validating {len(mats)} source materials...")
+		if len(mats) < 1:
+			log.raise_error(RuntimeError, f"No source materials? {self._materials!r}")
 		for mat in mats:
 			self._check_material(mat)
-		_log.info("Validated {0} source materials.".format(len(mats)))
+		log.info(f"Validated {len(mats)} source materials.")
 	
 	def _prepare_matsizes(self):
 		mat_i = 0
 		smats = set(x[1] for x in self._materials.keys())
 		
-		reporter = _reporter.LambdaReporter(self.report_time)
-		reporter.func = lambda r, t: _log.info(
-			"Preparing material sizes, Materials={0}/{1}, Time={2:.1f} sec, ETA={3:.1f} sec...".format(
-				mat_i, len(smats), t, r.get_eta(1.0 * mat_i / len(smats))))
+		if len(smats) < 1:
+			log.raise_error(RuntimeError, f"No source materials? {self._materials!r}")
+		
+		def do_report(r, t):
+			eta = r.get_eta(1.0 * mat_i / len(smats))
+			log.info(f"Preparing material sizes, Materials={mat_i}/{len(smats)}, Time={t:.1f} sec, ETA={eta:.1f} sec...")
+		
+		lr = reporter.LambdaReporter(report_time=self.report_time, func=do_report)
 		
 		for smat in smats:
 			self._matsizes[smat] = self._get_matsize_safe(smat)
 			mat_i += 1
-			reporter.ask_report(False)
-		reporter.ask_report(True)
+			lr.ask_report(False)
+		lr.ask_report(True)
 	
 	def _make_duplicates(self):
 		# Делает дубликаты объектов, сохраняет в ._copies
-		_log.info("Duplicating temp objects for atlasing...")
-		_objects.deselect_all()
+		log.info("Duplicating temp objects for atlasing...")
+		objects.deselect_all()
 		for obj in self.objects:
-			if isinstance(obj.data, _bpy.types.Mesh):
-				_objects.activate(obj)
+			if isinstance(obj.data, bpy.types.Mesh):
+				objects.activate(obj)
 			obj[self._PROP_ORIGIN_OBJECT] = obj.name
 			obj.data[self._PROP_ORIGIN_MESH] = obj.data.name
-		_commons.ensure_op_finished(_bpy.ops.object.duplicate(linked=False), name='bpy.ops.object.duplicate')
-		self._copies.update(_bpy.context.selected_objects)
+		commons.ensure_op_finished(bpy.ops.object.duplicate(linked=False), name='bpy.ops.object.duplicate')
+		self._copies.update(bpy.context.selected_objects)
 		# Меченые имена, что бы если скрипт крашнется сразу было их видно
 		for obj in self._copies:
 			obj_name = obj.get(self._PROP_ORIGIN_OBJECT) or 'None'
 			mesh_name = obj.data.get(self._PROP_ORIGIN_MESH) or 'None'
 			obj.name = self._PROC_NAME + obj_name
 			obj.data.name = self._PROC_NAME + mesh_name
-		_log.info("Duplicated {0} temp objects for atlasing.".format(len(self._copies)))
-		_objects.deselect_all()
+		log.info(f"Duplicated {len(self._copies)} temp objects for atlasing.")
+		objects.deselect_all()
 	
 	def _separate_duplicates(self):
 		# Разбивает дупликаты по материалам
-		_log.info("Separating temp objects for atlasing...")
-		_objects.deselect_all()
-		_objects.activate(self._copies)
-		_commons.ensure_op_finished(_bpy.ops.mesh.separate(type='MATERIAL'), name='bpy.ops.mesh.separate')
+		log.info("Separating temp objects for atlasing...")
+		objects.deselect_all()
+		objects.activate(self._copies)
+		commons.ensure_op_finished(bpy.ops.mesh.separate(type='MATERIAL'), name='bpy.ops.mesh.separate')
 		count = len(self._copies)
-		self._copies.update(_bpy.context.selected_objects)
-		_objects.deselect_all()
-		_log.info("Separated {0} -> {1} temp objects".format(count, len(self._copies)))
+		self._copies.update(bpy.context.selected_objects)
+		objects.deselect_all()
+		log.info(f"Separated {count} -> {len(self._copies)} temp objects")
 	
 	def _get_single_material(self, obj: 'Object') -> 'Material':
 		ms_c = len(obj.material_slots)
@@ -482,16 +355,16 @@ class BaseAtlasBaker:
 				to_delete.add(cobj)
 		if len(to_delete) < 1:
 			return
-		_objects.deselect_all()
+		objects.deselect_all()
 		for cobj in to_delete:
 			cobj.hide_set(False)
 			cobj.select_set(True)
-		_commons.ensure_op_finished(_bpy.ops.object.delete(use_global=True, confirm=True), name='bpy.ops.object.delete')
-		if len(_bpy.context.selected_objects) > 0:  # TODO
-			raise RuntimeError("len(bpy.context.selected_objects) > 0", list(_bpy.context.selected_objects))
+		commons.ensure_op_finished(bpy.ops.object.delete(use_global=True, confirm=True), name='bpy.ops.object.delete')
+		if len(bpy.context.selected_objects) > 0:  # TODO
+			raise RuntimeError("len(bpy.context.selected_objects) > 0", list(bpy.context.selected_objects))
 		for cobj in to_delete:
 			self._copies.discard(cobj)
-		_log.info("Removed {0} temp objects, left {1} objects.".format(len(to_delete), len(self._copies)))
+		log.info(f"Removed {len(to_delete)} temp objects, left {len(self._copies)} objects.")
 	
 	def _group_duplicates(self):
 		# Группирует self._copies по материалам в self._groups
@@ -502,46 +375,44 @@ class BaseAtlasBaker:
 				group = set()
 				self._groups[mat] = group
 			group.add(obj)
-		_log.info("Grouped {0} temp objects into {1} material groups.".format(len(self._copies), len(self._groups)))
+		log.info(f"Grouped {len(self._copies)} temp objects into {len(self._groups)} material groups.")
 	
 	def _find_islands(self):
 		mat_i, obj_i = 0, 0
 		
 		def do_report(r, t):
-			islands = sum(len(x.bboxes) for x in self._islands.values())
-			merges = sum(x.merges for x in self._islands.values())
-			_log.info("Searching UV islands: Objects={0}/{1}, Materials={2}/{3}, Islands={4}, Merges={5}, Time={6:.1f} sec, ETA={7:.1f} sec..."
-			.format(obj_i, len(self._copies), mat_i, len(self._groups), islands, merges, t, r.get_eta(1.0 * obj_i / len(self._copies))))
+			islands = f'Islands={sum(len(x.bboxes) for x in self._islands.values())}'
+			merges = f'Merges={sum(x.merges for x in self._islands.values())}'
+			eta = r.get_eta(1.0 * obj_i / len(self._copies))
+			objs = f'Objects={obj_i}/{len(self._copies)}'
+			mats = f'Materials={mat_i}/{len(self._groups)}'
+			log.info(f"Searching UV islands: {objs}, {mats}, {islands}, {merges}, Time={t:.1f} sec, ETA={eta:.1f} sec...")
 		
-		reporter = _reporter.LambdaReporter(self.report_time)
-		reporter.func = do_report
-		
-		_log.info("Searching islands...")
+		lr = reporter.LambdaReporter(report_time=self.report_time, func=do_report)
+		log.info("Searching islands...")
 		# Поиск островов, наполнение self._islands
 		for mat, group in self._groups.items():
 			# log.info("Searching islands of material %s in %d objects...", mat.name, len(group))
 			mat_size = self._matsizes.get(mat)
-			builder = _commons.dict_get_or_add(self._islands, mat, _uv.IslandsBuilder)
+			builder = commons.dict_get_or_add(self._islands, mat, uv.IslandsBuilder)
 			for obj in group:
 				bm, mesh = None, None
 				try:
-					mesh = _meshes.get_safe(obj)
-					bm = _bmesh.new()
+					mesh = meshes.get_safe(obj)
+					bm = bmesh.new()
 					bm.from_mesh(mesh)
 					self._find_islands_obj(obj, mesh, bm, mat, builder, mat_size)
 					obj_i += 1
 				except Exception as exc:
-					msg = "Can not find islands on {0}: {1}, {2}, {3}, {4}: {5}".format(
-						repr(obj), repr(mesh), repr(bm), repr(mat), repr(builder), repr(mat_size), repr(exc))
-					_log.error(msg)
-					raise RuntimeError(msg) from exc
+					msg = f"Can not find islands on {obj!r}: {mesh!r}, {bm!r}, {mat!r}, {builder!r}: {mat_size!r}"
+					log.raise_error(RuntimeError, msg, cause=exc)
 				finally:
 					if bm is not None:
 						bm.free()
-				reporter.ask_report(False)
+				lr.ask_report(False)
 			mat_i += 1
-			reporter.ask_report(False)
-		reporter.ask_report(True)
+			lr.ask_report(False)
+		lr.ask_report(True)
 		
 		# for mat, builder in self._islands.items():
 		# 	log.info("\tMaterial %s have %d islands:", mat, len(builder.bboxes))
@@ -549,11 +420,11 @@ class BaseAtlasBaker:
 		# 		log.info("\t\t%s", str(bbox))
 		# В процессе работы с остравами мы могли настрать много мусора,
 		# можно явно от него избавиться
-		_gc_collect()
+		gc.collect()
 		pass
 	
 	def _find_islands_obj(self, obj: 'Object', mesh: 'Mesh', bm: 'BMesh', mat: 'Material', builder: '_uv.IslandsBuilder',
-			mat_size: 'Tuple[float,float]'):
+			mat_size: 'tuple[float,float]'):
 		mat_size_x, mat_size_y = mat_size
 		origin = self._get_source_object(obj)
 		epsilon = self._get_epsilon_safe(origin, mat)
@@ -562,10 +433,10 @@ class BaseAtlasBaker:
 		bm_uv_layer = bm.loops.layers.uv[uv_name]  # type: BMLayerItem
 		
 		bm.faces.ensure_lookup_table()
-		faces = list(bm_face.index for bm_face in bm.faces)  # type: List[int]
+		faces = list(bm_face.index for bm_face in bm.faces)  # type: list[int]
 		# Оптимизация. Сортировка от большей площади к меньшей,
 		# что бы сразу сделать большие боксы и реже пере-расширять их.
-		faces.sort(key=lambda index: _uv.uv_area_bmesh(bm.faces[index], bm_uv_layer), reverse=True)
+		faces.sort(key=lambda index: uv.uv_area_bmesh(bm.faces[index], bm_uv_layer), reverse=True)
 		
 		mode = self.get_island_mode(origin, mat)
 		if mode == 'OBJECT':
@@ -600,15 +471,15 @@ class BaseAtlasBaker:
 	
 	def _delete_groups(self):
 		count = len(self._copies)
-		_log.info("Removing {0} temp objects...".format(count))
-		_objects.deselect_all()
+		log.info(f"Removing {count} temp objects...")
+		objects.deselect_all()
 		for obj in self._copies:
 			obj.hide_set(False)
 			obj.select_set(True)
-		_commons.ensure_op_finished(_bpy.ops.object.delete(use_global=True, confirm=True), name='bpy.ops.object.delete')
-		if len(_bpy.context.selected_objects) > 0:  # TODO
-			raise RuntimeError("len(bpy.context.selected_objects) > 0", list(_bpy.context.selected_objects))
-		_log.info("Removed {0} temp objects.".format(count))
+		commons.ensure_op_finished(bpy.ops.object.delete(use_global=True, confirm=True), name='bpy.ops.object.delete')
+		if len(bpy.context.selected_objects) > 0:  # TODO
+			raise RuntimeError("len(bpy.context.selected_objects) > 0", list(bpy.context.selected_objects))
+		log.info(f"Removed {count} temp objects.")
 	
 	def _create_transforms_from_islands(self):
 		# Преобразует острава в боксы в формате mathutils.geometry.box_pack_2d
@@ -623,52 +494,52 @@ class BaseAtlasBaker:
 				x, w = bbox.mn.x, (bbox.mx.x - bbox.mn.x)
 				y, h = bbox.mn.y, (bbox.mx.y - bbox.mn.y)
 				# t.origin_tex = (x, y, w, h)
-				t.origin_norm = _mu.Vector((x / origin_w, y / origin_h, w / origin_w, h / origin_h))
+				t.origin_norm = Vector((x / origin_w, y / origin_h, w / origin_w, h / origin_h))
 				# добавляем отступы
 				xp, yp = x - self.padding, y - self.padding,
 				wp, hp = w + 2 * self.padding, h + 2 * self.padding
 				# meta.padded_tex = (xp, yp, wp, hp)
-				t.padded_norm = _mu.Vector((xp / origin_w, yp / origin_h, wp / origin_w, hp / origin_h))
+				t.padded_norm = Vector((xp / origin_w, yp / origin_h, wp / origin_w, hp / origin_h))
 				# Координаты для упаковки
 				# Т.к. box_pack_2d пытается запаковать в квадрат, а у нас может быть текстура любой формы,
 				# то необходимо скорректировать пропорции
 				xb, yb = xp / self.target_size[0], yp / self.target_size[1]
 				wb, hb = wp / self.target_size[0], hp / self.target_size[1]
-				t.packed_norm = _mu.Vector((xb, yb, wb, hb))
-				metas = _commons.dict_get_or_add(self._transforms, mat, list)
+				t.packed_norm = Vector((xb, yb, wb, hb))
+				metas = commons.dict_get_or_add(self._transforms, mat, list)
 				metas.append(t)
 	
 	def _pack_islands(self):
 		# Несколько итераций перепаковки
 		# TODO вернуть систему с раундами
-		boxes = list()  # type: List[List[Union[float, UVTransform]]]
+		boxes = list()  # type: list[list[float|UVTransform]]
 		for metas in self._transforms.values():
 			for meta in metas:
 				boxes.append([*meta.packed_norm, meta])
-		_log.info("Packing {0} islands...".format(len(boxes)))
-		best = _int_maxsize
+		log.info(f"Packing {len(boxes)} islands...")
+		best = sys.maxsize
 		rounds = 15  # TODO
 		while rounds > 0:
 			rounds -= 1
 			# Т.к. box_pack_2d псевдослучайный и может давать несколько результатов,
 			# то итеративно отбираем лучшие
-			_shuffle(boxes)
-			pack_x, pack_y = _mu.geometry.box_pack_2d(boxes)
+			shuffle(boxes)
+			pack_x, pack_y = mathutils.geometry.box_pack_2d(boxes)
 			score = max(pack_x, pack_y)
-			_log.info("Packing round: {0}, score: {1}...".format(rounds, score))
+			log.info(f"Packing round: {rounds}, score: {score}...")
 			if score >= best:
 				continue
 			for box in boxes:
-				box[4].packed_norm = _mu.Vector(tuple(box[i] / score for i in range(4)))
+				box[4].packed_norm = Vector(tuple(box[i] / score for i in range(4)))
 			best = score
-		if best == _int_maxsize:
+		if best == sys.maxsize:
 			raise AssertionError()
 	
 	def _prepare_bake_obj(self):
-		_objects.deselect_all()
-		mesh = _bpy.data.meshes.new("__Kawa_Bake_UV_Mesh")  # type: Mesh
+		objects.deselect_all()
+		mesh = bpy.data.meshes.new("__Kawa_Bake_UV_Mesh")  # type: Mesh
 		# Создаем столько полигонов, сколько трансформов
-		bm = _bmesh.new()
+		bm = bmesh.new()
 		try:
 			for transforms in self._transforms.values():
 				for _ in range(len(transforms)):
@@ -705,41 +576,37 @@ class BaseAtlasBaker:
 				poly_idx += 1
 		
 		# Вставляем меш на сцену и активируем
-		_objects.deselect_all()
-		for obj in _bpy.context.scene.objects:
+		objects.deselect_all()
+		for obj in bpy.context.scene.objects:
 			obj.hide_render = True
 			obj.hide_set(True)
-		self._bake_obj = _bpy.data.objects.new("__Kawa_Bake_UV_Object", mesh)  # add a new object using the mesh
-		_bpy.context.scene.collection.objects.link(self._bake_obj)
+		self._bake_obj = bpy.data.objects.new("__Kawa_Bake_UV_Object", mesh)  # add a new object using the mesh
+		bpy.context.scene.collection.objects.link(self._bake_obj)
 		# Debug purposes
-		for area in _bpy.context.screen.areas:
+		for area in bpy.context.screen.areas:
 			if area.type == 'VIEW_3D':
 				for region in area.regions:
 					if region.type == 'WINDOW':
 						override = {'area': area, 'region': region}
-						_bpy.ops.view3d.view_axis(override, type='TOP', align_active=True)
-						_bpy.ops.view3d.view_selected(override, use_all_regions=False)
+						bpy.ops.view3d.view_axis(override, type='TOP', align_active=True)
+						bpy.ops.view3d.view_selected(override, use_all_regions=False)
 		self._bake_obj.hide_render = False
 		self._bake_obj.show_wire = True
 		self._bake_obj.show_in_front = True
 		#
-		_objects.activate(self._bake_obj)
+		objects.activate(self._bake_obj)
 	
 	def _call_before_bake_safe(self, bake_type: str, target_image: 'Image'):
 		try:
 			self.before_bake(bake_type, target_image)
 		except Exception as exc:
-			msg = 'cb_before_bake failed! {0} {1}'.format(bake_type, target_image)
-			_log.error(msg)
-			raise RuntimeError(msg, bake_type, target_image) from exc
+			log.raise_error(RuntimeError, f'before_bake failed! {bake_type!r} {target_image!r}', cause=exc)
 	
 	def _call_after_bake_safe(self, bake_type: str, target_image: 'Image'):
 		try:
 			self.after_bake(bake_type, target_image)
 		except Exception as exc:
-			msg = 'cb_after_bake failed! {0} {1}'.format(bake_type, target_image)
-			_log.error(msg)
-			raise RuntimeError(msg, bake_type, target_image) from exc
+			log.raise_error(RuntimeError, f'after_bake failed! {bake_type} {target_image}', cause=exc)
 	
 	def _check_material(self, mat: 'Material'):
 		node_tree, out, surface, src_shader_s, src_shader = None, None, None, None, None
@@ -750,27 +617,25 @@ class BaseAtlasBaker:
 			# if len(groups) > 0:
 			# 	# Нужно убедиться, что node editor доступен.
 			# 	self._get_node_editor_override()
-			surface_link = _snodes.get_link_surface(mat)
-			src_shader = surface_link.from_node  # type: ShaderNode
+			surface_link = shader_nodes.get_link_surface(mat)
+			src_shader = surface_link.from_node  # type: Node|ShaderNode|None
 			if src_shader is None:
 				# TODO deeper check
 				raise RuntimeError(f"No main shader found in material {mat.name!r}")
 			
 			for aov_name, aov in self._aovs.items():
-				aov_socket = _snodes.get_socket_aov(mat, aov_name, aov.type)
+				aov_socket = shader_nodes.get_socket_aov(mat, aov_name, aov.type)
 				# TODO deeper check
 				pass
 		
 		except Exception as exc:
-			msg = f"Material {mat.name!r} is invalid: {exc}"
-			_log.info(msg)
-			raise RuntimeError(msg, mat, node_tree, out, surface, src_shader_s, src_shader) from exc
+			log.raise_error(RuntimeError, f"Material {mat.name!r} is invalid!", cause=exc)
 	
 	def _get_node_editor_override(self):
 		if self._node_editor_override is not False:
 			return self._node_editor_override
 		self._node_editor_override = None
-		for screen in _bpy.data.screens:
+		for screen in bpy.data.screens:
 			for area_idx in range(len(screen.areas)):
 				area = screen.areas[area_idx]
 				if area.type == 'NODE_EDITOR':
@@ -778,7 +643,7 @@ class BaseAtlasBaker:
 						region = area.regions[region_idx]
 						if region.type == 'WINDOW':
 							self._node_editor_override = {'screen': screen, 'area': area, 'region': region}
-							_log.info('Using NODE_EDITOR: screen={0} area=#{1} region=#{2}'.format(screen.name, area_idx, region_idx))
+							log.info(f'Using NODE_EDITOR: screen={screen.name} area=#{area_idx} region=#{region_idx}')
 							return self._node_editor_override  # break
 		if self._node_editor_override is None:
 			raise RuntimeError('Can not find NODE_EDITOR')
@@ -825,7 +690,7 @@ class BaseAtlasBaker:
 		# Замещает оригинальный шейдер на Emission
 		# Возвращает: оригинальный шейдер, новый шейдер, сокет нового шейдера, в который подрубать выводы для рендера
 		
-		link_surface = _snodes.get_link_surface(mat, target='CYCLES')
+		link_surface = shader_nodes.get_link_surface(mat, target='CYCLES')
 		src_shader = link_surface.from_node
 		
 		bake_shader = mat.node_tree.nodes.new('ShaderNodeEmission')  # type: ShaderNode|Node
@@ -840,7 +705,7 @@ class BaseAtlasBaker:
 	
 	def _edit_mat_for_aov(self, mat: 'Material', aov: 'AOV|None'):
 		_, bake_shader, bake_color = self._edit_mat_replace_shader(mat)
-		aov_socket = _snodes.get_socket_aov(mat, aov.name, aov.type)
+		aov_socket = shader_nodes.get_socket_aov(mat, aov.name, aov.type)
 		
 		if aov_socket is None:
 			# Если AOV сокет не найден, то просто создаем новую ноду с нужными дэфолтами.
@@ -869,7 +734,7 @@ class BaseAtlasBaker:
 			src_shader, bake_shader, bake_color = self._edit_mat_replace_shader(mat)
 			src_alpha = src_shader.inputs.get('Alpha')
 			if src_alpha is not None:
-				_snodes.socket_copy_input(src_alpha, bake_color)
+				shader_nodes.socket_copy_input(src_alpha, bake_color)
 			else:
 				# По умолчанию непрозрачность
 				bake_color.default_value[:] = (1, 1, 1, 1.0)
@@ -877,7 +742,7 @@ class BaseAtlasBaker:
 			src_shader, bake_shader, bake_color = self._edit_mat_replace_shader(mat)
 			src_shader_color = src_shader.inputs.get('Base Color') or src_shader.inputs.get('Color')  # type: NodeSocket
 			if src_shader_color is not None:
-				_snodes.socket_copy_input(src_shader_color, bake_color)
+				shader_nodes.socket_copy_input(src_shader_color, bake_color)
 			else:
 				# По умолчанию 75% отражаемости
 				bake_color.default_value[:] = (0.75, 0.75, 0.75, 1.0)
@@ -885,7 +750,7 @@ class BaseAtlasBaker:
 			src_shader, bake_shader, bake_color = self._edit_mat_replace_shader(mat)
 			src_metallic = src_shader.inputs.get('Metallic')  # or src_shader.inputs.get('Specular')  # type: NodeSocket
 			if src_metallic is not None:  # TODO RGB <-> value
-				_snodes.socket_copy_input(src_metallic, bake_color)
+				shader_nodes.socket_copy_input(src_metallic, bake_color)
 			else:
 				# По умолчанию 10% металличности
 				bake_color.default_value[:] = (0.1, 0.1, 0.1, 1.0)
@@ -893,14 +758,14 @@ class BaseAtlasBaker:
 			src_shader, bake_shader, bake_color = self._edit_mat_replace_shader(mat)
 			src_roughness = src_shader.inputs.get('Roughness')  # type: NodeSocket
 			if src_roughness is not None:  # TODO RGB <-> value
-				_snodes.socket_copy_input(src_roughness, bake_color)
+				shader_nodes.socket_copy_input(src_roughness, bake_color)
 			else:
 				# По умолчанию 90% шершавости
 				bake_color.default_value[:] = (0.9, 0.9, 0.9, 1.0)
 	
 	def _edit_mats_for_bake(self, bake_obj: 'Object', bake_type: 'str', aov: 'AOV|None'):
-		_objects.deselect_all()
-		_objects.activate(bake_obj)
+		objects.deselect_all()
+		objects.activate(bake_obj)
 		for slot_idx in range(len(bake_obj.material_slots)):
 			bake_obj.active_material_index = slot_idx
 			mat = bake_obj.material_slots[slot_idx].material
@@ -911,9 +776,8 @@ class BaseAtlasBaker:
 				else:
 					self._edit_mat_for_bake(mat, bake_type)
 			except Exception as exc:
-				msg = 'Error editing material {0} (#{1}) for {2} bake object {3}' \
-					.format(mat, slot_idx, bake_type, bake_obj)
-				raise RuntimeError(msg, mat, slot_idx, bake_type, bake_obj) from exc
+				msg = f'Error editing material {mat} (#{slot_idx}) for {bake_type} bake object {bake_obj}'
+				log.raise_error(RuntimeError, msg, cause=exc)
 	
 	def _try_edit_mats_for_bake(self, bake_obj: 'Object', bake_type: 'str', aov: 'AOV|None'):
 		try:
@@ -924,7 +788,7 @@ class BaseAtlasBaker:
 	def _bake_image(self, bake_type: 'str', target_image: 'Image'):
 		aov = self._aovs.get(bake_type)
 		target_size = tuple(target_image.size)
-		_log.info(f"Preparing for bake atlas Image={target_image.name!r} type={bake_type!r} aov={aov!r} size={target_size}...")
+		log.info(f"Preparing for bake atlas Image={target_image.name!r} type={bake_type!r} aov={aov!r} size={target_size}...")
 		
 		# Поскольку cycles - ссанина, нам проще сделать копию ._bake_obj
 		# Сделать копии материалов на ._bake_obj
@@ -934,14 +798,14 @@ class BaseAtlasBaker:
 		use_emit = (aov is not None) or (bake_type in emit_types)
 		cycles_bake_type = 'EMIT' if use_emit else bake_type
 		
-		_objects.deselect_all()
-		_objects.activate(self._bake_obj)
-		_commons.ensure_op_finished(_bpy.ops.object.duplicate(linked=False), name='bpy.ops.object.duplicate')
-		local_bake_obj = _bpy.context.view_layer.objects.active
+		objects.deselect_all()
+		objects.activate(self._bake_obj)
+		commons.ensure_op_finished(bpy.ops.object.duplicate(linked=False), name='bpy.ops.object.duplicate')
+		local_bake_obj = bpy.context.view_layer.objects.active
 		self._bake_obj.hide_set(True)
-		_objects.deselect_all()
-		_objects.activate(local_bake_obj)
-		_commons.ensure_op_finished(_bpy.ops.object.make_single_user(
+		objects.deselect_all()
+		objects.activate(local_bake_obj)
+		commons.ensure_op_finished(bpy.ops.object.make_single_user(
 			object=True, obdata=True, material=True, animation=False,
 		), name='bpy.ops.object.make_single_user')
 		
@@ -949,62 +813,61 @@ class BaseAtlasBaker:
 			self._try_edit_mats_for_bake(local_bake_obj, bake_type, aov)
 		
 		for slot in local_bake_obj.material_slots:  # type: MaterialSlot
-			n_bake = _snodes.prepare_node_for_baking(slot.material)
+			n_bake = shader_nodes.prepare_node_for_baking(slot.material)
 			n_bake.image = target_image
 		
-		_bpy.context.scene.render.engine = 'CYCLES'
-		_bpy.context.scene.cycles.feature_set = 'SUPPORTED'
-		_bpy.context.scene.cycles.device = 'GPU'  # can be overriden in before_bake
-		_bpy.context.scene.cycles.use_adaptive_sampling = True
-		_bpy.context.scene.cycles.adaptive_threshold = 0
-		_bpy.context.scene.cycles.adaptive_min_samples = 0
-		_bpy.context.scene.cycles.bake_type = cycles_bake_type
-		_bpy.context.scene.render.bake.use_pass_direct = False
-		_bpy.context.scene.render.bake.use_pass_indirect = False
-		_bpy.context.scene.render.bake.use_pass_color = False
-		_bpy.context.scene.render.bake.use_pass_emit = use_emit
-		_bpy.context.scene.render.bake.normal_space = 'TANGENT'
-		_bpy.context.scene.render.bake.margin = 64
-		_bpy.context.scene.render.bake.use_clear = True
-		_bpy.context.scene.render.use_lock_interface = True
-		_bpy.context.scene.render.use_persistent_data = False
+		bpy.context.scene.render.engine = 'CYCLES'
+		bpy.context.scene.cycles.feature_set = 'SUPPORTED'
+		bpy.context.scene.cycles.device = 'GPU'  # can be overriden in before_bake
+		bpy.context.scene.cycles.use_adaptive_sampling = True
+		bpy.context.scene.cycles.adaptive_threshold = 0
+		bpy.context.scene.cycles.adaptive_min_samples = 0
+		bpy.context.scene.cycles.bake_type = cycles_bake_type
+		bpy.context.scene.render.bake.use_pass_direct = False
+		bpy.context.scene.render.bake.use_pass_indirect = False
+		bpy.context.scene.render.bake.use_pass_color = False
+		bpy.context.scene.render.bake.use_pass_emit = use_emit
+		bpy.context.scene.render.bake.normal_space = 'TANGENT'
+		bpy.context.scene.render.bake.margin = 64
+		bpy.context.scene.render.bake.use_clear = True
+		bpy.context.scene.render.use_lock_interface = True
+		bpy.context.scene.render.use_persistent_data = False
 		
 		self._call_before_bake_safe(bake_type, target_image)
 		
-		_log.info(f"Trying to bake atlas Image={target_image.name!r} type={bake_type!r}/{cycles_bake_type!r} aov={aov!r} size={target_size}...")
-		_objects.deselect_all()
-		_objects.activate(local_bake_obj)
-		_gc_collect()  # Подчищаем память прямо перед печкой т.к. оно моного жрёт.
-		_bpy.ops.wm.memory_statistics()
-		bake_start = _perf_counter()
-		_commons.ensure_op_finished(_bpy.ops.object.bake(type=cycles_bake_type, use_clear=True), name='bpy.ops.object.bake')
-		bake_time = _perf_counter() - bake_start
-		_bpy.ops.wm.memory_statistics()
-		_log.info(f"Baked atlas Image={target_image.name!r} type={bake_type!r} aov={aov!r}, time spent: {bake_time:.1f} sec.")
+		log.info(f"Trying to bake atlas Image={target_image.name!r} type={bake_type!r}/{cycles_bake_type!r} aov={aov!r} size={target_size}...")
+		objects.deselect_all()
+		objects.activate(local_bake_obj)
+		gc.collect()  # Подчищаем память прямо перед печкой т.к. оно моного жрёт.
+		bpy.ops.wm.memory_statistics()
+		bake_start = perf_counter()
+		commons.ensure_op_finished(bpy.ops.object.bake(type=cycles_bake_type, use_clear=True), name='bpy.ops.object.bake')
+		bake_time = perf_counter() - bake_start
+		bpy.ops.wm.memory_statistics()
+		log.info(f"Baked atlas Image={target_image.name!r} type={bake_type!r} aov={aov!r}, time spent: {bake_time:.1f} sec.")
 		
 		garbage_materials = set(slot.material for slot in local_bake_obj.material_slots)
-		mesh = local_bake_obj.data
-		_bpy.context.blend_data.objects.remove(local_bake_obj, do_unlink=True)
-		_bpy.context.blend_data.meshes.remove(mesh, do_unlink=True)
+		mesh = meshes.get_safe(local_bake_obj, strict=True)
+		bpy.context.blend_data.objects.remove(local_bake_obj, do_unlink=True)
+		bpy.context.blend_data.meshes.remove(mesh, do_unlink=True)
 		for mat in garbage_materials:
-			_bpy.context.blend_data.materials.remove(mat, do_unlink=True)
-		if _bpy.app.version >= (2, 93, 0):
-			_bpy.data.orphans_purge(do_recursive=True)
+			bpy.context.blend_data.materials.remove(mat, do_unlink=True)
+		data.orphans_purge_iter()
 		
 		self._call_after_bake_safe(bake_type, target_image)
 	
 	def _bake_images(self):
-		_objects.deselect_all()
-		_objects.activate(self._bake_obj)
+		objects.deselect_all()
+		objects.activate(self._bake_obj)
 		# Настраиваем UV слои под рендер
-		for layer in _meshes.get_safe(self._bake_obj).uv_layers:  # type: MeshUVLoopLayer
+		for layer in meshes.get_safe(self._bake_obj).uv_layers:  # type: MeshUVLoopLayer
 			layer.active = layer.name == self._UV_ATLAS
 			layer.active_render = layer.name == self._UV_ORIGINAL
 			layer.active_clone = False
 		for bake_type, target_image in self._bake_types:
-			for _, image in self._bake_types:
+			for _, other_image in self._bake_types:
 				# Для экономии памяти выгружаем целевые картинки если они прогружены
-				if image is target_image and image.has_data:
+				if other_image is not target_image and other_image.has_data:
 					target_image.gl_free()
 					target_image.buffers_free()
 			self._bake_image(bake_type, target_image)
@@ -1012,10 +875,10 @@ class BaseAtlasBaker:
 			if target_image.has_data:
 				target_image.gl_free()
 				target_image.buffers_free()
-			_gc_collect()
-		_bpy.ops.wm.memory_statistics()
+			gc.collect()
+		bpy.ops.wm.memory_statistics()
 		
-		_objects.deselect_all()
+		objects.deselect_all()
 		if self._bake_obj is not None:
 			# mesh = self._bake_obj.data
 			# bpy.context.blend_data.objects.remove(self._bake_obj, do_unlink=True)
@@ -1026,20 +889,21 @@ class BaseAtlasBaker:
 		tmat = None
 		try:
 			tmat = self.get_target_material(obj, smat)
-		# ...
+			if tmat is not None and not isinstance(tmat, Material):
+				raise TypeError()
 		except Exception as exc:
-			msg = 'Can not get target material for {0} and {1}.'.format(obj, smat)
-			_log.error(msg)
-			raise RuntimeError(msg, smat, tmat) from exc
+			log.raise_error(RuntimeError, f'Can not get target material for {obj} and {smat}.', cause=exc)
 		return tmat
 	
 	def _apply_baked_materials(self):
-		_log.info("Applying UV...")
+		log.info("Applying UV...")
 		mat_i, obj_i = 0, 0
-		reporter = _reporter.LambdaReporter(self.report_time)
-		reporter.func = lambda r, t: _log.info(
-			"Transforming UVs: Object={}/{}, Slots={}, Time={:.1f} sec, ETA={:.1f} sec...".format(
-				obj_i, len(self.objects), mat_i, t, r.get_eta(1.0 * obj_i / len(self.objects))))
+		
+		def do_report(r, t):
+			eta = r.get_eta(1.0 * obj_i / len(self.objects))
+			log.info(f"Transforming UVs: Object={obj_i}/{len(self.objects)}, Slots={mat_i}, Time={t:.1f} sec, ETA={eta:.1f} sec...")
+		
+		lr = reporter.LambdaReporter(report_time=self.report_time, func=do_report)
 		
 		self._perf_find_transform = 0
 		self._perf_apply_transform = 0
@@ -1048,8 +912,8 @@ class BaseAtlasBaker:
 		for obj in self.objects:
 			bm = None
 			try:
-				mesh = _meshes.get_safe(obj)
-				bm = _bmesh.new()
+				mesh = meshes.get_safe(obj)
+				bm = bmesh.new()
 				bm.from_mesh(mesh)
 				self._apply_baked_materials_bmesh(obj, mesh, bm)
 				bm.to_mesh(mesh)
@@ -1058,11 +922,13 @@ class BaseAtlasBaker:
 					bm.free()
 			obj_i += 1
 			mat_i += len(obj.material_slots)
-			reporter.ask_report(False)
-			_meshes.merge_same_material_slots(obj)
-		reporter.ask_report(True)
-		_log.info("Perf: find_transform: {0}, apply_transform: {1}, iter_polys: {2}".format(
-			self._perf_find_transform, self._perf_apply_transform, self._perf_iter_polys))
+			lr.ask_report(False)
+			meshes.merge_same_material_slots(obj)
+		lr.ask_report(True)
+		log.info(
+			f'Perf: find_transform: {self._perf_find_transform} '
+			f'apply_transform: {self._perf_apply_transform} iter_polys: {self._perf_iter_polys}'
+		)
 	
 	def _apply_baked_materials_bmesh(self, obj: 'Object', mesh: 'Mesh', bm: 'BMesh'):
 		# Через BMesh редактировать UV намного быстрее.
@@ -1085,7 +951,7 @@ class BaseAtlasBaker:
 			# Здесь мы, получается, обходм все фейсы по несколько раз (на каждый материал)
 			# Но это лучше, чем проходить один раз, но каждый раз дёргать
 			# dict.get(bm_face.material_index) и распаковывать метаданные
-			_t3 = _perf_counter()
+			_t3 = perf_counter()
 			bm.faces.ensure_lookup_table()
 			for bm_face in bm.faces:
 				if bm_face.material_index != material_index:
@@ -1093,33 +959,32 @@ class BaseAtlasBaker:
 				# Среднее UV фейса. По идее можно брать любую точку для теста принадлежности,
 				# но я не хочу проблем с пограничными случаями.
 				# Нужно тестировать, скорее всего тут можно ускорить.
-				mean_uv = _mu.Vector((0, 0))
+				mean_uv = Vector((0, 0))
 				for bm_loop in bm_face.loops:
 					mean_uv += bm_loop[bm_uv_layer].uv
 				mean_uv /= len(bm_face.loops)
 				transform = None
 				# Поиск трансформа для данного полигона
-				_t1 = _perf_counter()
+				_t1 = perf_counter()
 				for t in transforms:
 					# Должно работать без эпсилонов
 					if t.is_match(mean_uv, epsilon_x=epsilon_x, epsilon_y=epsilon_y):
 						transform = t
 						break
-				self._perf_find_transform += _perf_counter() - _t1
+				self._perf_find_transform += perf_counter() - _t1
 				if transform is None:
 					# Такая ситуация не должна случаться:
 					# Если материал подлежал запеканию, то все участки должны были ранее покрыты трансформами.
-					msg = 'No UV transform for Obj={0}, Mesh={1}, SMat={2}, Poly={3}, UV={4}, Transforms:' \
-						.format(repr(obj.name), repr(mesh.name), repr(source_mat.name), repr(bm_face), repr(mean_uv))
-					_log.error(msg)
+					msg = f'No UV transform for Obj={obj.name!r}, Mesh={mesh.name!r}, SMat={source_mat.name!r}, Poly={bm_face!r}, UV={mean_uv!r}, Transforms:'
+					log.error(msg)
 					for transform in transforms:
-						_log.error('\t- {}'.format(repr(transform)))
+						log.error(f'\t- {transform !r}')
 					raise AssertionError(msg, obj, source_mat, repr(bm_face), mean_uv, transforms)
-				_t2 = _perf_counter()
+				_t2 = perf_counter()
 				for bm_loop in bm_face.loops:
 					if bm_loop.index in self._bmesh_loops_mem:
-						# Что бы не применить трансформ дважды к одному loop
-						# Хотя как я понял в bmesh они не переиспользуются
+						# Что бы не применить трансформ дважды к одному loop.
+						# Хотя как я понял в bmesh они не пере-используются
 						# Нужно изучать, возможно можно убрать self._already_processed_loops вовсе
 						self._bmesh_loops_mem_hits += 1
 						continue
@@ -1127,40 +992,40 @@ class BaseAtlasBaker:
 					vec2 = bm_loop[bm_uv_layer].uv
 					vec2 = transform.apply(vec2)
 					bm_loop[bm_uv_layer].uv = vec2
-				self._perf_apply_transform += _perf_counter() - _t2
-			self._perf_iter_polys += _perf_counter() - _t3
+				self._perf_apply_transform += perf_counter() - _t2
+			self._perf_iter_polys += perf_counter() - _t3
 			# Внимание! Меняем меш, хотя потом она будет перезаписана из bmesh.
 			# Но это ОК, т.к. bmesh похуй на материалы, там хранятся только индексы.
 			mesh.materials[material_index] = target_mat
 			obj.material_slots[material_index].material = target_mat
-		if _log.is_debug():
-			_log.info("BMesh loops hits for {} = {}".format(repr(obj.name), repr(self._bmesh_loops_mem_hits)))
+		if log.is_debug():
+			log.info(f"BMesh loops hits for {obj.name!r} = {self._bmesh_loops_mem_hits!r}")
 		self._bmesh_loops_mem.clear()
 	
 	def bake_atlas(self):
 		"""
 		Run the baking process!
 		"""
-		_log.info("Baking atlas!")
+		log.info("Baking atlas!")
 		self._prepare_objects()
 		self._prepare_target_images()
 		self._prepare_materials()
 		self._prepare_matsizes()
-		# Создайм вспомогательные дупликаты, они нужны только для
+		# Создай м вспомогательные дубликаты, они нужны только для
 		# поиска UV островов
 		self._make_duplicates()
-		# Разбивка вспомогательные дупликатов по материалам
+		# Разбивка вспомогательных дубликатов по материалам
 		self._separate_duplicates()
 		# Может оказаться так, что не все материалы подлежат запеканию
-		# Вспомогательные дупликаты с не нужными материалами удаляются
+		# Вспомогательные дубликаты с не нужными материалами удаляются
 		self._cleanup_duplicates()
-		# Оставщиеся вспомогательные дупликаты группируются по материалам
+		# Остающиеся вспомогательные дубликаты группируются по материалам
 		self._group_duplicates()
 		# Для каждого материала выполняем поиск островов
 		self._find_islands()
-		# После того, как острова найдены, вспомогательные дупликаты более не нужны, удаляем их
+		# После того как острова найдены, вспомогательные дубликаты более не нужны, удаляем их
 		self._delete_groups()
-		# Острава нужно разместить на атласе.
+		# Острова нужно разместить на атласе.
 		# Для этого используется mathutils.geometry.box_pack_2d
 		# Для этого нужно сконвертировать
 		self._create_transforms_from_islands()
@@ -1170,10 +1035,7 @@ class BaseAtlasBaker:
 		self._bake_images()
 		# После запекания к исходникам применяются новые материалы и преобразования
 		self._apply_baked_materials()
-		_log.info("Woohoo!")
+		log.info("Woohoo!")
 
 
-__pdoc__ = dict()
-for _n in dir(UVTransform):
-	if hasattr(UVTransform, _n):
-		__pdoc__[UVTransform.__name__ + '.' + _n] = False
+__all__ = ['BaseAtlasBaker']

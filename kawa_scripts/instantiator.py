@@ -76,11 +76,10 @@ class BaseInstantiator:
 				wrong_scene.add(original)
 		if len(wrong_scene) > 0:
 			wrong_scene_str = ', '.join(repr(x.name) for x in wrong_scene)
-			msg = '{0} of {1} original objects does not belong to original_scene={2}: {3}'.format(
-				len(wrong_scene), len(self.originals), repr(self.original_scene.name), wrong_scene_str)
-			_log.error(msg)
-			raise RuntimeError(msg, wrong_scene)
-
+			msg = f'{len(wrong_scene)} of {len(self.originals)} original objects does not belong to'
+			msg = f'{msg} original_scene={self.original_scene.name!r}: {wrong_scene_str}'
+			_log.raise_error(RuntimeError, msg)
+	
 	def _register_original_names(self):
 		original_names_q = _collections.deque()
 		original_names_q.extend(self.originals)
@@ -92,7 +91,7 @@ class BaseInstantiator:
 				original_names_q.extend(obj.instance_collection.objects)
 		for obj in self._original_names:
 			obj[self.ORIGINAL_NAME] = obj.name
-			
+	
 	def _put_originals_on_working(self):
 		_objects.deselect_all()
 		for original in self.originals:
@@ -103,9 +102,9 @@ class BaseInstantiator:
 	def _duplicate(self):
 		_commons.ensure_op_finished(_bpy.ops.object.duplicate(linked=False), name='bpy.ops.object.duplicate')
 		self.copies.update(_bpy.context.selected_objects)
-		_log.info('Basic copies created: {0}'.format(len(self.copies)))
+		_log.info(f'Basic copies created: {len(self.copies)}')
 		_objects.deselect_all()
-		
+	
 	def _unlink_originals_from_working(self):
 		for original in self.originals:
 			if original.name in self.working_scene.collection.objects:
@@ -124,16 +123,18 @@ class BaseInstantiator:
 					raise RuntimeError('rename', copy, original_name, new_name) from exc
 				if isinstance(new_name, str):
 					copy.name = new_name
-
+	
 	def _instantiate_collections(self):
 		_log.info('Instantiating collections...')
 		
 		created, obj_i, inst_i = 0, 0, 0
-		reporter = _reporter.LambdaReporter(self.report_time)
-		reporter.func = lambda r, t: _log.info(
-			"Instantiating collections: Objects={0}/{1}, Instantiated={2}, Created={3}, Time={4:.1f} sec...".format(
-				obj_i, len(self.copies), inst_i, created, t))
 		
+		def do_report(r, t):
+			objs = f'Objects={obj_i}/{len(self.copies)}'
+			inst_created = f'Instantiated={inst_i}, Created={created}'
+			_log.info(f"Instantiating collections: {objs}, {inst_created}, Time={t:.1f} sec...")
+		
+		reporter = _reporter.LambdaReporter(report_time=self.report_time, func=do_report)
 		queue = _collections.deque()
 		queue.extend(self.copies)
 		while len(queue) > 0:
@@ -160,7 +161,7 @@ class BaseInstantiator:
 				elif isinstance(inst_obj_orignal_name, str):
 					inst_obj.name = obj.name + '-' + inst_obj_orignal_name
 			reporter.ask_report(False)
-			
+		
 		_objects.deselect_all()
 		reporter.ask_report(True)
 	
@@ -175,7 +176,7 @@ class BaseInstantiator:
 		_commons.ensure_op_finished(_bpy.ops.object.convert(target='MESH'), name='bpy.ops.object.convert')
 		self.copies.update(_bpy.context.selected_objects)
 		_objects.deselect_all()
-		_log.info('Converted {0} curves to meshes.'.format(len(curves)))
+		_log.info(f'Converted {len(curves)} curves to meshes.')
 	
 	def _make_single_user(self):
 		_log.info('Making data blocks single-users...')
@@ -188,16 +189,17 @@ class BaseInstantiator:
 		after = len(set(obj.data for obj in self.copies if obj.data is not None))
 		self.copies.update(_bpy.context.selected_objects)
 		_objects.deselect_all()
-		_log.info('make_single_user, data blocks: {0} +{1} -> {2}'.format(before, (after - before), after))
+		_log.info(f'make_single_user, data blocks: {before} +{(after - before)} -> {after}')
 	
 	def _instantiate_material_slots(self):
 		obj_i, slot_i = 0, 0
 		
-		reporter = _reporter.LambdaReporter(self.report_time)
-		reporter.func = lambda r, t: _log.info(
-			"Instantiating material slots: Objects={0}/{1}, Slots={2}, Time={3:.1f} sec, ETA={4:.1f} sec...".format(
-				obj_i, len(self.copies), slot_i, t, r.get_eta(1.0 * obj_i / len(self.copies))))
+		def do_report(r, t):
+			eta = r.get_eta(1.0 * obj_i / len(self.copies))
+			objs = f'Objects={obj_i}/{len(self.copies)}, Slots={slot_i}'
+			_log.info(f"Instantiating material slots: {objs}, Time={t:.1f} sec, ETA={eta:.1f} sec...")
 		
+		reporter = _reporter.LambdaReporter(report_time=self.report_time, func=do_report)
 		_log.info('Instantiating material slots...')
 		for copy in self.copies:
 			if not isinstance(copy.data, _bpy.types.Mesh):
@@ -217,23 +219,24 @@ class BaseInstantiator:
 	def _apply_modifiers(self):
 		obj_n, obj_i, mod_i = len(self.copies), 0, 0
 		
-		reporter = _reporter.LambdaReporter(self.report_time)
-		reporter.func = lambda r, t: _log.info(
-			"Applying modifiers: Objects={0}/{1}, Modifiers={2}, Time={3:.1f} sec, ETA={4:.1f} sec...".format(
-				obj_i, obj_n, mod_i, t, r.get_eta(1.0 * obj_i / obj_n)))
+		def do_report(r, t):
+			eta = r.get_eta(1.0 * obj_i / obj_n)
+			objs = f"Objects={obj_i}/{obj_n}, Modifiers={mod_i}"
+			_log.info(f"Applying modifiers: {objs}, Time={t:.1f} sec, ETA={eta:.1f} sec...")
 		
+		reporter = _reporter.LambdaReporter(report_time=self.report_time, func=do_report)
 		_log.info('Applying modifiers...')
 		for copy in self.copies:
 			mod_i += _modifiers.apply_all_modifiers(copy)
 			obj_i += 1
 			reporter.ask_report(False)
 		reporter.ask_report(True)
-
+	
 	def _clean_original_names(self):
 		for original in self._original_names:
 			if self.ORIGINAL_NAME in original:
 				del original[self.ORIGINAL_NAME]
-
+	
 	def run(self) -> 'None':
 		if self.original_scene is None:
 			raise RuntimeError("original_scene is not set")
@@ -241,8 +244,7 @@ class BaseInstantiator:
 			raise RuntimeError("working_scene is not set")
 		
 		self._check_originals()
-		_log.info('Instantiating {0} objects from scene {1} to {2}... '.format(
-			len(self.originals), repr(self.original_scene.name), repr(self.working_scene.name)))
+		_log.info(f'Instantiating {len(self.originals)} objects from scene {self.original_scene.name!r} to {self.working_scene.name!r}... ')
 		self._register_original_names()
 		_bpy.context.window.scene = self.working_scene
 		self._put_originals_on_working()
@@ -252,13 +254,13 @@ class BaseInstantiator:
 		
 		if self.instantiate_collections:
 			self._instantiate_collections()
-			
+		
 		self._make_single_user()
 		self._convert_curves_to_meshes()
 		
 		if self.instantiate_material_slots:
 			self._instantiate_material_slots()
-
+		
 		if self.apply_modifiers:
 			self._apply_modifiers()
 		
@@ -271,10 +273,10 @@ class BaseInstantiator:
 		
 		invalids = list(obj for obj in self.copies if obj.name not in self.working_scene.collection.objects)
 		if len(invalids) > 0:
-			_log.info("Discarding {0} invalid objects...".format(len(invalids)))
+			_log.info(f"Discarding {len(invalids)} invalid objects...")
 			for invalid in invalids:
 				self.copies.discard(invalid)
-
+		
 		self._clean_original_names()
 		
-		_log.info("Instantiation done: {0} original -> {1} copies.".format(len(self.originals), len(self.copies)))
+		_log.info(f"Instantiation done: {len(self.originals)} original -> {len(self.copies)} copies.")

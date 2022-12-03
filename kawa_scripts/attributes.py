@@ -41,23 +41,23 @@ def _prepare_attribute_save_load(mesh: 'Mesh',
 	
 	if attribute is None:
 		attribute = mesh.attributes.active
-	elif not isinstance(attribute, _bpy.types.Attribute):
+	elif isinstance(attribute, (str, int)):
 		attribute = mesh.attributes.get(attribute)
 	if not isinstance(attribute, _bpy.types.Attribute):
 		if strict:
-			raise ValueError('attribute')
+			raise ValueError(f'Attribute: {type(attribute)!r} {attribute!r}')
 		else:
 			return None, None, None, None, None
 	
 	if attribute not in mesh.attributes.values():
 		if strict:
-			raise ValueError('attribute')
+			raise ValueError(f'Attribute: {attribute!r} {list(mesh.attributes.values())}')
 		else:
 			return None, None, None, None, None
 	
 	if attribute.domain not in ('POINT', 'EDGE', 'FACE'):
 		if strict:
-			raise ValueError('attribute')
+			raise ValueError(f'Attribute: {attribute!r} {attribute.domain!r}')
 		else:
 			return None, None, None, None, None
 	
@@ -121,6 +121,7 @@ def save_selection_to_attribute(objs: 'HandyMultiObject', attribute: 'Union[str,
 def load_selection_from_attribute_mesh(mesh: 'Mesh',
 		attribute: 'Union[str, Attribute]' = None, mode: 'str' = None, only_visible: 'bool' = None,
 		strict: 'Optional[bool]' = None):
+	_internals.log.info(f"load_selection_from_attribute_mesh: {mesh!r} {attribute!r}")
 	mesh, attribute, mode, only_visible, geometries = \
 		_prepare_attribute_save_load(mesh, attribute, mode, only_visible, strict)
 	if mesh is None:
