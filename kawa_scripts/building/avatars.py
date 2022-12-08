@@ -92,35 +92,47 @@ class VariantAvatarBuilder(CommonAvatarBuilder, ABC):
 				if value:
 					values.add(value)
 		return base_name, options
-
-	def match_variant_options(self, options: 'dict[str, set[str]]'):
+	
+	def match_mobile_filter(self, options: 'dict[str, set[str]]'):
 		if self.is_mobile():
 			if 'Desktop' in options.keys():
-				return False
-			if (mobile_variants := options.get('Mobile')) and self.get_variant() not in mobile_variants:
 				return False
 		else:
 			if 'Mobile' in options.keys():
 				return False
-			if (desktop_variants := options.get('Desktop')) and self.get_variant() not in desktop_variants:
-				return False
+		return True
+	
+	def match_fallback_filter(self, options: 'dict[str, set[str]]'):
 		if self.is_fallback():
 			if 'Full' in options.keys():
-				return False
-			if (fallback_variants := options.get('Fallback')) and self.get_variant() not in fallback_variants:
 				return False
 		else:
 			if 'Fallback' in options.keys():
 				return False
-			if (full_variants := options.get('Full')) and self.get_variant() not in full_variants:
-				return False
+		return True
+	
+	def match_variant_filter(self, options: 'dict[str, set[str]]'):
+		variants = options.get('V')
+		if variants is None:
+			return False
+		if self.get_variant() not in variants:
+			return False
+		return True
+	
+	def match_filter(self, options: 'dict[str, set[str]]'):
+		if not self.match_mobile_filter(options):
+			return False
+		if not self.match_fallback_filter(options):
+			return False
+		if not self.match_variant_filter(options):
+			return False
 		return True
 
 	def shapekey_action(self, obj: 'Object', mesh: 'Mesh', key: 'ShapeKey'):
 		if key.name.startswith('_'):
 			return key.value
 		base_name, options = self._parse_special_name(key.name)
-		if not self.match_variant_options(options):
+		if not self.match_filter(options):
 			return key.value
 		return None
 
@@ -132,7 +144,7 @@ class VariantAvatarBuilder(CommonAvatarBuilder, ABC):
 		if attribute.name.startswith('_'):
 			return None
 		base_name, options = self._parse_special_name(attribute.name)
-		if not self.match_variant_options(options):
+		if not self.match_filter(options):
 			return None
 		if base_name.startswith('DeleteVerts'):
 			return 'DELETE_VERTS'

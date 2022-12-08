@@ -26,7 +26,7 @@ class InteractiveHandler(_logging.StreamHandler):
 	def emit(self, record):
 		if not isinstance(sys.stdout, io.StringIO):
 			return  # StringIO when in interactive console
-		if _bpy.context.active_operator is not None:
+		if getattr(_bpy.context, 'active_operator', None) is not None:
 			return  # Blender writes own log messages from operators
 		self.stream = sys.stderr if record.levelno >= _logging.WARNING else sys.stdout
 		super().emit(record)
