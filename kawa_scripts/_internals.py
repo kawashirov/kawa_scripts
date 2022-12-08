@@ -53,9 +53,9 @@ class KawaLogger:
 		self.py_log.info(message)
 		_op_report(op, {'INFO'}, message)
 	
-	def warning(self, message: str, op: 'Operator' = None):
+	def warning(self, message: str, op: 'Operator' = None, exc_info: 'BaseException' = None):
 		message = str(message)
-		self.py_log.warning(message)
+		self.py_log.warning(message, exc_info=exc_info)
 		_op_report(op, {'WARNING'}, message)
 	
 	def error(self, message: str, error_type: str = None, op: 'Operator' = None, exc_info: 'BaseException' = None):

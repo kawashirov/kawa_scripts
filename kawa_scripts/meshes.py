@@ -120,10 +120,11 @@ def find_meshes_affected_by_armatue(arm_obj: 'Object', where: 'Iterable[Object]'
 
 
 def _merge_same_material_slots_single(obj: 'Object', mesh: 'Mesh'):
+	_log.info(f"Merging same slots on {obj!r}...")
 	# Этап 1: собираем уникальные материалы
 	mats = set(slot.material for slot in obj.material_slots if slot is not None and slot.material is not None)
-	# Этап 2: собираем отоброжения для замены
-	mapping = dict()
+	# Этап 2: собираем отображения для замены
+	mapping = list(i for i in range(len(obj.material_slots)))
 	need_remap = False
 	for proc_mat in mats:
 		# Индексы слотов, которые используют этот материал, всегда есть хотя бы один.
@@ -134,37 +135,55 @@ def _merge_same_material_slots_single(obj: 'Object', mesh: 'Mesh'):
 			mapping[idx] = indices[0]
 		if len(indices) > 2:
 			need_remap = True
-	# Этап 3: производим замену
 	if not need_remap:
-		return
-	for poly in mesh.polygons:
-		# TODO FIXME bmesh?
-		poly.material_index = mapping.get(poly.material_index)
+		return False
+	# Этап 3: производим замену
+	_log.info(f"Merging same slots on {obj!r}: {mapping!r}")
+	bm = _bmesh.new()
+	try:
+		bm.from_mesh(mesh)
+		bm.faces.ensure_lookup_table()
+		for face in bm.faces:
+			face.material_index = mapping[face.material_index]
+		bm.to_mesh(mesh)
+	finally:
+		bm.free()
+	return True
 
 
-def merge_same_material_slots(processed_objs: 'HandyMultiObject', strict: 'bool' = None):
+def merge_same_material_slots(objs: 'HandyMultiObject', strict: 'bool' = None):
 	# Объединяет слоты с одинаковыми материалами:
 	# Сначала объединяет индексы, затем удаляет освободившиеся слоты.
 	# Игнорирует пустые слоты
-	meshes = set()
-	processed_objs = list()
-	for obj in _objects.resolve_objects(processed_objs):
+	objs = list(_objects.resolve_objects(objs))
+	_log.info(f"Merging same slots on {len(objs)} objects...")
+	
+	# Этап 1: Сначала просто убрать неиспользуемые слоты.
+	_objects.deselect_all()
+	_objects.activate(objs)
+	_bpy.ops.object.material_slot_remove_unused()  # Может быть не-FINISHED
+	
+	# Этап 2: Ищем меш-объекты с 2 или более слотами в обжект-моде.
+	no_dup = set()
+	remapped = list()
+	for obj in objs:
 		mesh = get_safe(obj, strict=strict)
-		if mesh is None:
+		if mesh is None or mesh in no_dup or len(obj.material_slots) < 2:
 			continue
-		if mesh in meshes:
-			continue
-		meshes.add(mesh)
 		if not _objects.ensure_in_mode(obj, 'OBJECT', strict=strict):
 			continue
-		if len(obj.material_slots) < 2:
-			continue
-		_merge_same_material_slots_single(obj, mesh)
-		processed_objs.append(obj)
-	if len(processed_objs) > 0:
+		no_dup.add(mesh)
 		_objects.deselect_all()
-		_objects.activate(processed_objs)
+		_objects.activate(obj)
+		if _merge_same_material_slots_single(obj, mesh):
+			remapped.append(obj)
+	
+	# Этап 3: На обработанных мешах убираем неиспользуемые слоты еще раз.
+	if len(remapped) > 0:
+		_objects.deselect_all()
+		_objects.activate(remapped)
 		_commons.ensure_op_finished_or_cancelled(
 			_bpy.ops.object.material_slot_remove_unused(), name='bpy.ops.object.material_slot_remove_unused'
 		)
 		_objects.deselect_all()
+	_log.info(f"Merged same slots on {len(remapped)}/{len(objs)} objects.")

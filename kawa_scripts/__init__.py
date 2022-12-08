@@ -122,10 +122,16 @@ def register():
 			continue
 		if mod and hasattr(mod, 'classes'):
 			for cls in mod.classes:
-				bpy.utils.register_class(cls)
+				try:
+					bpy.utils.register_class(cls)
+				except Exception as exc:
+					log.error(f"Can't register class {cls!r}: {exc}", exc_info=exc)
 				_registered.append(cls)
 	
-	_ui.register()
+	try:
+		_ui.register()
+	except Exception as exc:
+		log.error(f"Can't register UI: {exc}", exc_info=exc)
 	
 	log.info(f"Registered {__name__!r}. Hello once again!")
 

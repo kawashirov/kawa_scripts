@@ -16,6 +16,7 @@ from bpy.types import Scene, Object, Material, Image, ShaderNodeTexImage
 from .._internals import log
 from .. import materials
 from .. import meshes
+from .. import imagemagick
 
 from . import tex_size_finder
 from . import base_baker
@@ -45,11 +46,13 @@ class CommonAtlasBaker(base_baker.BaseAtlasBaker):
 		super().__init__()
 		self.atlas_name = name
 		self.fast_mode = False
+		self.padding = 8
 		self._texsizefinder = None  # type: tex_size_finder.TexSizeFinder|None
 		self._prepared_images = dict()  # type: dict[str, Image]
 		self._prepared_materials = dict()  # type: dict[str, Material]
 		self.objects = self.get_source_objects()
 		self.export_path = None  # type: Path|None
+		self.merge_diffuse_and_alpha = False
 	
 	def get_scene(self) -> 'Scene':
 		return bpy.context.scene
@@ -87,10 +90,10 @@ class CommonAtlasBaker(base_baker.BaseAtlasBaker):
 		size = (width * scale, height * scale)
 		return size
 	
-	def get_target_image_name(self, bake_type: str, aov: 'AOV'):
+	def get_target_image_name(self, bake_type: str, aov: 'AOV|None'):
 		return f'{self.atlas_name}-{bake_type}'
 	
-	def get_target_image_size(self, bake_type: str, aov: 'AOV') -> 'tuple[int, int]':
+	def get_target_image_size(self, bake_type: str, aov: 'AOV|None') -> 'tuple[int, int]':
 		return 2048, 2048
 	
 	def prepare_target_image(self, bake_type: str) -> 'Image':
@@ -103,11 +106,12 @@ class CommonAtlasBaker(base_baker.BaseAtlasBaker):
 		aov = self._aovs.get(bake_type)
 		name = self.get_target_image_name(bake_type, aov)
 		size = self.get_target_image_size(bake_type, aov)
+		size = round(size[0]), round(size[1])
 		
 		image = bpy.data.images.get(name)
 		if image is None:
 			image = bpy.data.images.new(name, size[0], size[1], alpha=False, float_buffer=False)
-		image.generated_width, image.generated_height = round(size[0]), round(size[1])
+		image.generated_width, image.generated_height = size[0], size[1]
 		if aov is not None:
 			image.generated_color = aov.default_rgba
 		elif bake_type == 'NORMAL':
@@ -234,6 +238,22 @@ class CommonAtlasBaker(base_baker.BaseAtlasBaker):
 		# target_image.save()
 		log.info(f"Reloaded Image {image.name!r} {bake_type!r} from {save_path!r}...")
 	
+	def before_bake(self, bake_type: str, target_image: 'Image'):
+		"""
+		In most situations, we are baking to export assets into game engines (like Unity),
+		where textures will be LOSSY compressed anyway to DXT5, BC7, or whatever.
+		So we don't need very high quality here: adaptive_threshold = 0.1 and adaptive_min_samples = 4
+		should be fine as with automatic 0, it will be chosen around 0.03 and 42.
+		If NORMAL, reduce twice, as NORMAL seems to be more sensitive for quality when used around contrast shadows.
+		This significantly increases the speed of rendering without noticeable artefacts or quality drops.
+		"""
+		cycles = bpy.context.scene.cycles
+		cycles.adaptive_threshold = 0.1
+		cycles.adaptive_min_samples = 4
+		if bake_type == 'NORMAL':
+			cycles.adaptive_threshold /= 2
+			cycles.adaptive_min_samples *= 2
+	
 	def ensure_scene_settings(self):
 		scene = self.get_scene()
 		scene.render.image_settings.color_mode = 'RGB'
@@ -248,6 +268,33 @@ class CommonAtlasBaker(base_baker.BaseAtlasBaker):
 		is_exr = round(image.depth / image.channels) >= 16
 		self.export_image(bake_type, image, is_exr=is_exr)
 		self.ensure_scene_settings()
+	
+	def join_diffuse_and_alpha_if_necessary_check(self, im: Image, bake_type: 'str'):
+		if not isinstance(im, Image):
+			log.raise_error(TypeError, f"No valid {bake_type!r} texture: {im!r}")
+	
+	def join_diffuse_and_alpha_if_necessary(self):
+		if not self.merge_diffuse_and_alpha:
+			return
+		try:
+			im_diffuse = self.get_target_image('DIFFUSE')
+			self.join_diffuse_and_alpha_if_necessary_check(im_diffuse, 'DIFFUSE')
+			im_alpha = self.get_target_image('ALPHA')
+			self.join_diffuse_and_alpha_if_necessary_check(im_alpha, 'ALPHA')
+			joined_name = self.get_target_image_name('DIFFUSE+ALPHA', None)
+			joined_path = Path(im_diffuse.filepath)
+			joined_path = joined_path.with_name(f"{joined_name}.{joined_path.suffix}")
+			imagemagick.join_rgb_and_alpha(im_diffuse.filepath, im_alpha.filepath, joined_path)
+		except Exception as exc:
+			log.error(f"Can't join DIFFUSE+ALPHA: {exc}", exc_info=exc)
+
+	def _apply_baked_materials(self):
+		super()._apply_baked_materials()
+		
+	
+	def bake_atlas(self):
+		super().bake_atlas()
+		self.join_diffuse_and_alpha_if_necessary()
 
 
 __all__ = ['CommonAtlasBaker']

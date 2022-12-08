@@ -22,7 +22,7 @@ import bpy
 import mathutils
 from bmesh.types import BMesh, BMLayerItem
 from bpy.types import Object, Material, MaterialSlot, Image, Mesh, MeshUVLoop, MeshUVLoopLayer
-from bpy.types import ShaderNode, NodeSocket, NodeSocketColor, Node
+from bpy.types import ShaderNode, NodeSocket, NodeLink, NodeSocketFloat, NodeSocketColor, Node
 from mathutils import Vector
 
 from .._internals import log
@@ -762,6 +762,17 @@ class BaseAtlasBaker:
 			else:
 				# По умолчанию 90% шершавости
 				bake_color.default_value[:] = (0.9, 0.9, 0.9, 1.0)
+		elif bake_type == 'NORMAL':
+			# Normal baked as-is in its own NORMAL pass,
+			# but need to turn of Alpha to avoid gray zones on final render.
+			src_shader = shader_nodes.get_link_surface(mat, target='CYCLES').from_node
+			src_alpha = src_shader.inputs.get('Alpha')  # type: NodeSocket|NodeSocketFloat
+			src_alpha.default_value = 1.0
+			for link in src_alpha.links:  # type: NodeLink
+				log.info(f"Removing alpha link from {link.from_node!r} to {link.to_node!r} in {mat!r} for NORMAL pass.")
+				node_tree.links.remove(link)
+		else:
+			pass
 	
 	def _edit_mats_for_bake(self, bake_obj: 'Object', bake_type: 'str', aov: 'AOV|None'):
 		objects.deselect_all()
@@ -776,14 +787,15 @@ class BaseAtlasBaker:
 				else:
 					self._edit_mat_for_bake(mat, bake_type)
 			except Exception as exc:
-				msg = f'Error editing material {mat} (#{slot_idx}) for {bake_type} bake object {bake_obj}'
+				msg = f'Error editing {mat=!r} ({slot_idx=!r}) for {bake_type=!r} {aov=!r} {bake_obj=!r}: {exc}'
 				log.raise_error(RuntimeError, msg, cause=exc)
 	
 	def _try_edit_mats_for_bake(self, bake_obj: 'Object', bake_type: 'str', aov: 'AOV|None'):
 		try:
 			self._edit_mats_for_bake(bake_obj, bake_type, aov)
 		except Exception as exc:
-			raise RuntimeError("_edit_mats_for_bake", bake_obj, bake_type) from exc
+			msg = f'Error editing materials for {bake_type} bake object {bake_obj}'
+			log.raise_error(RuntimeError, msg, cause=exc)
 	
 	def _bake_image(self, bake_type: 'str', target_image: 'Image'):
 		aov = self._aovs.get(bake_type)
@@ -809,8 +821,7 @@ class BaseAtlasBaker:
 			object=True, obdata=True, material=True, animation=False,
 		), name='bpy.ops.object.make_single_user')
 		
-		if use_emit:
-			self._try_edit_mats_for_bake(local_bake_obj, bake_type, aov)
+		self._try_edit_mats_for_bake(local_bake_obj, bake_type, aov)
 		
 		for slot in local_bake_obj.material_slots:  # type: MaterialSlot
 			n_bake = shader_nodes.prepare_node_for_baking(slot.material)
