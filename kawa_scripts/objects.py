@@ -296,6 +296,7 @@ def find_all_child_objects(parent_object: 'Object', where: 'Optional[Container[O
 
 
 def join(obj_from: 'HandyMultiObject', obj_to: 'HandyObject'):
+	_log.info(f"Joining {obj_from!r} -> {obj_to!r}")
 	deselect_all()
 	select(obj_from)
 	activate(obj_to)

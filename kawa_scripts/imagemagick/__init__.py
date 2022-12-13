@@ -39,6 +39,7 @@ def _sanitize_output(output_path: 'str|Path', arg_name: 'str'):
 	if path.exists():
 		raise RuntimeError(f"{arg_name}={output_path!r} already exists!")
 	path.parent.mkdir(parents=True, exist_ok=True)
+	return str(path)
 
 
 def test():
@@ -54,7 +55,7 @@ def join_rgb_and_alpha(diffuse_path: 'str|Path', alpha_path: 'str|Path', output_
 	diffuse_path = _sanitize_input(diffuse_path, 'diffuse_path')
 	alpha_path = _sanitize_input(alpha_path, 'alpha_path')
 	output_path = _sanitize_output(output_path, 'output_path')
-	args = [_embedded_magick, 'convert', diffuse_path, alpha_path, '-alpha', 'Off',
+	args = [str(_embedded_magick), 'convert', diffuse_path, alpha_path, '-alpha', 'Off',
 		'-compose', 'CopyOpacity', '-composite', output_path]
 	return _run_imagemagick(args)
 

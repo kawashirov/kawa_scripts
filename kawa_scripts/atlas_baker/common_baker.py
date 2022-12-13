@@ -52,7 +52,7 @@ class CommonAtlasBaker(base_baker.BaseAtlasBaker):
 		self._prepared_materials = dict()  # type: dict[str, Material]
 		self.objects = self.get_source_objects()
 		self.export_path = None  # type: Path|None
-		self.merge_diffuse_and_alpha = False
+		self.join_diffuse_and_alpha = False
 	
 	def get_scene(self) -> 'Scene':
 		return bpy.context.scene
@@ -274,7 +274,7 @@ class CommonAtlasBaker(base_baker.BaseAtlasBaker):
 			log.raise_error(TypeError, f"No valid {bake_type!r} texture: {im!r}")
 	
 	def join_diffuse_and_alpha_if_necessary(self):
-		if not self.merge_diffuse_and_alpha:
+		if not self.join_diffuse_and_alpha:
 			return
 		try:
 			im_diffuse = self.get_target_image('DIFFUSE')
@@ -283,14 +283,13 @@ class CommonAtlasBaker(base_baker.BaseAtlasBaker):
 			self.join_diffuse_and_alpha_if_necessary_check(im_alpha, 'ALPHA')
 			joined_name = self.get_target_image_name('DIFFUSE+ALPHA', None)
 			joined_path = Path(im_diffuse.filepath)
-			joined_path = joined_path.with_name(f"{joined_name}.{joined_path.suffix}")
+			joined_path = joined_path.with_name(f"{joined_name}{joined_path.suffix}")
 			imagemagick.join_rgb_and_alpha(im_diffuse.filepath, im_alpha.filepath, joined_path)
 		except Exception as exc:
 			log.error(f"Can't join DIFFUSE+ALPHA: {exc}", exc_info=exc)
-
+	
 	def _apply_baked_materials(self):
 		super()._apply_baked_materials()
-		
 	
 	def bake_atlas(self):
 		super().bake_atlas()

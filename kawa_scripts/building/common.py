@@ -213,9 +213,14 @@ class CommonBuilder(ABC):
 		links = self._find_armature_links()
 		for arm_obj, mesh_objs in links.items():
 			for mesh_obj in mesh_objs:
-				action = self.merge_weights_action(arm_obj, mesh_obj)
-				if action is not None:
-					vertex_groups.merge_weights(mesh_obj, mapping=action, strict=True)
+				action = None
+				try:
+					action = self.merge_weights_action(arm_obj, mesh_obj)
+					if action is not None:
+						vertex_groups.WeightsMerger(mesh_obj, mapping=action, strict=True).merge_weights()
+				except Exception as exc:
+					log.error(f"Failed to merge weights on {arm_obj=!r}, {mesh_obj=!r}, {action=!r}: {exc}", exc_info=exc)
+					raise exc
 	
 	def shapekey_action(self, obj: 'Object', mesh: 'Mesh', key: 'ShapeKey') -> 'float|None':
 		"""

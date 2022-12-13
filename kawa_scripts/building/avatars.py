@@ -114,7 +114,7 @@ class VariantAvatarBuilder(CommonAvatarBuilder, ABC):
 	def match_variant_filter(self, options: 'dict[str, set[str]]'):
 		variants = options.get('V')
 		if variants is None:
-			return False
+			return True
 		if self.get_variant() not in variants:
 			return False
 		return True
@@ -127,24 +127,26 @@ class VariantAvatarBuilder(CommonAvatarBuilder, ABC):
 		if not self.match_variant_filter(options):
 			return False
 		return True
-
+	
 	def shapekey_action(self, obj: 'Object', mesh: 'Mesh', key: 'ShapeKey'):
 		if key.name.startswith('_'):
 			return key.value
 		base_name, options = self._parse_special_name(key.name)
-		if not self.match_filter(options):
-			return key.value
-		return None
-
+		match = self.match_filter(options)
+		# log.info(f"Object {obj.name!r} ShapeKey {key.name!r} action match: {match}")
+		return None if match else key.value
+	
 	def shapekey_new_name(self, obj: 'Object', mesh: 'Mesh', key: 'ShapeKey') -> 'str|None':
 		base_name, options = self._parse_special_name(key.name)
 		return base_name
-
+	
 	def attribute_action(self, obj: 'Object', mesh: 'Mesh', attribute: 'Attribute') -> 'str|None':
 		if attribute.name.startswith('_'):
 			return None
 		base_name, options = self._parse_special_name(attribute.name)
-		if not self.match_filter(options):
+		match = self.match_filter(options)
+		log.info(f"Object {obj.name!r} Attribute {attribute.name!r} action match: {match}")
+		if not match:
 			return None
 		if base_name.startswith('DeleteVerts'):
 			return 'DELETE_VERTS'
