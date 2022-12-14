@@ -211,6 +211,60 @@ class WeightsMerger:
 		log.info(f"Merged weights on {self.objects_modified}/{self.objects_iterated} objects: {self.verts_modified} vertices changed.")
 
 
+def fix_ghost_weights(objs: 'HandyMultiObject', strict: 'bool|None' = None, op: 'Operator' = None):
+	for obj in objects.resolve_objects(objs):
+		mesh = meshes.get_safe(obj, strict=strict)
+		if mesh is None:
+			continue
+		if not objects.ensure_in_mode(obj, 'OBJECT', strict=strict):
+			continue
+		max_id = len(obj.vertex_groups) if obj.vertex_groups else 0
+		bm = bmesh.new()
+		modified = 0
+		try:
+			bm.from_mesh(mesh)
+			bm.verts.ensure_lookup_table()
+			deform_layer = bm.verts.layers.deform.active  # type: BMLayerItem
+			if not deform_layer:
+				if log.is_debug():
+					log.info(f"No deform layer on {obj!r}, {mesh!r}.", op=op)
+				continue
+			new_weights = dict()
+			for bm_vert in bm.verts:
+				new_weights.clear()
+				reassign = False
+				bm_deform_vert = bm_vert[deform_layer]  # type: BMDeformVert
+				for index, weight in bm_deform_vert.items():
+					if index >= max_id:
+						# Индекс группы больше, чем групп на объекте.
+						if log.is_debug():
+							msg = f"Detected ghost group #{index} with weight {weight}"
+							log.warning(f"{msg} on vert #{bm_vert.index} on {obj!r}, {mesh!r}.", op=op)
+						reassign = True
+						continue
+					elif (already_weight := new_weights.get(index)) is not None:
+						# Индекс повторется.
+						if log.is_debug():
+							msg = f"Detected duplicate group #{index} with weight {weight} (against {already_weight})"
+							log.warning(f"{msg} on vert #{bm_vert.index} on {obj!r}, {mesh!r}.", op=op)
+						reassign = True
+						continue
+					else:
+						new_weights[index] = weight
+				if reassign:
+					modified += 1
+					bm_deform_vert.clear()
+					for index, weight in new_weights.items():
+						bm_deform_vert[index] = weight
+			if modified > 0:
+				log.warning(f"Reassigned weights on {modified}/{len(bm.verts)} vertices on Object {obj.name!r}, Mesh {mesh.name!r}.", op=op)
+				bm.to_mesh(mesh)
+		except Exception as exc:
+			log.error(f"Failed to fix_ghost_weights on {obj!r}, {mesh!r}: {exc}", exc_info=exc, op=op)
+		finally:
+			bm.free()
+
+
 def remove_empty(objs: 'HandyMultiObject', limit: 'float' = 0.0, ignore_locked: 'bool' = False,
 		strict: 'bool|None' = None, op: 'Operator' = None) -> 'tuple[int, int]':
 	"""
@@ -238,15 +292,10 @@ def remove_empty(objs: 'HandyMultiObject', limit: 'float' = 0.0, ignore_locked: 
 	"""
 	removed_groups, removed_objects = 0, 0
 	# In Blender 3.0+ vertex weight data fully stored in Mesh, not Object, so we can skip repeating meshes.
-	processed_meshes = set() if bpy.app.version[0] >= 3 else None
 	for obj in objects.resolve_objects(objs):
 		mesh = meshes.get_safe(obj, strict=strict)
 		if mesh is None:
 			continue
-		if processed_meshes is not None:
-			if mesh in processed_meshes:
-				continue
-			processed_meshes.add(mesh)
 		if not objects.ensure_in_mode(obj, 'OBJECT', strict=strict):
 			continue
 		if obj.vertex_groups is None or len(obj.vertex_groups) < 1:
@@ -321,6 +370,7 @@ classes = (
 __all__ = [
 	'get_weight_safe',
 	'WeightsMerger',
+	'fix_ghost_weights',
 	'remove_empty',
 	'OperatorRemoveEmpty'
 ]
