@@ -462,15 +462,22 @@ class CommonBuilder(ABC):
 	
 	def _remove_empty_vertexgroups(self):
 		objs = self.ensure_processing_scene().objects
-		vertex_groups.remove_empty(objs, limit=1.0 / 100, strict=False)
+		vertex_groups.remove_empty(objs, limit=0.01, strict=False)
 	
 	def _finalize_geometry_editmode(self, obj: 'Object', mesh: 'Mesh'):
-		bpy.ops.mesh.select_all(action='SELECT')
-		bpy.ops.mesh.dissolve_degenerate()
+		# dissolve_degenerate съедает меши схлопнутые шейпкеями
+		# bpy.ops.mesh.select_all(action='SELECT')
+		# bpy.ops.mesh.dissolve_degenerate()
 		bpy.ops.mesh.select_all(action='SELECT')
 		bpy.ops.mesh.delete_loose(use_verts=True, use_edges=True, use_faces=False)
 		bpy.ops.mesh.select_all(action='SELECT')
 		bpy.ops.mesh.quads_convert_to_tris(quad_method='BEAUTY', ngon_method='BEAUTY')
+		if len(obj.vertex_groups) > 0:
+			bpy.ops.mesh.select_all(action='SELECT')
+			bpy.ops.object.vertex_group_limit_total(limit=4)
+			for _ in range(3):
+				bpy.ops.object.vertex_group_normalize_all(lock_active=False)
+				bpy.ops.object.vertex_group_clean(limit=0.01, keep_single=False)
 		bpy.ops.mesh.select_all(action='DESELECT')
 	
 	def _finalize_geometry_objectmode(self, obj: 'Object', mesh: 'Mesh'):
@@ -478,16 +485,17 @@ class CommonBuilder(ABC):
 		bpy.ops.mesh.customdata_custom_splitnormals_clear()  # can be CANCELLED
 		bpy.ops.mesh.customdata_custom_splitnormals_add()
 		mesh.use_auto_smooth = True
+		vertex_groups.fix_ghost_weights(obj, strict=True)
 	
 	def _finalize_geometry_single(self, obj: 'Object', mesh: 'Mesh'):
-		# dissolve_degenerate + delete_loose + quads_convert_to_tris
 		objects.deselect_all()
 		objects.activate(obj)
+		commons.ensure_op_finished(bpy.ops.object.mode_set(mode='OBJECT', toggle=False))
+		self._finalize_geometry_objectmode(obj, mesh)
 		commons.ensure_op_finished(bpy.ops.object.mode_set_with_submode(
 			mode='EDIT', toggle=False, mesh_select_mode={'VERT', 'EDGE', 'FACE'}))
 		self._finalize_geometry_editmode(obj, mesh)
 		commons.ensure_op_finished(bpy.ops.object.mode_set(mode='OBJECT', toggle=False))
-		self._finalize_geometry_objectmode(obj, mesh)
 		objects.deselect_all()
 	
 	def _finalize_geometry(self):
@@ -522,21 +530,24 @@ class CommonBuilder(ABC):
 		bpy.ops.armature.reveal(select=False)
 		bpy.ops.armature.select_all(action='DESELECT')
 		
+		rounds = 0
 		while True:
 			for bone in arm.edit_bones:  # type: EditBone
 				bone.select = (len(bone.children) < 1) and (bone.name not in used_bones)
 			if len(bpy.context.selected_bones) < 1:
 				break
-			s = list(bone.name for bone in arm.edit_bones)
-			log.info(f"Removing {len(s)!r} bones {s!r} form {arm_obj!r}, {arm!r}...")
+			rounds += 1
+			if log.is_debug():
+				s = list(bone.name for bone in arm.edit_bones if bone.select)
+				log.info(f"Removing {len(s)!r} bones {s!r} form {arm_obj!r}, {arm!r}...")
 			commons.ensure_op_finished(bpy.ops.armature.delete())
 		
 		commons.ensure_op_finished(bpy.ops.object.mode_set(mode='OBJECT', toggle=False))
 		objects.deselect_all()
 		
-		removed = len(arm.bones) - bones_before
+		removed = bones_before - len(arm.bones)
 		if removed > 0:
-			log.info(f"Removed {removed} bones from Object {arm_obj.name!r}, Armature {arm.name!r}.")
+			log.info(f"Removed {removed} bones in {rounds} rounds from Object {arm_obj.name!r}, Armature {arm.name!r}.")
 		return removed
 	
 	def _remove_unused_bones(self):

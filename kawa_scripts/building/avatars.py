@@ -55,8 +55,8 @@ class CommonAvatarBuilder(b_common.CommonBuilder, ABC):
 		self._process_attributes()
 		self._remove_by_material_if_necessary()
 		self._remove_unused_materials_slots()
-		self._remove_empty_vertexgroups()
 		self._finalize_geometry()
+		self._remove_empty_vertexgroups()
 		
 		self._remove_unused_bones()
 		
