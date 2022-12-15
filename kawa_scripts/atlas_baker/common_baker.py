@@ -184,18 +184,39 @@ class CommonAtlasBaker(base_baker.BaseAtlasBaker):
 		return 0.5 if not self.fast_mode else 2.0
 	
 	def before_bake(self, bake_type: str, target_image: 'Image'):
-		scene = self.get_scene()
+		"""
+		Some common rendering settings adjust.
 		
-		# Устанавливает максимальный размер текстуры cycles примерно размеру атласа,
-		# потому что нет смысла брать слишком большие текстуры для маленких атласов.
-		image_size = target_image.size
-		avg_size = image_size[0] * 0.5 + image_size[1] * 0.5  # type: float|int
-		avg_size = 1 << round(math.log2(avg_size))
-		avg_size = max(128, min(8192, avg_size))
-		scene.cycles.texture_limit = str(avg_size)
-		scene.cycles.texture_limit_render = str(avg_size)
+		**Adjust Cycles texture size limit:**
+		In most cases, we do not need to use textures larger than atlas itself.
+		Seems to be increasing the speed of rendering a little without noticeable blurring or quality drops.
+		
+		**Adjust Cycles noise threshold:**
+		In most situations, we are baking to export assets into game engines (like Unity),
+		where textures will be LOSSY compressed anyway to DXT5, BC7, or whatever.
+		So we don't need very high quality here: adaptive_threshold = 0.1 and adaptive_min_samples = 4
+		should be fine as with automatic 0, it will be chosen around 0.03 and 42.
+		If NORMAL, reduce twice, as NORMAL seems to be more sensitive for quality when used around contrast shadows.
+		This significantly increases the speed of rendering without noticeable artefacts or quality drops.
+		"""
+		scene = self.get_scene()
+		cycles = scene.cycles
 		
 		scene.render.bake.margin = 1 if self.fast_mode else 64
+		
+		image_size = target_image.size
+		avg_size = image_size[0] * 0.5 + image_size[1] * 0.5  # type: float|int|str
+		avg_size = 1 << round(math.log2(max(2, avg_size)))
+		avg_size = max(128, min(8192, avg_size))
+		avg_size = str(avg_size)
+		cycles.texture_limit = avg_size
+		cycles.texture_limit_render = avg_size
+		
+		cycles.adaptive_threshold = 0.1
+		cycles.adaptive_min_samples = 4
+		if bake_type == 'NORMAL':
+			cycles.adaptive_threshold /= 2
+			cycles.adaptive_min_samples *= 2
 	
 	def export_image(self, bake_type: str, image: 'Image', is_exr=False):
 		aov = self._aovs.get(bake_type)
@@ -237,22 +258,6 @@ class CommonAtlasBaker(base_baker.BaseAtlasBaker):
 			image.colorspace_settings.name = 'sRGB'
 		# target_image.save()
 		log.info(f"Reloaded Image {image.name!r} {bake_type!r} from {save_path!r}...")
-	
-	def before_bake(self, bake_type: str, target_image: 'Image'):
-		"""
-		In most situations, we are baking to export assets into game engines (like Unity),
-		where textures will be LOSSY compressed anyway to DXT5, BC7, or whatever.
-		So we don't need very high quality here: adaptive_threshold = 0.1 and adaptive_min_samples = 4
-		should be fine as with automatic 0, it will be chosen around 0.03 and 42.
-		If NORMAL, reduce twice, as NORMAL seems to be more sensitive for quality when used around contrast shadows.
-		This significantly increases the speed of rendering without noticeable artefacts or quality drops.
-		"""
-		cycles = bpy.context.scene.cycles
-		cycles.adaptive_threshold = 0.1
-		cycles.adaptive_min_samples = 4
-		if bake_type == 'NORMAL':
-			cycles.adaptive_threshold /= 2
-			cycles.adaptive_min_samples *= 2
 	
 	def ensure_scene_settings(self):
 		scene = self.get_scene()
