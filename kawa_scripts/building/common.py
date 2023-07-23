@@ -398,9 +398,9 @@ class CommonBuilder(ABC):
 			mesh = meshes.get_safe(obj, strict=False)
 			if mesh is None:
 				continue
-			bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 			objects.deselect_all()
 			objects.activate(obj)
+			bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
 			obj.active_shape_key_index = 0
 			obj.use_shape_key_edit_mode = False
 			for a_name in list(a.name for a in mesh.attributes):
@@ -474,10 +474,10 @@ class CommonBuilder(ABC):
 		bpy.ops.mesh.quads_convert_to_tris(quad_method='BEAUTY', ngon_method='BEAUTY')
 		if len(obj.vertex_groups) > 0:
 			bpy.ops.mesh.select_all(action='SELECT')
-			bpy.ops.object.vertex_group_limit_total(limit=4)
+			bpy.ops.object.vertex_group_limit_total(group_select_mode='BONE_DEFORM', limit=4)
 			for _ in range(3):
-				bpy.ops.object.vertex_group_normalize_all(lock_active=False)
-				bpy.ops.object.vertex_group_clean(limit=0.01, keep_single=False)
+				bpy.ops.object.vertex_group_normalize_all(group_select_mode='BONE_DEFORM', lock_active=False)
+				bpy.ops.object.vertex_group_clean(group_select_mode='BONE_DEFORM', limit=0.01, keep_single=False)
 		bpy.ops.mesh.select_all(action='DESELECT')
 	
 	def _finalize_geometry_objectmode(self, obj: 'Object', mesh: 'Mesh'):

@@ -308,11 +308,12 @@ class BaseMeshCombiner:
 		self._check_roots()
 		
 		obj_n, obj_i, joins = len(self.roots_names), 0, 0
-		reporter = _reporter.LambdaReporter(self.report_time)
-		reporter.func = lambda r, t: _log.info(
-			"Joining meshes: Roots={0}/{1}, Joined={2}, Time={3:.1f} sec, ETA={4:.1f} sec...".format(
-				obj_i, obj_n, joins, t, r.get_eta(1.0 * obj_i / obj_n)))
-		
+
+		def do_report(r, t):
+			eta = r.get_eta(1.0 * obj_i / obj_n)
+			_log.info(f"Joining meshes: Roots={obj_i}/{obj_n}, Joined={joins}, Time={t:.1f} sec, ETA={eta:.1f} sec...")
+
+		reporter = _reporter.LambdaReporter(report_time=self.report_time, func=do_report)
 		for root_name in self.roots_names:
 			joins += self._process_root(root_name)
 			obj_i += 1

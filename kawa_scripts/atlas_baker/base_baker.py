@@ -764,13 +764,14 @@ class BaseAtlasBaker:
 				bake_color.default_value[:] = (0.9, 0.9, 0.9, 1.0)
 		elif bake_type == 'NORMAL':
 			# Normal baked as-is in its own NORMAL pass,
-			# but need to turn of Alpha to avoid gray zones on final render.
+			# but need to turn off Alpha to avoid gray zones on final render.
 			src_shader = shader_nodes.get_link_surface(mat, target='CYCLES').from_node
 			src_alpha = src_shader.inputs.get('Alpha')  # type: NodeSocket|NodeSocketFloat
-			src_alpha.default_value = 1.0
-			for link in src_alpha.links:  # type: NodeLink
-				log.info(f"Removing alpha link from {link.from_node!r} to {link.to_node!r} in {mat!r} for NORMAL pass.")
-				node_tree.links.remove(link)
+			if src_alpha:
+				src_alpha.default_value = 1.0
+				for link in src_alpha.links:  # type: NodeLink
+					# log.info(f"Removing alpha link from {link.from_node!r} to {link.to_node!r} in {mat!r} for NORMAL pass.")
+					node_tree.links.remove(link)
 		else:
 			pass
 	
@@ -901,7 +902,7 @@ class BaseAtlasBaker:
 		try:
 			tmat = self.get_target_material(obj, smat)
 			if tmat is not None and not isinstance(tmat, Material):
-				raise TypeError()
+				raise TypeError(f"{type(tmat)} {tmat!r}")
 		except Exception as exc:
 			log.raise_error(RuntimeError, f'Can not get target material for {obj} and {smat}.', cause=exc)
 		return tmat
