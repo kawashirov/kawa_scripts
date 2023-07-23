@@ -10,10 +10,12 @@
 """
 Useful tools for Vertex Groups
 """
+import gc
 
 import bpy
 import bpy.app
-from bpy.types import Object, Mesh, VertexGroup, Context, Operator
+from bpy.types import Object, Context, Operator
+from bpy.types import Mesh, VertexGroup, MeshVertex
 
 import bmesh
 from bmesh.types import BMVert, BMLayerItem, BMDeformVert
@@ -21,6 +23,9 @@ from bmesh.types import BMVert, BMLayerItem, BMDeformVert
 from . import _internals
 from . import _doc
 from ._internals import log
+from . import commons
+from . import armature
+from . import attributes
 from . import objects
 from . import meshes
 
@@ -45,6 +50,70 @@ def get_weight_safe(group: 'VertexGroup', index: 'int', default=0.0):
 		return group.weight(index)
 	except RuntimeError:
 		return default
+
+
+def halfbone_apply_armature(objs: 'HandyMultiObject'):
+	objs = list(objects.resolve_objects(objs))
+	armature_obj = list(obj for obj in objs if armature.is_armature_object(obj))
+	if len(armature_obj) != 1:
+		raise RuntimeError(f"There is no single Armature-Object provided ({len(armature_obj)})")
+	armature_obj = armature_obj[0]  # type: Object|list[Object]
+	
+	armature_data = armature.get_safe(armature_obj, strict=True)
+	
+	if armature_data.bones.active is None:
+		raise RuntimeError(f"There is no active bone in Armature-Object provided ({armature_obj})")
+	half_name = armature_data.bones.active.name
+	
+	selected = list(bone.name for bone in armature_data.bones if armature_data.bones.active != bone and bone.select)
+	if len(selected) != 2:
+		raise RuntimeError(f"There is no two selected control bones in Armature-Object provided ({len(selected)})")
+	ctrl_a, ctrl_b = selected
+	
+	mesh_objs = list(obj for obj in objs if meshes.is_mesh_object(obj))
+	if len(mesh_objs) < 1:
+		raise RuntimeError(f"There is no Mesh-Objects provided ({len(mesh_objs)})")
+	
+	halfbone_apply_weight(mesh_objs, ctrl_a, ctrl_b, half_name)
+
+
+def halfbone_apply_weight(objs: 'objects.HandyMultiObject', ctrl_a: 'str|int', ctrl_b: 'str|int', half_name: 'str|int'):
+	for obj in objects.resolve_objects(objs):
+		halfbone_apply_weight_single(obj, ctrl_a, ctrl_b, half_name)
+
+
+def halfbone_apply_weight_single(obj: 'Object', ctrl_a: 'str|int', ctrl_b: 'str|int', half_name: 'str|int'):
+	log.info(f"{obj=!r}, {ctrl_a=!r}, {ctrl_b=!r}, {half_name=!r}")
+	mesh = meshes.get_safe(obj)
+	a_group = obj.vertex_groups.get(ctrl_a)
+	b_group = obj.vertex_groups.get(ctrl_b)
+	if a_group is None or b_group is None:
+		return
+	half_group = obj.vertex_groups.get(half_name)
+	if half_group is None:
+		half_group = obj.vertex_groups.new(name=half_name)
+	index_list = [0]
+	for v in mesh.vertices:  # type: MeshVertex
+		a_w = get_weight_safe(a_group, v.index)
+		if 1.0 <= a_w or a_w <= 0.0:
+			continue
+		b_w = get_weight_safe(b_group, v.index)
+		if 1.0 <= a_w or a_w <= 0.0:
+			continue
+		lg = a_w + b_w  # <1
+		a_wn, b_wn = a_w / lg, b_w / lg
+		# вычисляем новый вес для полугурппы
+		h_wn = min(a_wn, b_wn) * 2.0 * lg
+		# отображение [0.5..1] в [0...1]
+		a_wn = min(max(a_wn * 2.0 - 1.0, 0.0), 1.0) * lg
+		b_wn = min(max(b_wn * 2.0 - 1.0, 0.0), 1.0) * lg
+		#
+		if log.is_debug():
+			log.info(f"#{v.index}: {a_w}, {b_w} -> {a_wn}, {b_wn} and {h_wn}")
+		index_list[0] = v.index
+		a_group.add(index_list, a_wn, 'REPLACE')
+		b_group.add(index_list, b_wn, 'REPLACE')
+		half_group.add(index_list, h_wn, 'ADD')
 
 
 class WeightsMerger:
@@ -211,6 +280,163 @@ class WeightsMerger:
 		log.info(f"Merged weights on {self.objects_modified}/{self.objects_iterated} objects: {self.verts_modified} vertices changed.")
 
 
+def weights_control_points(objs: 'HandyMultiObject', smooth_points: 'str', ref_points: 'str', iterations=100,
+		strict: 'bool|None' = None, op: 'Operator' = None):
+	for obj in objects.resolve_objects(objs):
+		mesh = meshes.get_safe(obj, strict=strict)
+		if mesh is None:
+			continue
+		if not objects.ensure_in_mode(obj, 'OBJECT', strict=strict):
+			continue
+		smooth_attr = mesh.attributes.get(smooth_points)
+		if not smooth_attr:
+			log.warning(f"No {smooth_attr=!r}")
+			continue
+		ref_attr = mesh.attributes.get(ref_points)
+		if not ref_attr:
+			log.warning(f"No {ref_attr=!r}")
+			continue
+		
+		attributes.load_selection_from_attribute_mesh(
+			mesh, attribute=ref_points, mode='SET', only_visible=False, strict=True)
+		ref_memory = dict()  # type: dict[int, dict[int, float]]
+		for vert in mesh.vertices:  # type: bpy.types.MeshVertex
+			if vert.select:
+				ref_memory[vert.index] = {vge.group: vge.weight for vge in vert.groups}
+		
+		for i in range(iterations):
+			max_dev, avg_dev, counter = 0, 0, 0
+			attributes.load_selection_from_attribute_mesh(
+				mesh, attribute=smooth_points, mode='SET', only_visible=False, strict=True)
+			bpy.ops.object.mode_set_with_submode(mode='EDIT', toggle=False, mesh_select_mode={'VERT'})
+			bpy.ops.object.vertex_group_smooth(group_select_mode='ALL', factor=0.5, repeat=1, expand=0.1)
+			if (i > 0 and i % 10 == 0) or i == iterations - 1:
+				bpy.ops.object.vertex_group_clean(group_select_mode='ALL', limit=0.001, keep_single=True)
+				bpy.ops.object.vertex_group_normalize_all(group_select_mode='ALL', lock_active=False)
+			bpy.ops.object.mode_set(mode='OBJECT', toggle=False)
+			attributes.load_selection_from_attribute_mesh(
+				mesh, attribute=ref_points, mode='SET', only_visible=False, strict=True)
+			for vert in mesh.vertices:  # type: bpy.types.MeshVertex
+				if vert.select:
+					mem = ref_memory[vert.index]
+					for vge in vert.groups:
+						new_weight = mem.get(vge.group, 0)
+						dev = abs(new_weight - vge.weight)
+						max_dev = max(max_dev, dev)
+						avg_dev += dev
+						counter += 1
+						vge.weight = new_weight
+			avg_dev /= counter
+			log.info(f"Iter {i=!r}: {avg_dev=!r} {max_dev=!r}")
+
+
+def _annihilate_deform(bm_deform: 'BMDeformVert|dict[int, float]', group_a: 'int', group_b: 'int', group_dst: 'int') -> 'bool':
+	weight_a = bm_deform.get(group_a, 0)
+	weight_b = bm_deform.get(group_b, 0)
+	if weight_a <= 0 or weight_b <= 0:
+		return False  # need both weights to exist
+	weight_dst = bm_deform.get(group_dst, 0)
+	if weight_a == weight_b:
+		bm_deform[group_dst] = weight_dst + weight_a + weight_b
+		bm_deform[group_a] = 0
+		del bm_deform[group_a]
+		bm_deform[group_b] = 0
+		del bm_deform[group_b]
+	elif weight_a > weight_b:
+		bm_deform[group_dst] = weight_dst + weight_b * 2
+		bm_deform[group_a] = weight_a - weight_b
+		bm_deform[group_b] = 0
+		del bm_deform[group_b]
+	else:
+		bm_deform[group_dst] = weight_dst + weight_a * 2
+		bm_deform[group_a] = 0
+		del bm_deform[group_a]
+		bm_deform[group_b] = weight_b - weight_a
+	return True
+
+
+def _annihilate_single(obj: 'Object', group_a_name: 'str', group_b_name: 'str', group_dst_name: 'str',
+		op: 'Operator' = None) -> 'bool':
+	# internal method, always strict.
+	mesh = meshes.get_safe(obj, strict=True)
+	mesh_modified = False
+	
+	if obj.vertex_groups is None or len(obj.vertex_groups) < 2:
+		return False  # at least 2 any vertex groups should exist.
+	
+	group_a = obj.vertex_groups.get(group_a_name)
+	group_b = obj.vertex_groups.get(group_b_name)
+	if group_a is None or group_b is None:
+		return False  # both source groups should exist
+	
+	group_dst = obj.vertex_groups.get(group_dst_name)
+	if group_dst is None:
+		# create a destination group if necessary
+		group_dst = obj.vertex_groups.new(group_dst_name)
+		mesh_modified = True
+	
+	bm = bmesh.new()
+	try:
+		bm.from_mesh(mesh)
+		bm.verts.ensure_lookup_table()
+		bm_deform_layer = bm.verts.layers.deform.active  # type: BMLayerItem
+		if not bm_deform_layer:
+			log.raise_error(RuntimeError, f"No deform layer on {obj!r}, {mesh!r}, but it must be!")
+		verts_modified = 0
+		for bm_vert in bm.verts:
+			if _annihilate_deform(bm_vert[bm_deform_layer], group_a.index, group_b.index, group_dst.index):
+				verts_modified += 1
+		if verts_modified > 0:
+			bm.to_mesh(mesh)
+			mesh_modified = True
+			what_obj = f"Object {obj.name!r}, Mesh {mesh.name!r}"
+			what_groups = f"Annihilated {group_a_name!r} and {group_b_name!r} into {group_dst_name!r}."
+			log.info(f"Modified {verts_modified} vertices weights on {what_obj}. ({what_groups})", op=op)
+	finally:
+		bm.free()
+	return mesh_modified
+
+
+def annihilate(objs: 'HandyMultiObject', rules: 'dict[tuple[str,str], str]', strict: 'bool|None' = None, op: 'Operator' = None):
+	"""
+	Allows you to modify the weights of the vertices in a given list of objects
+	by negating the same weights of conjugated vertex groups and adding the negated amount to a destination group.
+	This can be used to ensure that no vertices are affected by both the weights of a pair of vertex groups,
+	such as the left and right sides of a character.
+	To specify the negation rules, you must provide a dictionary with a tuple of source vertex group names as the key
+	and a destination vertex group name as the value.
+	For example, to negate the weights of the left and right legs and add the negated amount to the hips vertex group,
+	you would use the rule {('Left leg', 'Right leg'): 'Hips'}.
+	If the destination vertex group does not exist, it will be created.
+	The behavior is undefined if a vertex group is conjugated with more than one other vertex group.
+	
+	Here, a few more examples, how vertices weights for rule {('a', 'b'): 'd'} will change the mesh:
+	
+	{'a': 0.3, 'b': 0.3, 'c': 0.2, 'd': 0.2} -> {'c': 0.2, 'd': 0.8}
+	(Both sources have equal weight, so negated each other completely.)
+	
+	{'a': 0.2, 'b': 0.4, 'c': 0.2, 'd': 0.2} -> {'b': 0.2, 'c': 0.2, 'd': 0.6}
+	('b' have more weight than 'a', so only 0.2 of each is negated.)
+	
+	{'a': 0.6, 'b': 0.0, 'c': 0.2, 'd': 0.2} -> {'a': 0.6, 'b': 0.0, 'c': 0.2, 'd': 0.2}
+	(No change, as 'b' have no actual weight to negate.)
+	
+	This can be used to merge unnecessary paired bones weights,
+	for example, {('Left leg', 'Right leg'): 'Hips'},
+	to make sure no vertices are affected by both left and right sides.
+	"""
+	for obj in objects.resolve_objects(objs):
+		mesh = meshes.get_safe(obj, strict=strict)
+		if mesh is not None:
+			for (group_a, group_b), group_dst in rules.items():
+				try:
+					_annihilate_single(obj, group_a, group_b, group_dst, op=op)
+				except Exception as exc:
+					what = f"{obj!r} ({mesh!r}), {group_a!r}, {group_b!r}, {group_dst!r}"
+					log.error(f"Failed to _annihilate_single on {what}: {exc}", exc_info=exc, op=op)
+					raise exc
+
+
 def fix_ghost_weights(objs: 'HandyMultiObject', strict: 'bool|None' = None, op: 'Operator' = None):
 	for obj in objects.resolve_objects(objs):
 		mesh = meshes.get_safe(obj, strict=strict)
@@ -370,6 +596,8 @@ classes = (
 __all__ = [
 	'get_weight_safe',
 	'WeightsMerger',
+	'weights_control_points',
+	'annihilate',
 	'fix_ghost_weights',
 	'remove_empty',
 	'OperatorRemoveEmpty'
