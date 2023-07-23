@@ -41,8 +41,8 @@ def uv_area_bmesh(bm_face: 'BMFace', bm_uv_layer: 'BMLayerItem'):
 
 
 def repack_active_uv(
-		obj: 'Object', get_scale: 'Optional[Callable[[Material], float]]' = None,
-		rotate: 'bool' = None, margin: 'float' = 0.0, aspect_1: 'bool' = True,
+		obj: 'Object', pack_islands_args: 'dict[str, ...]',
+		get_scale: 'Optional[Callable[[Material], float]]' = None, aspect_1: 'bool' = True,
 ):
 	"""
 	Repack active UV Layer of a given Object with some adjustments:
@@ -52,17 +52,17 @@ def repack_active_uv(
 	"""
 	e = _commons.ensure_op_finished
 	materials = None
+	_objects.deselect_all()
+	_objects.activate(obj)
+	if aspect_1:
+		# Оператор uv.pack_islands использует активную текстуру в материале как референс соотношения сторон
+		# и это никак не переопределяется. Проще всего отключить материалы, тогда соотношение становится 1:1
+		materials = list()
+		for i in range(len(obj.material_slots)):
+			slot = obj.material_slots[i]
+			materials.append(slot.material)
+			slot.material = None
 	try:
-		_objects.deselect_all()
-		_objects.activate(obj)
-		if aspect_1:
-			# Оператор uv.pack_islands использует активную текстуру в материале как референс соотношения сторон
-			# и это никак не переопределяется. Проще всего отключить материалы, тогда соотношение становится 1:1
-			materials = list()
-			for i in range(len(obj.material_slots)):
-				slot = obj.material_slots[i]
-				materials.append(slot.material)
-				slot.material = None
 		# Перепаковка...
 		e(_bpy.ops.object.mode_set_with_submode(mode='EDIT', mesh_select_mode={'FACE'}), name='object.mode_set_with_submode')
 		e(_bpy.ops.mesh.reveal(select=True), name='mesh.reveal')
@@ -78,10 +78,14 @@ def repack_active_uv(
 			e(_bpy.ops.uv.average_islands_scale(), name='uv.average_islands_scale')
 			for index in range(len(obj.material_slots)):
 				scale = 1.0
+				material = None
 				if get_scale is not None:
-					scale = get_scale(obj.material_slots[index].material)
+					material = materials[index] if materials else obj.material_slots[index].material
+					scale = get_scale(material)
+					pass
 				if scale <= 0 or scale == 1.0:
 					continue
+				_log.info(f"Got custom scale for {obj!r}/{index}/{material!r}: {scale!r}")
 				_bpy.context.scene.tool_settings.use_uv_select_sync = True
 				e(_bpy.ops.mesh.select_all(action='DESELECT'), name='mesh.select_all', index=index)
 				e(_bpy.ops.uv.select_all(action='DESELECT'), name='uv.select_all', index=index)
@@ -92,7 +96,7 @@ def repack_active_uv(
 					e(_bpy.ops.transform.resize(value=(scale, scale, scale)), name='transform.resize', value=scale, index=index)
 			e(_bpy.ops.mesh.select_all(action='SELECT'), name='mesh.select_all')
 			e(_bpy.ops.uv.select_all(action='SELECT'), name='uv.select_all')
-			e(_bpy.ops.uv.pack_islands(rotate=rotate, margin=margin), name='uv.pack_islands')
+			e(_bpy.ops.uv.pack_islands(**pack_islands_args), name='uv.pack_islands')
 			e(_bpy.ops.uv.select_all(action='DESELECT'), name='uv.select_all')
 			e(_bpy.ops.mesh.select_all(action='DESELECT'), name='mesh.select_all')
 		finally:
