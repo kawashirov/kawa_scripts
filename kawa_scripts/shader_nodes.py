@@ -102,7 +102,7 @@ def prepare_node_for_baking(mat: 'Material') -> 'ShaderNodeTexImage|Node':
 def socket_copy_input(from_in_socket: 'NodeSocket|NodeSocketColor', to_in_socket: 'NodeSocket|NodeSocketColor', copy_default=False):
 	"""
 	Copies (single) link and to `from_in_socket` to `to_in_socket` too.
-	Copies `default_value` too, but only COLOR->COLOR, VALUE->VALUE and VALUE->COLOR are supported.
+	Copies `default_value` too, but only RGBA->RGBA, VALUE->VALUE and VALUE->RGBA are supported.
 	"""
 	if from_in_socket.id_data != to_in_socket.id_data:
 		raise ValueError(f"Sockets {from_in_socket!r} and {to_in_socket!r} from different node trees!")
@@ -117,16 +117,16 @@ def socket_copy_input(from_in_socket: 'NodeSocket|NodeSocketColor', to_in_socket
 		from_in_socket.id_data.links.new(from_in_socket.links[0].from_socket, to_in_socket)
 	
 	if copy_default:
-		if from_in_socket.type == 'COLOR' and to_in_socket.type == 'COLOR':
-			to_in_socket.default_value[:] = to_in_socket.default_value
+		if from_in_socket.type == 'RGBA' and to_in_socket.type == 'RGBA':
+			to_in_socket.default_value[:] = from_in_socket.default_value
 		elif from_in_socket.type == 'VALUE' and to_in_socket.type == 'VALUE':
-			to_in_socket.default_value = to_in_socket.default_value
-		elif from_in_socket.type == 'VALUE' and to_in_socket.type == 'COLOR':
-			value = to_in_socket.default_value
+			to_in_socket.default_value = from_in_socket.default_value
+		elif from_in_socket.type == 'VALUE' and to_in_socket.type == 'RGBA':
+			value = from_in_socket.default_value
 			to_in_socket.default_value[:] = (value, value, value, 1)
 		else:
-			m_from = f"{from_in_socket!r} ({from_in_socket.default_value!r})"
-			m_to = f"{to_in_socket!r} ({to_in_socket.default_value!r})"
+			m_from = f"{from_in_socket!r} ({from_in_socket.type}) ({from_in_socket.default_value!r})"
+			m_to = f"{to_in_socket!r} ({to_in_socket.type}) ({to_in_socket.default_value!r})"
 			raise ValueError(f"Can't copy default from {m_from} to {m_to}.")
 
 
@@ -205,17 +205,15 @@ def get_link_surface(mat: 'Material', target='ANY') -> 'NodeLink|None':
 	surf_links = list()
 	for node in mat.node_tree.nodes:
 		# print(f'1: {node!r}')
-		if node.type != 'OUTPUT_MATERIAL' or not isinstance(node, _bpy.types.ShaderNodeOutputMaterial):
+		if not (node.type == 'OUTPUT_MATERIAL' and isinstance(node, _bpy.types.ShaderNodeOutputMaterial)):
 			continue
-		if target != 'ANY' and node.target != target and node.target != 'ALL':
+		if not (target == 'ANY' or node.target == target or node.target == 'ALL'):
 			continue
 		# print(f'2: {node!r}')
 		socket = node.inputs['Surface']
 		links = socket.links  # type: tuple[NodeLink]
-		if len(links) < 1:
+		if len(links) != 1:
 			continue
-		if len(links) > socket.link_limit:
-			raise _commons.MaterialConfigurationError(mat, f"Soket {socket!r} has too many ({len(links)}/{socket.link_limit}) links {links!r}")
 		surf_links.append(links[0])
 	
 	if len(surf_links) > 1:
