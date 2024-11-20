@@ -93,6 +93,7 @@ def apply_all_modifiers(obj: 'Object', op: 'Operator' = None) -> 'int':
 	# No context control
 	_objects.deselect_all()
 	_objects.activate(obj)
+	_commons.progress.update()
 	modifc = 0
 	for mod_i, mod_name in list(enumerate(m.name for m in obj.modifiers)):
 		if 'FINISHED' in _bpy.ops.object.modifier_apply(modifier=mod_name):
@@ -100,7 +101,9 @@ def apply_all_modifiers(obj: 'Object', op: 'Operator' = None) -> 'int':
 		else:
 			_log.warning("Can not apply modifier #{0} {1} on {2}!".format(mod_i, repr(mod_name), repr(obj)), op=op)
 		modifc += 1
+		_commons.progress.update()
 	_objects.deselect_all()
+	_commons.progress.update()
 	return modifc
 
 

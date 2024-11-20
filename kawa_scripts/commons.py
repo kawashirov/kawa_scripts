@@ -7,6 +7,8 @@
 # work.  If not, see <http://creativecommons.org/licenses/by-nc-sa/3.0/>.
 #
 #
+import time as _time
+
 import bpy as _bpy
 
 from ._internals import log as _log
@@ -25,7 +27,7 @@ class ConfigurationError(RuntimeError):
 class MaterialConfigurationError(ConfigurationError):
 	def __init__(self, mat, msg: str):
 		self.material = mat
-		msg = 'Material={0}: {1}'.format(mat, msg)
+		msg = f'Material={mat.name if isinstance(mat, _bpy.types.Material) else None}: {msg}'
 		super().__init__(msg)
 
 
@@ -102,3 +104,30 @@ def dict_get_or_add(_dict: 'Dict[_K,_V]', _key: 'Optional[_K]', _creator: 'Calla
 		value = _creator()
 		_dict[_key] = value
 	return value
+
+
+class ProgressUpdater:
+	def __init__(self):
+		self.next_update = 0
+		self.min_delta = 0.1
+		self.progress = None
+	
+	def update(self):
+		if self.progress is None:
+			_bpy.context.window_manager.progress_begin(0, 9998)
+			self.progress = 0
+
+		now = _time.monotonic()
+		if self.next_update > now:
+			return
+		
+		self.next_update = now + self.min_delta
+		self.progress = (self.progress + 1) % 9999
+		_bpy.context.window_manager.progress_update(self.progress)
+	
+	def end(self):
+		_bpy.context.window_manager.progress_end()
+		self.progress = None
+
+
+progress = ProgressUpdater()

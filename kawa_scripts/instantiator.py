@@ -269,6 +269,7 @@ class BaseInstantiator:
 			_objects.select(self.copies)
 			_bpy.ops.object.transform_apply(location=False, rotation=False, scale=self.apply_scales, properties=False)
 			_objects.select(self.copies, state=False)
+			_commons.progress.update()
 			_log.info('Applied scales.')
 		
 		invalids = list(obj for obj in self.copies if obj.name not in self.working_scene.collection.objects)
