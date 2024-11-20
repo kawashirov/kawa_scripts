@@ -10,6 +10,8 @@
 """
 Useful tools for UV Layers
 """
+import datetime
+import time
 
 import bpy as _bpy
 import mathutils as _mu
@@ -50,6 +52,9 @@ def repack_active_uv(
 	- Rescales islands according to `get_scale` per material
 	- Runs `bpy.ops.uv.pack_islands` with given `rotate` and `margin`
 	"""
+	mesh = _meshes.get_safe(obj, strict=False)
+	if not mesh or len(mesh.polygons) < 1:
+		return
 	e = _commons.ensure_op_finished
 	materials = None
 	_objects.deselect_all()
@@ -68,10 +73,13 @@ def repack_active_uv(
 		e(_bpy.ops.mesh.reveal(select=True), name='mesh.reveal')
 		e(_bpy.ops.mesh.select_all(action='SELECT'), name='mesh.select_all')
 		_bpy.context.scene.tool_settings.use_uv_select_sync = True
-		area_type = _bpy.context.area.type
+		area = _bpy.context.area
+		screen = _bpy.context.screen
+		assert isinstance(area, _bpy.types.Area), f"Invalid C.area: {area!r}, C.screen: {screen!r}"
+		area_type = area.type
 		try:
-			_bpy.context.area.type = 'IMAGE_EDITOR'
-			_bpy.context.area.ui_type = 'UV'
+			area.type = 'IMAGE_EDITOR'
+			area.ui_type = 'UV'
 			e(_bpy.ops.uv.reveal(select=True), name='uv.reveal')
 			e(_bpy.ops.mesh.select_all(action='SELECT'), name='mesh.select_all')
 			e(_bpy.ops.uv.select_all(action='SELECT'), name='uv.select_all')
@@ -85,13 +93,13 @@ def repack_active_uv(
 					pass
 				if scale <= 0 or scale == 1.0:
 					continue
-				_log.info(f"Got custom scale for {obj!r}/{index}/{material!r}: {scale!r}")
+				_log.info(f"Got custom scale for {obj.name!r}/{index}/{material.name!r}: {scale!r}")
 				_bpy.context.scene.tool_settings.use_uv_select_sync = True
 				e(_bpy.ops.mesh.select_all(action='DESELECT'), name='mesh.select_all', index=index)
 				e(_bpy.ops.uv.select_all(action='DESELECT'), name='uv.select_all', index=index)
 				obj.active_material_index = index
 				if 'FINISHED' in _bpy.ops.object.material_slot_select():
-					# Может быть не FINISHED если есть не использованые материалы
+					# Может быть не FINISHED если есть не использованные материалы
 					e(_bpy.ops.uv.select_linked(), name='uv.select_linked', index=index)
 					e(_bpy.ops.transform.resize(value=(scale, scale, scale)), name='transform.resize', value=scale, index=index)
 			e(_bpy.ops.mesh.select_all(action='SELECT'), name='mesh.select_all')
@@ -100,7 +108,8 @@ def repack_active_uv(
 			e(_bpy.ops.uv.select_all(action='DESELECT'), name='uv.select_all')
 			e(_bpy.ops.mesh.select_all(action='DESELECT'), name='mesh.select_all')
 		finally:
-			_bpy.context.area.type = area_type
+			area.type = area_type
+			pass
 	finally:
 		e(_bpy.ops.object.mode_set(mode='OBJECT'), name='object.mode_set')
 		if materials is not None:
