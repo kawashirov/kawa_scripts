@@ -53,6 +53,9 @@ class CommonAtlasBaker(base_baker.BaseAtlasBaker):
 		self.objects = self.get_source_objects()
 		self.export_path = None  # type: Path|None
 		self.join_diffuse_and_alpha = False
+		self.metallic_and_smoothness = False
+		self.custom_scales = dict()  # type: dict[str|Material, int|float]
+		self.image_compression = 80  # 100 is too slow
 	
 	def get_scene(self) -> 'Scene':
 		return bpy.context.scene
@@ -76,8 +79,16 @@ class CommonAtlasBaker(base_baker.BaseAtlasBaker):
 	def should_count_image(self, image: 'Image') -> bool:
 		return True  # image.colorspace_settings.name != 'Non-Color'
 	
+	def scale_material(self, key: 'str|Material', value: 'float'):
+		self.custom_scales[key] = value * self.custom_scales.get(key, 1.0)
+	
 	def get_material_scale(self, src_mat: 'Material') -> 'float':
-		return src_mat.get('atlas_scale', 1.0)
+		custom_scale = self.custom_scales.get(src_mat) or self.custom_scales.get(src_mat.name) or 1.0
+		scale = custom_scale * src_mat.get('atlas_scale', 1.0)
+		if scale <= 0:
+			log.warning(f"Material {src_mat.name} have invalid custom scale: {scale}, reset to 1.0.")
+			scale = 1.0
+		return scale
 	
 	def get_material_size(self, src_mat: 'Material') -> 'tuple[float, float]|None':
 		default_szie = (32, 32)
@@ -127,6 +138,10 @@ class CommonAtlasBaker(base_baker.BaseAtlasBaker):
 		
 		depth = round(image.depth / image.channels)
 		image.use_fake_user = True
+		
+		is_exr = round(image.depth / image.channels) >= 16
+		self.export_image(bake_type, image, is_exr=is_exr)
+		
 		self._prepared_images[bake_type] = image
 		size = tuple(image.size)
 		log.info(f"Prepared target image for {bake_type!r}: {image.name!r} {size[0]} x {size[1]} {depth}bpp.")
@@ -134,6 +149,9 @@ class CommonAtlasBaker(base_baker.BaseAtlasBaker):
 	
 	def get_target_image(self, bake_type: str) -> 'Image|None':
 		return self.prepare_target_image(bake_type)
+	
+	def get_target_material_name(self, blend_method: str) -> 'str':
+		return f'{self.atlas_name}-{blend_method}'
 	
 	def prepare_target_material(self, blend_method: str):
 		if blend_method not in ('OPAQUE', 'BLEND', 'HASHED', 'CLIP'):
@@ -143,7 +161,7 @@ class CommonAtlasBaker(base_baker.BaseAtlasBaker):
 			return mat
 		
 		log.info(f"Preparing target material for {blend_method!r}...")
-		name = f'{self.atlas_name}-{blend_method}'
+		name = self.get_target_material_name(blend_method)
 		
 		bsdf = materials.QuickBSDFConstructor(name)
 		bsdf.create_material()
@@ -200,21 +218,25 @@ class CommonAtlasBaker(base_baker.BaseAtlasBaker):
 		This significantly increases the speed of rendering without noticeable artefacts or quality drops.
 		"""
 		scene = self.get_scene()
-		cycles = scene.cycles
+		cycles = scene.cycles  # CyclesRenderSettings
 		
-		scene.render.bake.margin = 1 if self.fast_mode else 64
+		scene.render.bake.margin = 1 if self.fast_mode else 128
 		
 		image_size = target_image.size
 		avg_size = image_size[0] * 0.5 + image_size[1] * 0.5  # type: float|int|str
-		avg_size = 1 << round(math.log2(max(2, avg_size)))
+		avg_size = 1 << round(math.log2(max(2, avg_size)))  # powers of 2
 		avg_size = max(128, min(8192, avg_size))
 		avg_size = str(avg_size)
 		cycles.texture_limit = avg_size
 		cycles.texture_limit_render = avg_size
+		scene.render.use_simplify = True  # activate texture limits
+		log.info(f"cycles.texture_limit(_render) is set to: {avg_size}")
 		
 		cycles.adaptive_threshold = 0.1
 		cycles.adaptive_min_samples = 4
-		if bake_type == 'NORMAL':
+		# cycles.adaptive_max_samples = 256
+		cycles.samples = 16
+		if bake_type == 'NORMAL':  # precise normals
 			cycles.adaptive_threshold /= 2
 			cycles.adaptive_min_samples *= 2
 	
@@ -235,7 +257,8 @@ class CommonAtlasBaker(base_baker.BaseAtlasBaker):
 		
 		depth = round(image.depth / image.channels)
 		scene.render.image_settings.quality = 100
-		scene.render.image_settings.compression = 80  # 100 is too slow
+		if self.image_compression:
+			scene.render.image_settings.compression = self.image_compression
 		scene.render.image_settings.color_mode = 'RGB' if rgb_type else 'BW'
 		scene.render.image_settings.file_format = file_format
 		scene.render.image_settings.color_depth = '16' if depth >= 16 else '8'
@@ -256,7 +279,7 @@ class CommonAtlasBaker(base_baker.BaseAtlasBaker):
 			image.colorspace_settings.name = 'Linear'
 		else:
 			image.colorspace_settings.name = 'sRGB'
-		# target_image.save()
+		
 		log.info(f"Reloaded Image {image.name!r} {bake_type!r} from {save_path!r}...")
 	
 	def ensure_scene_settings(self):
@@ -274,7 +297,7 @@ class CommonAtlasBaker(base_baker.BaseAtlasBaker):
 		self.export_image(bake_type, image, is_exr=is_exr)
 		self.ensure_scene_settings()
 	
-	def join_diffuse_and_alpha_if_necessary_check(self, im: Image, bake_type: 'str'):
+	def join_textures_check(self, im: Image, bake_type: 'str'):
 		if not isinstance(im, Image):
 			log.raise_error(TypeError, f"No valid {bake_type!r} texture: {im!r}")
 	
@@ -283,9 +306,9 @@ class CommonAtlasBaker(base_baker.BaseAtlasBaker):
 			return
 		try:
 			im_diffuse = self.get_target_image('DIFFUSE')
-			self.join_diffuse_and_alpha_if_necessary_check(im_diffuse, 'DIFFUSE')
+			self.join_textures_check(im_diffuse, 'DIFFUSE')
 			im_alpha = self.get_target_image('ALPHA')
-			self.join_diffuse_and_alpha_if_necessary_check(im_alpha, 'ALPHA')
+			self.join_textures_check(im_alpha, 'ALPHA')
 			joined_name = self.get_target_image_name('DIFFUSE+ALPHA', None)
 			joined_path = Path(im_diffuse.filepath)
 			joined_path = joined_path.with_name(f"{joined_name}{joined_path.suffix}")
@@ -293,12 +316,28 @@ class CommonAtlasBaker(base_baker.BaseAtlasBaker):
 		except Exception as exc:
 			log.error(f"Can't join DIFFUSE+ALPHA: {exc}", exc_info=exc)
 	
+	def join_metallic_and_smoothness_if_necessary(self):
+		if not self.metallic_and_smoothness:
+			return
+		try:
+			im_metallic = self.get_target_image('METALLIC')
+			self.join_textures_check(im_metallic, 'METALLIC')
+			im_roughness = self.get_target_image('ROUGHNESS')
+			self.join_textures_check(im_roughness, 'ROUGHNESS')
+			joined_name = self.get_target_image_name('METALLIC+SMOOTHNESS', None)
+			joined_path = Path(im_metallic.filepath)
+			joined_path = joined_path.with_name(f"{joined_name}{joined_path.suffix}")
+			imagemagick.join_rgb_and_alpha(im_metallic.filepath, im_roughness.filepath, joined_path, negate_alpha=True)
+		except Exception as exc:
+			log.error(f"Can't join METALLIC+SMOOTHNESS: {exc}", exc_info=exc)
+	
 	def _apply_baked_materials(self):
 		super()._apply_baked_materials()
 	
 	def bake_atlas(self):
 		super().bake_atlas()
 		self.join_diffuse_and_alpha_if_necessary()
+		self.join_metallic_and_smoothness_if_necessary()
 
 
 __all__ = ['CommonAtlasBaker']
