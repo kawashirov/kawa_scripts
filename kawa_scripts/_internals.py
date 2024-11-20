@@ -41,24 +41,24 @@ class KawaLogger:
 	def is_debug(self):
 		return _bpy.app.debug or _bpy.app.debug_python or self.debug
 	
-	def report(self, message: str, report_type: str = None, op: 'Operator' = None):
+	def report(self, message: str, /, *, report_type: str = None, op: 'Operator' = None):
 		if report_type is None:
 			report_type = 'INFO'
 		message = str(message)
 		self.py_log.info(message)
 		_op_report(op, {'INFO'}, message)
 	
-	def info(self, message: str, op: 'Operator' = None):
+	def info(self, message: str, /, *, op: 'Operator' = None):
 		message = str(message)
 		self.py_log.info(message)
 		_op_report(op, {'INFO'}, message)
 	
-	def warning(self, message: str, op: 'Operator' = None, exc_info: 'BaseException' = None):
+	def warning(self, message: str, /, *, op: 'Operator' = None, exc_info: 'BaseException' = None):
 		message = str(message)
 		self.py_log.warning(message, exc_info=exc_info)
 		_op_report(op, {'WARNING'}, message)
 	
-	def error(self, message: str, error_type: str = None, op: 'Operator' = None, exc_info: 'BaseException' = None):
+	def error(self, message: str, /, *, error_type: str = None, op: 'Operator' = None, exc_info: 'BaseException' = None):
 		""" error_type can be 'ERROR', 'ERROR_INVALID_INPUT', 'ERROR_INVALID_CONTEXT', 'ERROR_OUT_OF_MEMORY' """
 		if error_type is None:
 			error_type = 'ERROR'
@@ -67,7 +67,7 @@ class KawaLogger:
 		self.py_log.error(message, exc_info=exc_info)
 		_op_report(op, {error_type}, message)
 	
-	def raise_error(self, exc_type: 'Type', message: str, op: 'Operator' = None, cause: 'BaseException' = None):
+	def raise_error(self, exc_type: 'Type', message: str, /, *, op: 'Operator' = None, cause: 'BaseException' = None):
 		message = str(message)
 		exc_instance = exc_type(message)  # type: BaseException
 		if cause is not None:
