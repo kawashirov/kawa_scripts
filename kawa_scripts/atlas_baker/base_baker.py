@@ -618,7 +618,7 @@ class BaseAtlasBaker:
 			# 	# Нужно убедиться, что node editor доступен.
 			# 	self._get_node_editor_override()
 			surface_link = shader_nodes.get_link_surface(mat)
-			src_shader = surface_link.from_node  # type: Node|ShaderNode|None
+			src_shader = (surface_link is not None) and surface_link.from_node  # type: Node|ShaderNode|None
 			if src_shader is None:
 				# TODO deeper check
 				raise RuntimeError(f"No main shader found in material {mat.name!r}")
@@ -734,7 +734,7 @@ class BaseAtlasBaker:
 			src_shader, bake_shader, bake_color = self._edit_mat_replace_shader(mat)
 			src_alpha = src_shader.inputs.get('Alpha')
 			if src_alpha is not None:
-				shader_nodes.socket_copy_input(src_alpha, bake_color)
+				shader_nodes.socket_copy_input(src_alpha, bake_color, copy_default=True)
 			else:
 				# По умолчанию непрозрачность
 				bake_color.default_value[:] = (1, 1, 1, 1.0)
@@ -742,7 +742,7 @@ class BaseAtlasBaker:
 			src_shader, bake_shader, bake_color = self._edit_mat_replace_shader(mat)
 			src_shader_color = src_shader.inputs.get('Base Color') or src_shader.inputs.get('Color')  # type: NodeSocket
 			if src_shader_color is not None:
-				shader_nodes.socket_copy_input(src_shader_color, bake_color)
+				shader_nodes.socket_copy_input(src_shader_color, bake_color, copy_default=True)
 			else:
 				# По умолчанию 75% отражаемости
 				bake_color.default_value[:] = (0.75, 0.75, 0.75, 1.0)
@@ -750,7 +750,7 @@ class BaseAtlasBaker:
 			src_shader, bake_shader, bake_color = self._edit_mat_replace_shader(mat)
 			src_metallic = src_shader.inputs.get('Metallic')  # or src_shader.inputs.get('Specular')  # type: NodeSocket
 			if src_metallic is not None:  # TODO RGB <-> value
-				shader_nodes.socket_copy_input(src_metallic, bake_color)
+				shader_nodes.socket_copy_input(src_metallic, bake_color, copy_default=True)
 			else:
 				# По умолчанию 10% металличности
 				bake_color.default_value[:] = (0.1, 0.1, 0.1, 1.0)
@@ -758,7 +758,7 @@ class BaseAtlasBaker:
 			src_shader, bake_shader, bake_color = self._edit_mat_replace_shader(mat)
 			src_roughness = src_shader.inputs.get('Roughness')  # type: NodeSocket
 			if src_roughness is not None:  # TODO RGB <-> value
-				shader_nodes.socket_copy_input(src_roughness, bake_color)
+				shader_nodes.socket_copy_input(src_roughness, bake_color, copy_default=True)
 			else:
 				# По умолчанию 90% шершавости
 				bake_color.default_value[:] = (0.9, 0.9, 0.9, 1.0)
