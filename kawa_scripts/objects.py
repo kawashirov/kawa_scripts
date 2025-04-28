@@ -76,9 +76,17 @@ def deselect_all(view_layer: 'ViewLayer' = None):
 	if view_layer is None:
 		view_layer = _bpy.context.view_layer
 	# ensure_op_finished(bpy.ops.object.select_all(action='DESELECT'), name="bpy.ops.object.select_all(action='DESELECT')")
-	# Это быстрее, чем оператор, и позволяет отжать скрытые объекты
-	while len(view_layer.objects.selected) > 0:
-		view_layer.objects.selected[0].select_set(False, view_layer=view_layer)
+	# select_set быстрее, чем оператор, и позволяет отжать скрытые объекты
+	repeat = True
+	while repeat:
+		# По какой-то ебучей причине одного select_set может быть не достаточно
+		repeat = False
+		for obj in list(view_layer.objects.selected):
+			if not isinstance(obj, _bpy.types.Object):
+				# по какой-то ебучей причине в коллекции объектов может быть None
+				continue
+			repeat = True
+			obj.select_set(False, view_layer=view_layer)
 	view_layer.objects.active = None
 
 

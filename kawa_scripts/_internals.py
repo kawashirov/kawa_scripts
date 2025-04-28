@@ -9,15 +9,19 @@ import typing as _typing
 if _typing.TYPE_CHECKING:
 	from typing import Any, Type, Union, Iterable, Collection, Dict, Set, Sized, Callable
 	from bpy.types import Object, Operator, Context, ID, Optional
-	
-	ContextOverride = Dict[str, Any]
+	from bpy.typing import WmReportItems
 
 
-def _op_report(op: 'Operator', t: 'Set[str]', message: str):
+def _op_report(op: 'Operator', t: 'Set[WmReportItems]', message: str):
 	if op is None:
 		op = getattr(_bpy.context, 'active_operator', None)
-	if op is not None:
-		op.report(t, message)
+	if op is None:
+		return
+	op_report = getattr(op, 'report', None)
+	# turns out it might be garbage in report, not actual method
+	if op_report is None or not callable(op_report):
+		return
+	op.report(t, message)
 
 
 class InteractiveHandler(_logging.StreamHandler):
@@ -58,11 +62,12 @@ class KawaLogger:
 		self.py_log.warning(message, exc_info=exc_info)
 		_op_report(op, {'WARNING'}, message)
 	
-	def error(self, message: str, /, *, error_type: str = None, op: 'Operator' = None, exc_info: 'BaseException' = None):
+	def error(self, message: str, /, *, error_type: 'WmReportItems' = None, op: 'Operator' = None, exc_info: 'BaseException' = None):
 		""" error_type can be 'ERROR', 'ERROR_INVALID_INPUT', 'ERROR_INVALID_CONTEXT', 'ERROR_OUT_OF_MEMORY' """
 		if error_type is None:
 			error_type = 'ERROR'
-		error_type = str(error_type)
+		# noinspection PyTypeChecker
+		error_type = str(error_type) # type: WmReportItems
 		message = str(message)
 		self.py_log.error(message, exc_info=exc_info)
 		_op_report(op, {error_type}, message)

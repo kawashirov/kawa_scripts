@@ -150,24 +150,25 @@ class CommonAtlasBaker(base_baker.BaseAtlasBaker):
 	def get_target_image(self, bake_type: str) -> 'Image|None':
 		return self.prepare_target_image(bake_type)
 	
-	def get_target_material_name(self, blend_method: str) -> 'str':
-		return f'{self.atlas_name}-{blend_method}'
-	
-	def prepare_target_material(self, blend_method: str):
-		if blend_method not in ('OPAQUE', 'BLEND', 'HASHED', 'CLIP'):
-			raise ValueError()
-		mat = self._prepared_materials.get(blend_method)
+	def prepare_target_material(self, material_name: str, bind_alpha: bool, render_method: str):
+		"""
+		Helper method for preparing materials.
+		It's recommended to call it in `before_prepare_materials`, but during `get_target_material` is also OK.
+		Creates material with name `material_name`, and binds `DIFFUSE`, `ALPHA` (if `bind_alpha` is `True`),
+		`NORMAL`, `METALLIC`, `ROUGHNESS`, and `EMIT` images to it, if available by `get_target_image`,
+		then assigns given `surface_render_method` (`blend_method` and `shadow_method` as fallback).
+		"""
+		mat = self._prepared_materials.get(material_name)
 		if mat is not None:
 			return mat
 		
-		log.info(f"Preparing target material for {blend_method!r}...")
-		name = self.get_target_material_name(blend_method)
+		log.info(f"Preparing target material {material_name!r}...")
 		
-		bsdf = materials.QuickBSDFConstructor(name)
+		bsdf = materials.QuickBSDFConstructor(material_name)
 		bsdf.create_material()
 		if im_diffuse := self.get_target_image('DIFFUSE'):
 			bsdf.bind_image('Base Color', im_diffuse, extension='EXTEND')
-		if (blend_method != 'OPAQUE') and (im_alpha := self.get_target_image('ALPHA')):
+		if bind_alpha and (im_alpha := self.get_target_image('ALPHA')):
 			bsdf.bind_image('Alpha', im_alpha, extension='EXTEND')
 		if im_normal := self.get_target_image('NORMAL'):
 			bsdf.bind_image('Normal', im_normal, extension='EXTEND', is_normal=True)
@@ -176,24 +177,46 @@ class CommonAtlasBaker(base_baker.BaseAtlasBaker):
 		if im_roughness := self.get_target_image('ROUGHNESS'):
 			bsdf.bind_image('Roughness', im_roughness, extension='EXTEND')
 		if im_emit := self.get_target_image('EMIT'):
-			bsdf.bind_image('Emission', im_emit, extension='EXTEND')
+			bsdf.bind_image('Emission Color', im_emit, extension='EXTEND')
 		mat = bsdf.get_material()
 		log.info(f'Created new target material {mat.name!r}.')
 		
-		mat.blend_method = blend_method
+		is_blended = render_method == 'BLENDED'
+		mat.surface_render_method = render_method
+		mat.blend_method = 'BLEND' if is_blended else ('CLIP' if bind_alpha else 'OPAQUE')  # deprecated
+		mat.shadow_method = 'HASHED' if is_blended else ('CLIP' if bind_alpha else 'OPAQUE')  # ???
+		
 		mat.use_fake_user = True
-		self._prepared_materials[blend_method] = mat
-		log.info(f"Prepared target material for {blend_method!r}: {mat.name}")
+		self._prepared_materials[material_name] = mat
+		log.info(f"Prepared target material for {material_name!r}: {mat.name}")
 		return mat
+
+	def should_ignore_material(self, origin: 'Object', src_mat: 'Material') -> bool:
+		"""
+		Common sanity and naming conversations check for `get_target_material`
+		"""
+		if origin is None or src_mat is None:
+			return True
+		if src_mat.node_tree is None or src_mat.node_tree.nodes is None:
+			return True
+		if origin.name.startswith('_'):
+			return True
+		if src_mat.name.startswith('_'):
+			return True
+		return False
 	
 	def get_target_material(self, origin: 'Object', src_mat: 'Material') -> 'Material|None':
-		if src_mat is None or src_mat.node_tree is None or src_mat.node_tree.nodes is None:
+		"""
+		As modern Blender uses `surface_render_method` instead of `blend_method`, by default,
+		there is ony `DITHERED` and `BLENDED`, Alpha is always enabled and `origin` is ignored.
+		So, it's recommended to override this to achieve more specific mapping,
+		for example for classic `OPAQUE`/`CLIP`/`HASHED`/`BLEND` or Unity's `Opaque`/`Cutout`/`Fade`.
+		"""
+		if self.should_ignore_material(origin, src_mat):
 			return None
-		if origin.name.startswith('_'):
-			return None
-		if src_mat.name.startswith('_'):
-			return None
-		return self.prepare_target_material(src_mat.blend_method)
+		render_method = src_mat.surface_render_method
+		name = f'{self.atlas_name}-{render_method}'
+		return self.prepare_target_material(name, True, render_method)
 	
 	def get_island_mode(self, _origin: 'Object', _mat: 'Material') -> 'str':
 		return 'POLYGON' if not self.fast_mode else 'OBJECT'

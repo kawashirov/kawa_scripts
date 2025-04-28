@@ -23,7 +23,8 @@ class QuickBSDFConstructor:
 			msg_node = f"{self._shader_node!r} ({self._shader_node.type!r}, {type(self._shader_node)!r}"
 			log.raise_error(RuntimeError, f"Node {msg_node} does not have SHADER output.")
 		self._material.node_tree.links.new(shader_output, output.inputs['Surface'])
-		self._shader_node.inputs['Specular'].default_value = 0.0
+		# bender 4.0+ have no Specular anymore
+		# self._shader_node.inputs['Specular'].default_value = 0.0
 		self._shader_node.inputs['Roughness'].default_value = 1.0
 	
 	def create_material(self):

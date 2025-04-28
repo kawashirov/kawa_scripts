@@ -134,6 +134,7 @@ class BaseAtlasBaker:
 		Ths source Material on this Object will be replaced with target Material after baking.
 		Atlas Baker does not create final Materials by its own.
 		You should prepare target materials (with target images) and provide it here, so Atlas Baker can use and assign it.
+		Called during `_prepare_materials`: after `before_prepare_materials`, but before `after_prepare_materials`.
 		"""
 		raise NotImplementedError('get_target_material')
 	
@@ -167,6 +168,20 @@ class BaseAtlasBaker:
 		Note, the size obtained from `get_material_size` is used for pixel-space.
 		"""
 		return None
+	
+	def before_prepare_materials(self):
+		"""
+		This method is called before `_prepare_materials`.
+		You can prepare something here, for example, pre-create target materials.
+		"""
+		pass
+	
+	def after_prepare_materials(self):
+		"""
+		This method is called after `_prepare_materials`.
+		You can prepare something here, for example, modify target materials.
+		"""
+		pass
 	
 	def before_bake(self, bake_type: str, target_image: 'Image'):
 		"""
@@ -267,20 +282,24 @@ class BaseAtlasBaker:
 	def _prepare_materials(self):
 		if len(self.objects) < 1:
 			log.raise_error(RuntimeError, f"No source objects? {self.objects!r}")
+		self._call_safe('before_prepare_materials', self.before_prepare_materials)
+		log.info(f"Preparing target material index on {len(self.objects)} objects...")
 		for obj in self.objects:
 			for slot in obj.material_slots:  # type: MaterialSlot
 				if slot is None or slot.material is None:
-					log.warning(f"Empty material slot detected: {obj}")
+					log.warning(f"Empty material slot detected on {obj}")
 					continue
 				tmat = self._get_target_material_safe(obj, slot.material)
 				if isinstance(tmat, bpy.types.Material):
 					self._materials[(obj, slot.material)] = tmat
+		log.info(f"Built target material index with {len(self._materials)} items...")
 		mats = set(x[1] for x in self._materials.keys())
 		log.info(f"Validating {len(mats)} source materials...")
 		if len(mats) < 1:
 			log.raise_error(RuntimeError, f"No source materials? {self._materials!r}")
 		for mat in mats:
 			self._check_material(mat)
+		self._call_safe('after_prepare_materials', self.after_prepare_materials)
 		log.info(f"Validated {len(mats)} source materials.")
 	
 	def _prepare_matsizes(self):
@@ -587,26 +606,21 @@ class BaseAtlasBaker:
 			if area.type == 'VIEW_3D':
 				for region in area.regions:
 					if region.type == 'WINDOW':
-						override = {'area': area, 'region': region}
-						bpy.ops.view3d.view_axis(override, type='TOP', align_active=True)
-						bpy.ops.view3d.view_selected(override, use_all_regions=False)
+						with bpy.context.temp_override(area=area, region=region):
+							bpy.ops.view3d.view_axis(type='TOP', align_active=True)
+							bpy.ops.view3d.view_selected(use_all_regions=False)
 		self._bake_obj.hide_render = False
 		self._bake_obj.show_wire = True
 		self._bake_obj.show_in_front = True
 		#
 		objects.activate(self._bake_obj)
 	
-	def _call_before_bake_safe(self, bake_type: str, target_image: 'Image'):
+	def _call_safe(self, name, callable_, *args):
+		# Not really safe, just logging
 		try:
-			self.before_bake(bake_type, target_image)
+			callable_(*args)
 		except Exception as exc:
-			log.raise_error(RuntimeError, f'before_bake failed! {bake_type!r} {target_image!r}', cause=exc)
-	
-	def _call_after_bake_safe(self, bake_type: str, target_image: 'Image'):
-		try:
-			self.after_bake(bake_type, target_image)
-		except Exception as exc:
-			log.raise_error(RuntimeError, f'after_bake failed! {bake_type} {target_image}', cause=exc)
+			log.raise_error(RuntimeError, f'{name} failed! {args=!r}', cause=exc)
 	
 	def _check_material(self, mat: 'Material'):
 		node_tree, out, surface, src_shader_s, src_shader = None, None, None, None, None
@@ -632,6 +646,7 @@ class BaseAtlasBaker:
 			log.raise_error(RuntimeError, f"Material {mat.name!r} is invalid!", cause=exc)
 	
 	def _get_node_editor_override(self):
+		# TODO this is legacy shit
 		if self._node_editor_override is not False:
 			return self._node_editor_override
 		self._node_editor_override = None
@@ -845,7 +860,7 @@ class BaseAtlasBaker:
 		bpy.context.scene.render.use_lock_interface = True
 		bpy.context.scene.render.use_persistent_data = False
 		
-		self._call_before_bake_safe(bake_type, target_image)
+		self._call_safe('before_bake', self.before_bake, bake_type, target_image)
 		
 		log.info(f"Trying to bake atlas Image={target_image.name!r} type={bake_type!r}/{cycles_bake_type!r} aov={aov!r} size={target_size}...")
 		objects.deselect_all()
@@ -866,7 +881,7 @@ class BaseAtlasBaker:
 			bpy.context.blend_data.materials.remove(mat, do_unlink=True)
 		data.orphans_purge_iter()
 		
-		self._call_after_bake_safe(bake_type, target_image)
+		self._call_safe('after_bake', self.after_bake, bake_type, target_image)
 	
 	def _bake_images(self):
 		objects.deselect_all()

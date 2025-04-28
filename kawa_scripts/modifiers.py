@@ -22,7 +22,6 @@ import typing as _typing
 if _typing.TYPE_CHECKING:
 	from typing import *
 	from bpy.types import Object, Modifier, ArmatureModifier, Operator, Mesh, ShapeKey, Context, Event
-	from ._internals import ContextOverride
 
 MODIFIER_TYPES_DEFORM = {'ARMATURE', 'CAST', 'CURVE', 'DISPLACE', 'HOOK', 'LAPLACIANDEFORM', 'LATTICE', 'MESH_DEFORM', 'SHRINKWRAP',
 	'SIMPLE_DEFORM', 'SMOOTH', 'CORRECTIVE_SMOOTH', 'LAPLACIANSMOOTH', 'SURFACE_DEFORM', 'WARP', 'WAVE'}
@@ -48,45 +47,38 @@ def _get_modifier_index(obj: 'Object', modifier: 'Modifier') -> int:
 	raise RuntimeError()
 
 
-def _copy_modifier_and_move_up(ctx: 'ContextOverride', obj: 'Object', modifier_name: 'str', op: 'Operator' = None) -> 'Modifier':
+def _copy_modifier_and_move_up(obj: 'Object', modifier_name: 'str', op: 'Operator' = None) -> 'Modifier':
 	# Создаем копию арматуры
 	modifier = obj.modifiers[modifier_name]
 	modifier_i = _get_modifier_index(obj, modifier)
-	if 'FINISHED' not in _bpy.ops.object.modifier_copy(ctx, modifier=modifier_name):
+	if 'FINISHED' not in _bpy.ops.object.modifier_copy(modifier=modifier_name):
 		_log.raise_error(RuntimeError, 'Huh? Can not copy modifier {0} on {1}!'.format(repr(modifier_name), repr(obj)), op=op)
 	copy_modifier = obj.modifiers[modifier_i + 1]  # type: Modifier
 	assert copy_modifier.type == modifier.type
 	# Двигаем копию арматуры на верх
 	while _get_modifier_index(obj, copy_modifier) > 0:
-		if 'FINISHED' not in _bpy.ops.object.modifier_move_up(ctx, modifier=copy_modifier.name):
+		if 'FINISHED' not in _bpy.ops.object.modifier_move_up(modifier=copy_modifier.name):
 			_log.raise_error(RuntimeError, 'Huh? Can not move up modifier {0} on {1}!'.format(repr(copy_modifier.name), repr(obj)), op=op)
 	return copy_modifier
 
 
 def modifier_apply_compat(obj: 'Object', apply_as: 'str', modifier: 'str', keep_modifier=False, op: 'Operator' = None):
-	ctx = _bpy.context.copy()  # type: ContextOverride
+	ctx = _bpy.context.copy()  # type: dict[str, ...]
 	ctx['object'] = obj
 	ctx['active_object'] = obj
 	ctx['selected_objects'] = [obj]
 	ctx['mode'] = 'OBJECT'
 	ctx['edit_object'] = None
-	if _bpy.app.version >= (2, 90, 0):
-		# Blender 2.9x
+	with _bpy.context.temp_override(**ctx):
 		if apply_as == 'SHAPE':
-			return _bpy.ops.object.modifier_apply_as_shapekey(ctx, modifier=modifier, keep_modifier=keep_modifier)
+			return _bpy.ops.object.modifier_apply_as_shapekey(modifier=modifier, keep_modifier=keep_modifier)
 		else:  # apply_as == 'DATA'
 			if keep_modifier:
-				copy_modifier = _copy_modifier_and_move_up(ctx, obj, modifier, op=op)
-				return _bpy.ops.object.modifier_apply(ctx, modifier=copy_modifier.name)
+				copy_modifier = _copy_modifier_and_move_up(obj, modifier, op=op)
+				return _bpy.ops.object.modifier_apply(modifier=copy_modifier.name)
 			else:
-				return _bpy.ops.object.modifier_apply(ctx, modifier=modifier)
-	else:
-		# Blender 2.8x
-		if keep_modifier:
-			copy_modifier = _copy_modifier_and_move_up(ctx, obj, modifier, op=op)
-			return _bpy.ops.object.modifier_apply(ctx, apply_as=apply_as, modifier=copy_modifier)
-		else:
-			return _bpy.ops.object.modifier_apply(ctx, apply_as=apply_as, modifier=modifier)
+				return _bpy.ops.object.modifier_apply(modifier=modifier)
+
 
 
 def apply_all_modifiers(obj: 'Object', op: 'Operator' = None) -> 'int':

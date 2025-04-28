@@ -80,8 +80,9 @@ def repack_active_uv(
 		try:
 			area.type = 'IMAGE_EDITOR'
 			area.ui_type = 'UV'
-			e(_bpy.ops.uv.reveal(select=True), name='uv.reveal')
+			e(_bpy.ops.mesh.reveal(select=True), name='mesh.reveal')
 			e(_bpy.ops.mesh.select_all(action='SELECT'), name='mesh.select_all')
+			e(_bpy.ops.uv.reveal(select=True), name='uv.reveal')
 			e(_bpy.ops.uv.select_all(action='SELECT'), name='uv.select_all')
 			e(_bpy.ops.uv.average_islands_scale(), name='uv.average_islands_scale')
 			for index in range(len(obj.material_slots)):
