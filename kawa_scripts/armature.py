@@ -356,7 +356,123 @@ class OperatorMergeSelectedToHierarchy(_internals.KawaOperator):
 			_objects.mode_set(original_mode, context=context, op=self)
 
 
+def find_used_vertex_groups(arm_obj: 'Object', where_mesh_objects: 'list[Object]',
+		strict: 'bool' = None, op: 'Operator' = None) -> 'set[str]':
+	used_bones = set()
+	for mesh_object in where_mesh_objects:
+		mesh_data = _meshes.get_safe(mesh_object, strict=strict, op=op)
+		if mesh_data is None:
+			continue
+		for arm_mod in mesh_object.modifiers:
+			if not isinstance(arm_mod, _bpy.types.ArmatureModifier):
+				continue
+			if arm_mod.object != arm_obj:
+				continue
+			used_bones.update(mesh_object.vertex_groups.keys())
+			break
+	return used_bones
+
+
+def remove_unused_bones_by_meshes(arm_obj: 'Object', mesh_objects: 'list[Object]|None',
+		strict: 'bool' = None, op: 'Operator' = None):
+	if mesh_objects is None:
+		mesh_objects = _meshes.find_meshes_affected_by_armatue(arm_obj)
+	used_bones = find_used_vertex_groups(arm_obj, mesh_objects, strict=strict, op=op)
+	return remove_unused_bones_by_used(arm_obj, used_bones, strict=strict, op=op)
+
+
+def remove_unused_bones_by_used(arm_obj: 'Object', used_bones: 'list[str]|set[str]',
+		strict: 'bool' = None, op: 'Operator' = None):
+	bones_removed = 0
+	arm_data = get_safe(arm_obj, strict=True, op=op)
+	_objects.deselect_all()
+	_objects.activate(arm_obj)
+	try:
+		_objects.mode_set('EDIT')
+		for edit_bone in list(arm_data.edit_bones):  # type: EditBone
+			if edit_bone.name not in used_bones:
+				arm_data.edit_bones.remove(edit_bone)
+				bones_removed += 1
+	finally:
+		_objects.mode_set('OBJECT')
+	_objects.deselect_all()
+	return bones_removed
+
+
+class OperatorRemoveUnused(_internals.KawaOperator):
+	"""
+	Operator similar to `kawa_scripts.vertex_groups.remove_unused_bones_by_meshes`
+	that removes bones that have no associated used vertex groups.
+	"""
+	
+	bl_idname = "kawa.bone_remove_unused"
+	bl_label = "Remove unused bones"
+	bl_description = "\n".join((
+		"Removes those of SELECTED bones which has no associated used vertex groups on meshes deformed by this armature. ",
+		"Lookups for deformed mesh objects in entire blend file."
+	))
+	bl_options = {'REGISTER', 'UNDO'}
+	
+	@classmethod
+	def poll(cls, context: 'Context'):
+		if context.mode == 'EDIT_ARMATURE':
+			if len(context.selected_bones) < 1:
+				return False  # Должна быть выбранная кость
+		elif context.mode == 'POSE':
+			if len(context.selected_pose_bones) < 1:
+				return False  # Должна быть выбранная кость
+		else:
+			return False  # Требуется режим EDIT_ARMATURE или POSE
+		return True
+	
+	def invoke(self, context: 'Context', event):
+		return context.window_manager.invoke_props_dialog(self)
+	
+	def _execute_edit_mode(self, context: 'Context'):
+		arm_obj = self.get_active_obj(context)
+		selected_bones = context.selected_bones  # type: List[EditBone]
+		if len(selected_bones) < 1:
+			return {'CANCELLED'}
+		meshes_objs = _meshes.find_meshes_affected_by_armatue(arm_obj, strict=False, op=self)
+		if len(meshes_objs) < 1:
+			self.warning(f"There is no meshes affected by {arm_obj!r}. Operation CANCELLED.")
+			return {'CANCELLED'}
+		
+		used_bones = find_used_vertex_groups(arm_obj, meshes_objs, strict=False, op=self)
+		
+		delete_bones = list(b for b in selected_bones if b.name not in used_bones)
+		# ctx = context.copy()
+		# ctx['active_bone'] = delete_bones[0]
+		# ctx['selected_bones'] = delete_bones
+		# ctx['selected_editable_bones'] = delete_bones
+		# _bpy.ops.armature.delete(ctx)
+		# Удаление через переопределение контекста не работает,
+		# код armature_delete_selected_exec (в armature_edit.c)
+		# удаляет кости по флажку .selected (curBone->flag & BONE_SELECTED)
+		for eb in delete_bones:
+			# Внимание: вызывает рассинхроны иерархий, но чинится блендером само при смене режимов
+			arm_obj.data.edit_bones.remove(eb)
+		
+		self.info(f"Removed {len(delete_bones)} bones from {len(meshes_objs)} affected mesh-objects.")
+		
+		# Это необходимо, что бы засинхронить кости всех видов арматур и перерисовать View3D.
+		_bpy.ops.object.mode_set(mode='OBJECT')
+		# Далее в execute восстановится правильный режим редактирования
+		
+		return {'FINISHED'}
+	
+	def execute(self, context: 'Context'):
+		arm_obj = self.get_active_obj(context)
+		original_mode = arm_obj.mode
+		try:
+			_objects.mode_set('EDIT', context=context, op=self)
+			return self._execute_edit_mode(context)
+		finally:
+			_objects.mode_set(original_mode, context=context, op=self)
+
+
 classes = (
 	OperatorMergeActiveUniformly,
 	OperatorMergeSelectedToHierarchy,
+	OperatorRemoveUnused,
 )

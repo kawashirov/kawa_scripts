@@ -138,6 +138,7 @@ class _VIEW3D_MT_edit_armature_kawa_sub_menu(bpy.types.Menu):
 	def draw(self, context):
 		self.layout.operator(armature.OperatorMergeActiveUniformly.bl_idname, icon='X')
 		self.layout.operator(armature.OperatorMergeSelectedToHierarchy.bl_idname, icon='X')
+		self.layout.operator(armature.OperatorRemoveUnused.bl_idname, icon='X')
 
 
 def _VIEW3D_MT_edit_armature_kawa_sub_menu_layout(self, context):
