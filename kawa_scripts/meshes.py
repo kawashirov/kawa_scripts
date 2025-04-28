@@ -99,10 +99,10 @@ def find_objects_with_material(material: 'Material', where: 'Iterable[Object]' =
 def is_mesh_affected_by_armature(arm_obj: 'Object', mesh_obj: 'Object', strict: 'bool' = None, op: 'Operator' = None) -> 'bool':
 	if _armatures.get_safe(arm_obj, strict=strict, op=op) is None:
 		return False
-	if get_safe(arm_obj, strict=strict, op=op) is None:
+	if get_safe(mesh_obj, strict=strict, op=op) is None:
 		return False
-	for mod in mesh_obj.modifiers:
-		if mod.type == 'ARMATURE' and mod.object == arm_obj:
+	for arm_mod in mesh_obj.modifiers:
+		if arm_mod.type == 'ARMATURE' and isinstance(arm_mod, _bpy.types.ArmatureModifier) and arm_mod.object == arm_obj:
 			return True
 	return False
 
